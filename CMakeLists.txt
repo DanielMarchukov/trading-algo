@@ -29,5 +29,5 @@ project(TradingAlgo VERSION ${PROJECT_VERSION})
 set(_SOURCES
     src
     CACHE INTERNAL "")
-add_subdirectory(${SOURCES})
-add_executable(hello ${SOURCES}/main.cpp)
+add_subdirectory(${_SOURCES})
+add_executable(hello ${_SOURCES}/main.cpp)
