@@ -21,7 +21,14 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 find_package(Boost REQUIRED)
-find_package(QuantLib REQUIRED NO_MODULE)
+find_package(QuantLib)
+
+if(QuantLib_FOUND)
+  message(
+    STATUS
+      "WE HAVE FOUND QUANTLIB HERE: ${QuantLib_INCLUDE_DIRS} AND ${QuantLib_LIBRARIES}"
+  )
+endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(_SOURCES
