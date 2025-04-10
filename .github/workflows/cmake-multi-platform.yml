@@ -49,12 +49,7 @@ jobs:
         id: install
         shell: bash
         run: |
-          sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev libquantlib0v5 && \
-          quantlib-config --version && \
-          quantlib-config --prefix && \
-          quantlib-config --libs && \
-          quantlib-config --exec-prefix && \
-          quantlib-config --cflags
+          sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev libquantlib0v5
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
