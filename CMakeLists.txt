@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 4.0.0)
+
 project(TradingAlgo VERSION 0.0.1)
+
+cmake_policy(SET CMP0167 NEW)
+
+include(FetchContent)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,15 +16,10 @@ set(QL_BUILD_EXAMPLES
 set(QL_BUILD_TEST_SUITE
     OFF
     CACHE BOOL "" FORCE)
-
-cmake_policy(SET CMP0167 NEW)
-
-find_package(Boost REQUIRED)
-find_package(PkgConfig REQUIRED)
-find_package(QuantLib REQUIRED)
+set(FETCHCONTENT_QUIET off)
 
 if(NOT CMAKE_BUILD_TYPE)
-  set(DEFAULT_BUILD_TYPE "Release")
+  set(DEFAULT_BUILD_TYPE "Debug")
   set(CMAKE_BUILD_TYPE
       ${DEFAULT_BUILD_TYPE}
       CACHE STRING "Choose the build type." FORCE)
@@ -27,16 +27,25 @@ if(NOT CMAKE_BUILD_TYPE)
                                                "MinSizeRel" "RelWithDebInfo")
 endif()
 
-include(FetchContent)
-set(FETCHCONTENT_QUIET off)
+find_package(Boost)
+find_package(PkgConfig REQUIRED)
+find_package(QuantLib)
+
 # list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake") QuantLib
-FetchContent_Declare(
-  quantlib
-  GIT_REPOSITORY https://github.com/lballabio/QuantLib.git
-  GIT_TAG v1.37)
-# FetchContent_Declare( boost GIT_REPOSITORY
-# https://github.com/boostorg/boost.git GIT_TAG boost-1.87.0)
-FetchContent_MakeAvailable(quantlib)
+if(NOT Boost_FOUND)
+  FetchContent_Declare(
+    quantlib
+    GIT_REPOSITORY https://github.com/lballabio/QuantLib.git
+    GIT_TAG v1.37)
+endif()
+
+if(NOT QuantLib_FOUND)
+  FetchContent_Declare(
+    Boost
+    GIT_REPOSITORY https://github.com/boostorg/boost.git
+    GIT_TAG boost-1.88.0.beta1)
+endif()
+FetchContent_MakeAvailable(quantlib Boost)
 
 set(_SOURCES
     src
