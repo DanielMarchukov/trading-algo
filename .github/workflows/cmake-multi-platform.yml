@@ -45,7 +45,7 @@ jobs:
         id: oldcmake
         shell: bash
         run: |
-          CMAKE=$(which cmake) && sudo rm $CMAKE
+          which cmake
 
       - name: Install Latest CMake
         uses: ssrobins/install-cmake@v1
@@ -55,7 +55,7 @@ jobs:
         id: pkgconfig
         shell: bash
         run: |
-          sudo apt-get install pkg-config libboost-all-dev
+          which cmake && sudo apt-get install pkg-config libboost-all-dev
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
