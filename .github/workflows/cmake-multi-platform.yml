@@ -14,7 +14,7 @@ jobs:
 
     strategy:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
-      fail-fast: true
+      fail-fast: false
 
       # Set up a matrix to run the following 3 configurations:
       # 1. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
@@ -23,7 +23,7 @@ jobs:
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [ubuntu-latest]
-        build_type: [Debug, Release]
+        build_type: [Debug]
         c_compiler: [gcc, clang]
         include:
           - os: ubuntu-latest
@@ -33,29 +33,23 @@ jobs:
             c_compiler: clang
             cpp_compiler: clang++
         exclude:
-          - os: windows-latest
-            c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Delete old cmake
-        id: oldcmake
-        shell: bash
-        run: |
-          which cmake
-
       - name: Install Latest CMake
         uses: ssrobins/install-cmake@v1
+        with:
+          version: 4.0.0
         continue-on-error: false
 
       - name: Install libraries - PkgConfig, Boost
-        id: pkgconfig
+        id: install
         shell: bash
         run: |
-          which cmake && sudo apt-get install pkg-config libboost-all-dev
+          sudo apt-get install pkg-config libboost-all-dev
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
