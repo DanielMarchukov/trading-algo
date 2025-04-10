@@ -40,6 +40,7 @@ if(NOT QuantLib_FOUND)
     GIT_REPOSITORY https://github.com/lballabio/QuantLib.git
     GIT_TAG v1.37)
   FetchContent_MakeAvailable(quantlib)
+  include_directories(${QuantLib_INCLUDE_DIRS})
 endif()
 
 set(_SOURCES
@@ -48,6 +49,6 @@ set(_SOURCES
 add_subdirectory(${_SOURCES})
 
 add_executable(hello ${_SOURCES}/main.cpp)
-target_link_libraries(hello PUBLIC Boost::boost QuantLib)
 target_include_directories(hello PUBLIC ${Boost_INCLUDE_DIRS}
-                                        ${quantlib_INCLUDE_DIRS})
+                                        ${QuantLib_INCLUDE_DIRS})
+target_link_libraries(hello PUBLIC Boost::boost QuantLib)
