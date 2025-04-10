@@ -6,22 +6,12 @@ if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
 endif()
 
-include(FetchContent)
-
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(BUILD_DEPS ON)
-set(QL_BUILD_EXAMPLES
-    OFF
-    CACHE BOOL "" FORCE)
-set(QL_BUILD_TEST_SUITE
-    OFF
-    CACHE BOOL "" FORCE)
-set(FETCHCONTENT_QUIET OFF)
 
 if(NOT CMAKE_BUILD_TYPE)
-  set(DEFAULT_BUILD_TYPE "Release")
+  set(DEFAULT_BUILD_TYPE "Debug")
   set(CMAKE_BUILD_TYPE
       ${DEFAULT_BUILD_TYPE}
       CACHE STRING "Choose the build type." FORCE)
@@ -31,24 +21,13 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 find_package(Boost REQUIRED)
-find_package(QuantLib)
+find_package(QuantLib REQUIRED)
 
 # list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake") QuantLib
-if(NOT QuantLib_FOUND)
-  FetchContent_Declare(
-    quantlib
-    GIT_REPOSITORY https://github.com/lballabio/QuantLib.git
-    GIT_TAG v1.37)
-  FetchContent_MakeAvailable(quantlib)
-  include_directories(${QuantLib_INCLUDE_DIRS})
-endif()
-
 set(_SOURCES
     src
     CACHE INTERNAL "")
 add_subdirectory(${_SOURCES})
 
 add_executable(hello ${_SOURCES}/main.cpp)
-target_include_directories(hello PUBLIC ${Boost_INCLUDE_DIRS}
-                                        ${QuantLib_INCLUDE_DIRS})
 target_link_libraries(hello PUBLIC Boost::boost QuantLib)

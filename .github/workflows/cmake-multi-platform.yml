@@ -45,11 +45,11 @@ jobs:
           version: 4.0.0
         continue-on-error: false
 
-      - name: Install libraries - PkgConfig, Boost
+      - name: Install libraries - PkgConfig, Boost, QuantLib
         id: install
         shell: bash
         run: |
-          sudo apt-get install pkg-config libboost-all-dev
+          sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
