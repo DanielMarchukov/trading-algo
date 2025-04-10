@@ -21,9 +21,9 @@ endif()
 
 find_package(PkgConfig REQUIRED)
 find_package(Boost REQUIRED)
-find_package(QuantLib REQUIRED)
+find_package(QuantLib REQUIRED NO_MODULE)
 
-# list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake") QuantLib
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(_SOURCES
     src
     CACHE INTERNAL "")
