@@ -41,6 +41,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Delete old cmake
+        id: oldcmake
+        shell: bash
+        run: |
+          CMAKE=$(which cmake) && sudo rm $CMAKE
+
       - name: Install Latest CMake
         uses: ssrobins/install-cmake@v1
         continue-on-error: false
