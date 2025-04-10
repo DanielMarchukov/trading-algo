@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 4.0.0)
 project(TradingAlgo VERSION 0.0.1)
 
 if(POLICY CMP0167)
-  cmake_policy(SET CMP0167 NEW)
+  cmake_policy(SET CMP0167 OLD)
 endif()
 
 set(CMAKE_CXX_STANDARD 23)
@@ -19,11 +19,13 @@ if(NOT CMAKE_BUILD_TYPE)
                                                "MinSizeRel" "RelWithDebInfo")
 endif()
 
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(FindBoost)
+include(FindQuantLib)
 find_package(PkgConfig REQUIRED)
 find_package(Boost REQUIRED)
 find_package(QuantLib REQUIRED)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(_SOURCES
     src
     CACHE INTERNAL "")
