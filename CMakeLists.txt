@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 4.0.0)
 
 project(TradingAlgo VERSION 0.0.1)
 
-cmake_policy(SET CMP0167 NEW)
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
 
 include(FetchContent)
 
@@ -16,7 +18,8 @@ set(QL_BUILD_EXAMPLES
 set(QL_BUILD_TEST_SUITE
     OFF
     CACHE BOOL "" FORCE)
-set(FETCHCONTENT_QUIET off)
+set(FETCHCONTENT_QUIET OFF)
+set(Boost_DEBUG ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(DEFAULT_BUILD_TYPE "Debug")
