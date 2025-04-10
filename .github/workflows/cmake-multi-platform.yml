@@ -45,11 +45,11 @@ jobs:
         uses: ssrobins/install-cmake@v1
         continue-on-error: false
 
-      - name: Install PkgConfig
+      - name: Install libraries - PkgConfig, Boost
         id: pkgconfig
         shell: bash
         run: |
-          sudo apt-get install pkg-config
+          sudo apt-get install pkg-config libboost-all-dev
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.

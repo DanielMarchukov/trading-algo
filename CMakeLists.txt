@@ -19,7 +19,6 @@ set(QL_BUILD_TEST_SUITE
     OFF
     CACHE BOOL "" FORCE)
 set(FETCHCONTENT_QUIET OFF)
-set(Boost_DEBUG ON)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(DEFAULT_BUILD_TYPE "Debug")
@@ -31,18 +30,10 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 find_package(PkgConfig REQUIRED)
-find_package(Boost)
+find_package(Boost REQUIRED)
 find_package(QuantLib)
 
 # list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake") QuantLib
-if(NOT Boost_FOUND)
-  FetchContent_Declare(
-    Boost
-    GIT_REPOSITORY https://github.com/boostorg/boost.git
-    GIT_TAG boost-1.88.0.beta1)
-  FetchContent_MakeAvailable(Boost)
-endif()
-
 if(NOT QuantLib_FOUND)
   FetchContent_Declare(
     quantlib
