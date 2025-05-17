@@ -33,11 +33,14 @@ FetchContent_Declare(
   URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
 )
 FetchContent_MakeAvailable(googletest)
-FetchContent_Declare(
-  restclient-cpp
-  GIT_REPOSITORY https://github.com/mrtazz/restclient-cpp.git
-  GIT_TAG 0.5.3)
-FetchContent_MakeAvailable(restclient-cpp)
+
+# Global compiler settings
+add_compile_options(-Wall -Wextra -Wpedantic -march=native)
+
+# Subproject inclusion add_subdirectory(libs/core-utils)
+add_subdirectory(libs/market-data)
+# add_subdirectory(libs/execution-engine)
+add_subdirectory(strategies)
 
 set(_SOURCES
     src
