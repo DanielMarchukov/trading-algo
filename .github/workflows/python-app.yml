@@ -24,11 +24,11 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyright pytest
+          pip install pyright pytest websockets zmq
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Lint with pyright
         run: |
-          pyright
+          cd data-ingestion/ && pyright
     # - name: Test with pytest
     #   run: |
     #     pytest
