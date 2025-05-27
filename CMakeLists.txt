@@ -48,5 +48,4 @@ set(_SOURCES
 add_subdirectory(${_SOURCES})
 
 add_executable(hello ${_SOURCES}/main.cpp)
-target_link_libraries(hello PUBLIC Boost::boost QuantLib gtest_main
-                                   restclient-cpp)
+target_link_libraries(hello PUBLIC Boost::boost QuantLib gtest_main)
