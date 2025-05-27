@@ -12,6 +12,8 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 build/
+.cache/
+data-ingestion/env/
 
 # Application
 hello

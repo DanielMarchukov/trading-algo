@@ -9,15 +9,7 @@ find_package(PkgConfig REQUIRED)
 find_package(Boost REQUIRED)
 find_package(QuantLib REQUIRED)
 
-include(FetchContent)
-FetchContent_Declare(
-  restclient-cpp
-  GIT_REPOSITORY https://github.com/mrtazz/restclient-cpp.git
-  GIT_TAG 0.5.3)
-FetchContent_MakeAvailable(restclient-cpp)
-
 target_include_directories(market-data
                            PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-target_link_libraries(market-data PRIVATE Boost::boost core-utils QuantLib
-                                          restclient-cpp)
+target_link_libraries(market-data PRIVATE Boost::boost core-utils QuantLib)

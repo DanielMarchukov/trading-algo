@@ -1,0 +1,12 @@
+{
+  "include": ["src"],
+  "executionEnvironments": [
+    {
+      "root": "src"
+    }
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": "error",
+  "venvPath": "./",
+  "venv": "env"
+}
