@@ -5,9 +5,9 @@ name: Python build
 
 on:
   push:
-    branches: [ "mainline" ]
+    branches: ["mainline"]
   pull_request:
-    branches: [ "mainline" ]
+    branches: ["mainline"]
 
 permissions:
   contents: read
@@ -16,19 +16,19 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
-      with:
-        python-version: "3.12"
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pytest
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with pyright
-      run: |
-        pyright
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyright pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Lint with pyright
+        run: |
+          pyright
     # - name: Test with pytest
     #   run: |
     #     pytest
