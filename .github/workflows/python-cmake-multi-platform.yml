@@ -60,6 +60,8 @@ jobs:
         id: install
         shell: bash
         run: |
+          sudo apt-get update -y && \
+          sudo apt-get upgrade -y && \
           sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev libquantlib0v5 curl libcurl4-openssl-dev libssl-dev libzmq3-dev
 
       - name: Set reusable strings
