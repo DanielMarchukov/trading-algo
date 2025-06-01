@@ -13,7 +13,6 @@ async def receive_messages(websocket, socket):
         async for message in websocket:
             try:
                 data = msgpack.unpackb(message, raw=False)
-
                 if data["T"] == "success":
                     print(f"Connection/Authentication successful. {data}")
                 elif data["T"] == "subscription":
