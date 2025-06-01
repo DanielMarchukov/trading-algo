@@ -1,7 +1,7 @@
 # cmake-lint disable=C0301
 cmake_minimum_required(VERSION 4.0.0)
 
-project(TradingAlgo VERSION 0.0.1)
+project(RichOnPaper VERSION 0.0.2)
 
 if(POLICY CMP0167)
   cmake_policy(SET CMP0167 NEW)
@@ -22,30 +22,27 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(FindQuantLib)
+include(FindPython3)
 find_package(PkgConfig REQUIRED)
 find_package(Boost REQUIRED)
 find_package(QuantLib REQUIRED)
+find_package(Python3 REQUIRED COMPONENTS Development.Embed)
+find_package(cppzmq REQUIRED)
 
-include(FetchContent)
-FetchContent_Declare(
-  googletest
-  # Specify the commit you depend on and update it regularly.
-  URL https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
-)
-FetchContent_MakeAvailable(googletest)
+# include(FetchContent) FetchContent_Declare( googletest URL
+# https://github.com/google/googletest/archive/5376968f6948923e2411081fd9372e71a59d8e77.zip
+# ) FetchContent_MakeAvailable(googletest)
 
-# Global compiler settings
-add_compile_options(-Wall -Wextra -Wpedantic -march=native)
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
+add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-march=native")
 
-# Subproject inclusion add_subdirectory(libs/core-utils)
-add_subdirectory(libs/market-data)
-# add_subdirectory(libs/execution-engine)
-add_subdirectory(strategies)
+file(GLOB_RECURSE SOURCES src/*.cpp)
+file(GLOB_RECURSE HEADERS include/*.hpp)
 
-set(_SOURCES
-    src
-    CACHE INTERNAL "")
-add_subdirectory(${_SOURCES})
+include_directories(include)
+# add_library(core STATIC ${SOURCES}) later to be used as core engine
 
-add_executable(hello ${_SOURCES}/main.cpp)
-target_link_libraries(hello PUBLIC Boost::boost QuantLib gtest_main)
+add_executable(hello ${SOURCES} ${HEADERS})
+target_link_libraries(hello PUBLIC Boost::boost QuantLib libzmq Python3::Python)
+
+# add_subdirectory() - build recursively.

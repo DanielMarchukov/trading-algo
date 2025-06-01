@@ -1,6 +1,4 @@
-# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
-# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: CMake on multiple platforms
+name: Build Project
 
 on:
   push:
@@ -9,21 +7,34 @@ on:
     branches: ["mainline"]
 
 jobs:
-  build:
+  build-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyright pytest websockets zmq
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Lint with pyright
+        run: |
+          cd data-ingestion/ && pyright
+    # - name: Test with pytest
+    #   run: |
+    #     pytest
+  build-cpp:
     runs-on: ${{ matrix.os }}
 
     strategy:
       # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
       fail-fast: false
-
-      # Set up a matrix to run the following 3 configurations:
-      # 1. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
-      # 2. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
-      #
-      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
         os: [ubuntu-latest]
-        build_type: [Debug, Release]
+        build_type: [Debu, Release]
         c_compiler: [gcc, clang]
         include:
           - os: ubuntu-latest
@@ -45,11 +56,11 @@ jobs:
           version: 4.0.0
         continue-on-error: false
 
-      - name: Install libraries - PkgConfig, Boost, QuantLib, CURL, OpenSSL
+      - name: Install libraries - PkgConfig, Boost, QuantLib, CURL, OpenSSL, ZMQ
         id: install
         shell: bash
         run: |
-          sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev libquantlib0v5 curl libcurl4-openssl-dev libssl-dev
+          sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev libquantlib0v5 curl libcurl4-openssl-dev libssl-dev libzmq3-dev
 
       - name: Set reusable strings
         # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
