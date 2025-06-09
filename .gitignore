@@ -14,6 +14,7 @@ CMakeUserPresets.json
 build/
 .cache/
 data-ingestion/env/
+data-ingestion/src/env/
 
 # Application
 hello
