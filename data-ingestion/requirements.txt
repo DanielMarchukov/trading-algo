@@ -11,6 +11,7 @@ eodhd==1.0.32
 executing==2.2.0
 fonttools==4.58.0
 idna==3.10
+iniconfig==2.1.0
 ipython==9.2.0
 ipython_pygments_lexers==1.1.1
 jedi==0.19.2
@@ -26,6 +27,7 @@ pandas==2.2.3
 parso==0.8.4
 pexpect==4.9.0
 pillow==11.2.1
+pluggy==1.6.0
 prompt_toolkit==3.0.51
 ptyprocess==0.7.0
 pure_eval==0.2.3
@@ -36,6 +38,7 @@ pydantic==2.11.5
 pydantic_core==2.33.2
 Pygments==2.19.1
 pyparsing==3.2.3
+pytest==8.4.0
 python-dateutil==2.9.0.post0
 pytz==2025.2
 pyzmq==26.4.0

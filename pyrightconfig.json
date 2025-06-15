@@ -1,0 +1,15 @@
+{
+  "include": ["data-ingestion"],
+  "exclude": ["**/__pycache__", "env"],
+  "venvPath": ".",
+  "venv": "env",
+  "executionEnvironments": [
+    {
+      "root": ".",
+      "extraPaths": ["data-ingestion/src"]
+    }
+  ],
+  "pythonVersion": "3.12",
+  "reportMissingImports": true,
+  "reportUnusedImport": true
+}

@@ -13,9 +13,8 @@ _deps
 CMakeUserPresets.json
 build/
 .cache/
-data-ingestion/env/
-data-ingestion/src/env/
-
+env/
+.pytest_cache/
 # Application
 hello
 

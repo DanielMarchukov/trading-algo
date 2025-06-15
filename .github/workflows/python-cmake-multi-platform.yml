@@ -22,10 +22,10 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
       - name: Lint with pyright
         run: |
-          cd data-ingestion/ && pyright
-    # - name: Test with pytest
-    #   run: |
-    #     pytest
+          pyright
+      - name: Test with pytest
+        run: |
+          pytest
   build-cpp:
     runs-on: ${{ matrix.os }}
 
