@@ -1,8 +1,12 @@
+#include "MarketEvent.hpp"
+#include "MarketEventConsumer.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <ql/quantlib.hpp>
 #include <string>
 #include <thread>
@@ -15,19 +19,6 @@ void signal_handler(int signum) {
     std::cout << "Signal " << signum << " received." << std::endl;
     is_running.store(false);
 }
-
-#pragma pack(push, 1)
-struct MarketEvent {
-    uint8_t eventType;
-    uint64_t timestamp;
-    double p1;   // Bid or Trade price
-    uint32_t s1; // Bid or Trade size
-    double p2;
-    uint32_t s2;
-    uint64_t arrivedAt;
-    char padding[7];
-};
-#pragma pack(pop)
 
 void pin_thread_to_core(std::thread &t, int core_id) {
     cpu_set_t cpuset;
@@ -78,21 +69,23 @@ void consumer_worker(const std::string &address, const std::string &symbol) {
 
 int main() {
     std::signal(SIGINT, signal_handler);
-    static_assert(sizeof(MarketEvent) == 48, "Struct size mismatch");
 
     const std::string address = "ipc:///tmp/market_data.sock";
     std::vector<std::string> symbols = {"AAPL", "GOOGL", "AMZN"};
-    std::vector<std::thread> consumers;
+    std::vector<std::thread> threads;
+    std::vector<std::unique_ptr<MarketEventConsumer>> consumers;
 
     for (size_t i = 0; i < symbols.size(); ++i) {
-        consumers.emplace_back(consumer_worker, address, symbols[i]);
-        pin_thread_to_core(consumers.back(), i + 1);
+        consumers.push_back(std::make_unique<MarketEventConsumer>(
+            address, symbols[i], is_running));
+        threads.emplace_back([&consumers, i]() { consumers[i]->run(); });
+        pin_thread_to_core(threads.back(), i + 1);
     }
 
     while (is_running.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
-    for (auto &t : consumers) {
+    for (auto &t : threads) {
         if (t.joinable()) {
             t.join();
         }
