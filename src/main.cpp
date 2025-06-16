@@ -16,8 +16,6 @@ void signal_handler(int signum) {
     is_running.store(false);
 }
 
-void runPublisher(const std::string &address);
-
 #pragma pack(push, 1)
 struct MarketEvent {
     uint8_t eventType;
