@@ -1,7 +1,6 @@
 # [Rich on Paper] - Low-Latency Trading System
 
-**Career Focus**: Demonstrating C++/Python hybrid architecture skills for front
-office, quantitative development roles
+**Career Focus**: Demonstrating C++/Python hybrid architecture skills
 
 ## 🚀 Project Overview
 
@@ -24,12 +23,12 @@ office, quantitative development roles
 |  |---------------------------|          |                           |
 |  | - Connects to Websocket   |          |                           |
 |  | - Normalizes data into a  |          |                           |
-|  |   40-byte struct          |          |                           |
+|  |   48-byte struct          |          |                           |
 |  +---------------------------+          |                           |
 |              |                          |                           |
 +--------------|--------------------------+ - - - - - - - - - - - - - +
                |
-               | 40-byte MarketEvent
+               | 48-byte MarketEvent
                | [ ZMQ: ipc://market_data.sock ]
                V
 +------------------------------------------------------------------------------------+
