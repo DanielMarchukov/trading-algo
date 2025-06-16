@@ -34,11 +34,18 @@ async def handle_market_data(message, zmq_socket):
             if not msg_type or not symbol:
                 continue
 
+            raw_timestamp = item.get("t", 0)
+            if isinstance(raw_timestamp, msgpack.Timestamp):
+                timestamp = (
+                    raw_timestamp.seconds * 1_000_000_000 + raw_timestamp.nanoseconds
+                )
+            else:
+                timestamp = int(raw_timestamp)
+
             topic = symbol.encode("utf-8")
             packed_data = None
             if msg_type == "q":
                 event_type = 1
-                timestamp = item.get("t", 0)
                 bid_price = item.get("bp", 0.0)
                 bid_size = item.get("bs", 0)
                 ask_price = item.get("ap", 0.0)
@@ -56,7 +63,6 @@ async def handle_market_data(message, zmq_socket):
 
             elif msg_type == "t":
                 event_type = 2
-                timestamp = item.get("t", 0)
                 trade_price = item.get("p", 0.0)
                 trade_size = item.get("s", 0)
 
@@ -105,7 +111,11 @@ async def run_communication_loop(websocket, zmq_socket):
         print(f"Authentication response: {auth_response}")
 
         subscription = msgpack.packb(
-            {"action": "subscribe", "quotes": ["AAPL", "GOOGL", "AMZN"]}
+            {
+                "action": "subscribe",
+                "quotes": ["AAPL", "GOOGL", "AMZN"],
+                "trades": ["AAPL", "GOOGL", "AMZN"],
+            }
         )
         await websocket.send(subscription)
         subscription_response_msg = await websocket.recv()
@@ -130,7 +140,7 @@ async def main(zmq_address):
     headers = {"Content-Type": "application/msgpack"}
     context = zmq.asyncio.Context()
     zmq_socket = context.socket(zmq.PUB)
-    zmq_socket.setsockopt(zmq.SNDHWM, 1_000_000)
+    zmq_socket.setsockopt(zmq.SNDHWM, 1000000)
     zmq_socket.setsockopt(zmq.LINGER, 0)
     zmq_socket.bind(zmq_address)
 

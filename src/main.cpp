@@ -22,10 +22,10 @@ void runPublisher(const std::string &address);
 struct MarketEvent {
     uint8_t eventType;
     uint64_t timestamp;
-    double price;  // Bid or Trade price
-    uint32_t size; // Bid or Trade size
-    double askPrice;
-    uint32_t askSize;
+    double p1;   // Bid or Trade price
+    uint32_t s1; // Bid or Trade size
+    double p2;
+    uint32_t s2;
     uint64_t arrivedAt;
     char padding[7];
 };
@@ -60,12 +60,13 @@ void consumer_worker(const std::string &address, const std::string &symbol) {
             auto res2 = subscriber.recv(payload, zmq::recv_flags::none);
             if (res2.has_value() && payload.size() == sizeof(MarketEvent)) {
                 const MarketEvent *event = payload.data<MarketEvent>();
-                std::cout << "Received event for " << symbol
+                std::cout << "ThreadID[" << std::this_thread::get_id() << "] "
+                          << "Received event for " << symbol
                           << ": Type=" << static_cast<int>(event->eventType)
-                          << ", TS=" << event->timestamp
-                          << ", P1=" << event->price << ", S1=" << event->size
-                          << ", P2(Ask)=" << event->askPrice
-                          << ", S2(Ask)=" << event->askSize << std::endl;
+                          << ", TS=" << event->timestamp << ", P1=" << event->p1
+                          << ", S1=" << event->s1 << ", P2(Ask)=" << event->p2
+                          << ", S2(Ask)=" << event->s2
+                          << ", ArrivedAt=" << event->arrivedAt << std::endl;
             }
         } catch (const zmq::error_t &e) {
             if (e.num() == ETERM) {
@@ -81,7 +82,7 @@ int main() {
     std::signal(SIGINT, signal_handler);
     static_assert(sizeof(MarketEvent) == 48, "Struct size mismatch");
 
-    const std::string address = "inproc://alpaca_data";
+    const std::string address = "ipc:///tmp/market_data.sock";
     std::vector<std::string> symbols = {"AAPL", "GOOGL", "AMZN"};
     std::vector<std::thread> consumers;
 
