@@ -5,6 +5,8 @@ import struct
 import websockets
 import zmq
 import zmq.asyncio
+import sys
+import time
 
 # Format
 # B: 1-byte uint (EventType: 1=Quote, 2=Trade)
@@ -13,13 +15,15 @@ import zmq.asyncio
 # I: 4-byte uint (Size1)
 # d: 8-byte double (Price2)
 # I: 4-byte uint (Size2)
+# Q: 8-byte ulonglong (arrived_at nanos ts)
 # 7x: 7 bytes of padding to make the total size 40 bytes.
-MARKET_EVENT = struct.Struct("<BQdIdI7x")
-assert MARKET_EVENT.size == 40, "Struct size mismatch"
+MARKET_EVENT = struct.Struct("<BQdIdIQ7x")
+assert MARKET_EVENT.size == 48, "Struct size mismatch"
 
 
 async def handle_market_data(message, zmq_socket):
     try:
+        arrived_at = time.time_ns()
         data_list = msgpack.unpackb(message, raw=False)
         if not isinstance(data_list, list) or not data_list:
             return
@@ -41,7 +45,13 @@ async def handle_market_data(message, zmq_socket):
                 ask_size = item.get("as", 0)
 
                 packed_data = MARKET_EVENT.pack(
-                    event_type, timestamp, bid_price, bid_size, ask_price, ask_size
+                    event_type,
+                    timestamp,
+                    bid_price,
+                    bid_size,
+                    ask_price,
+                    ask_size,
+                    arrived_at,
                 )
 
             elif msg_type == "t":
@@ -57,6 +67,7 @@ async def handle_market_data(message, zmq_socket):
                     trade_size,
                     0.0,
                     0,
+                    arrived_at,
                 )
 
             if packed_data:
@@ -99,6 +110,12 @@ async def run_communication_loop(websocket, zmq_socket):
         await websocket.send(subscription)
         subscription_response_msg = await websocket.recv()
         subscription_response = msgpack.unpackb(subscription_response_msg, raw=False)
+        if (
+            not isinstance(subscription_response, list)
+            or subscription_response[0].get("T") != "success"
+        ):
+            print(f"FATAL: Subscription failed: {subscription_response}")
+            return
         print(f"Subscription response: {subscription_response}")
 
         async for message in websocket:
@@ -108,28 +125,31 @@ async def run_communication_loop(websocket, zmq_socket):
         return
 
 
-async def init(zmq_address):
+async def main(zmq_address):
     uri = "wss://stream.data.alpaca.markets/v2/iex"
     headers = {"Content-Type": "application/msgpack"}
     context = zmq.asyncio.Context()
     zmq_socket = context.socket(zmq.PUB)
-    zmq_socket.setsockopt(zmq.SNDHWM, 0)
-    zmq_socket.connect(zmq_address)
+    zmq_socket.setsockopt(zmq.SNDHWM, 1_000_000)
+    zmq_socket.setsockopt(zmq.LINGER, 0)
+    zmq_socket.bind(zmq_address)
 
     try:
         async with websockets.connect(uri, additional_headers=headers) as websocket:
             await run_communication_loop(websocket, zmq_socket)
-    except KeyboardInterrupt or Exception as e:
+    except (KeyboardInterrupt, Exception) as e:
         print(f"Main connection error: {e}")
     finally:
         zmq_socket.close()
         context.term()
 
 
-def start_publisher(zmq_address):
-    asyncio.run(init(zmq_address))
-
-
 if __name__ == "__main__":
-    zmq_address = "inproc://alpaca_data"
-    asyncio.run(init(zmq_address))
+    if sys.platform.startswith("linux"):
+        try:
+            os.sched_setaffinity(0, {0})
+        except AttributeError:
+            print("Cannot set CPU affinity")
+
+    ipc_socket = "ipc:///tmp/market_data.sock"
+    asyncio.run(main(ipc_socket))

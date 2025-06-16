@@ -10,7 +10,7 @@ office, quantitative development roles
 
 ## 📈 Real-Time Architecture
 
-```
+```text
                                   [ Alpaca Websocket ]
                                           |
                                           | Raw Market Data (msgpack)
@@ -30,7 +30,7 @@ office, quantitative development roles
 +--------------|--------------------------+ - - - - - - - - - - - - - +
                |
                | 40-byte MarketEvent
-               | [ ZMQ: inproc://market_data ]
+               | [ ZMQ: ipc://market_data.sock ]
                V
 +------------------------------------------------------------------------------------+
 |      C++ PROCESS (Strategy Engine)                                                 |
@@ -55,7 +55,7 @@ office, quantitative development roles
 |  |           |                    |                                             |  |
 |  +-----------|--------------------+                                             |  |
 |              | Final Order                                                      |  |
-|              | [ ZMQ: inproc://execution_orders ]                               |  |
+|              |                                                                  |  |
 |              V                                                                  |  |
 |  +---------------------------+                                                  |  |
 |  |   Execution Gateway       |                                                  |  |
@@ -66,7 +66,7 @@ office, quantitative development roles
 |  +---------------------------+                                                  |  |
 |              |                                                                  |  |
 |              | Fill Event (e.g. "BOUGHT 100 AAPL @ 150.25")                     |  |
-|              | [ ZMQ: inproc://fill_events ]                                    |  |
+|              |                                                                  |  |
 |              +------------------------------------------------------------------+  |
 |                                                                                    |
 +------------------------------------------------------------------------------------+
