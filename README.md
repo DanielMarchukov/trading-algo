@@ -40,9 +40,9 @@
 |  | 1. Receives MarketEvent        |   |   +----------------|---------------------| |  Objects)
 |  |                                |   |   | (Read State)   | - Owns all current  | |
 |  | 2. Strategy->onMarketEvent()   |   |   |                |   positions & PnL   | |
-|  |    (generates Proposed Order)  |   |   +--------------+ +---------------------+ |
-|  |           |                    |   |                  |                      ^  |
-|  |           | Proposed Order     |   +----------------+ |           Fill Event |  |
+|  |    (generates Proposed Order)  |   |   |                +---------------------+ |
+|  |           |                    |   |   +--------------+                      ^  |
+|  |           | Proposed Order     |   |________________. |           Fill Event |  |
 |  |           V                    |                    | |                      |  |
 |  | 3. RiskManager->isAllowed()    |                    +--------------------+   |  |
 |  |    (queries PositionManager)   |------------------->|   RiskManager      |   |  |
