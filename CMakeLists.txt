@@ -21,7 +21,6 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(FindQuantLib)
-include(FindPython3)
 find_package(PkgConfig REQUIRED)
 find_package(Boost REQUIRED)
 find_package(QuantLib REQUIRED)
