@@ -4,9 +4,11 @@
 
 MarketEventConsumer::MarketEventConsumer(const std::string &ipc_address,
                                          const std::string &symbol,
-                                         std::atomic<bool> &is_running)
+                                         std::atomic<bool> &is_running,
+                                         Callback callback)
     : ipc_address_(ipc_address), symbol_(symbol), is_running_(is_running),
-      context_(1), subscriber_(context_, zmq::socket_type::sub) {
+      callback_(std::move(callback)), context_(1),
+      subscriber_(context_, zmq::socket_type::sub) {
     subscriber_.set(zmq::sockopt::rcvtimeo, 500);
     subscriber_.connect(ipc_address_);
     subscriber_.set(zmq::sockopt::subscribe, symbol_);
@@ -31,10 +33,18 @@ void MarketEventConsumer::run() {
                         .count();
 
                 uint64_t publisher_latency = now_ns - event->arrivedAt;
+                uint64_t alpaca_latency = now_ns - event->timestamp;
 
                 std::cout << "C++ [" << symbol_
                           << "]: Received event. Latency from publisher: "
-                          << publisher_latency << " ns." << std::endl;
+                          << publisher_latency << " ns. "
+                          << "Latency from Alpaca: " << alpaca_latency << " ns."
+                          << std::endl;
+
+                if (callback_) {
+                    callback_(*event);
+                }
+
                 // TODO:
                 // 1. Pass the 'event' to a Strategy object.
                 // 2. The strategy returns a potential order.

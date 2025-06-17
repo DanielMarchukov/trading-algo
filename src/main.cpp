@@ -77,7 +77,7 @@ int main() {
 
     for (size_t i = 0; i < symbols.size(); ++i) {
         consumers.push_back(std::make_unique<MarketEventConsumer>(
-            address, symbols[i], is_running));
+            address, symbols[i], is_running, nullptr));
         threads.emplace_back([&consumers, i]() { consumers[i]->run(); });
         pin_thread_to_core(threads.back(), i + 1);
     }

@@ -1,0 +1,9 @@
+line_width: 100
+tab_size: 4
+
+lint:
+  disabled_codes:
+    - "C0301"
+
+format:
+  separate_ctrl_name_with_space: false
