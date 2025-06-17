@@ -34,7 +34,7 @@ jobs:
           pyright
       - name: Test with pytest
         run: |
-          pytest
+          pytest --cov=data-ingestion/src --cov-report=xml:coverage.xml
         env:
           APCA_API_KEY_ID: "DUMMY_KEY_FOR_TESTING"
           APCA_API_SECRET_KEY: "DUMMY_SECRET_FOR_TESTING"
