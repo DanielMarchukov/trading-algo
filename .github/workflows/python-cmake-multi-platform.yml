@@ -38,25 +38,21 @@ jobs:
         env:
           APCA_API_KEY_ID: "DUMMY_KEY_FOR_TESTING"
           APCA_API_SECRET_KEY: "DUMMY_SECRET_FOR_TESTING"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./data-ingestion/coverage.xml
+
   build-cpp:
     runs-on: ${{ matrix.os }}
-
     strategy:
       fail-fast: true
       matrix:
         os: [ubuntu-latest]
         build_type: [Debug, Release]
-        c_compiler: [gcc, clang]
-        include:
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
-          - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
-        exclude:
-          - os: ubuntu-latest
-            c_compiler: cl
+        compiler: [{ c: gcc, cpp: g++ }, { c: clang, cpp: clang++ }]
 
     steps:
       - name: Cache apt packages
@@ -68,7 +64,6 @@ jobs:
             ${{ runner.os }}-apt-get-
 
       - uses: actions/checkout@v4
-
       - name: Install Latest CMake
         uses: ssrobins/install-cmake@v1
         with:
@@ -90,12 +85,15 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
       - name: Configure CMake
-        run: >
+        run: |
+          CMAKE_CXX_FLAGS=""
+          if [[ "${{ matrix.compiler.cpp }}" == "g++" && "${{ matrix.build_type }}" == "Debug" ]]; then
+            CMAKE_CXX_FLAGS="--coverage"
+          fi
           cmake -B ${{ steps.strings.outputs.build-output-dir }}
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DCMAKE_CXX_FLAGS=-g --coverage \
           -S ${{ github.workspace }}
 
       - name: Build
@@ -118,3 +116,11 @@ jobs:
         with:
           name: trading-engine-${{ matrix.os }}-${{ matrix.compiler.c }}-${{ matrix.build_type }}
           path: build/hello
+
+      - name: Upload C++ coverage to Codecov
+        if: matrix.compiler.cpp == 'clang++' && matrix.build_type == 'Debug'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./build/coverage.info
+          fail_ci_if_error: true
