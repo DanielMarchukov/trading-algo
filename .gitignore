@@ -17,8 +17,6 @@ env/
 .pytest_cache/
 data-ingestion/__pycache__/
 data-ingestion/src/__pycache__/
-coverage.xml
-.coverage
 
 # Application
 hello
