@@ -71,13 +71,13 @@ jobs:
           version: 4.0.0
         continue-on-error: false
 
-      - name: Install libraries - PkgConfig, Boost, QuantLib, CURL, OpenSSL, ZMQ
+      - name: Install libraries - PkgConfig, Boost, QuantLib, CURL, OpenSSL, ZMQ, lcov, llvm
         id: install
         shell: bash
         run: |
           sudo apt-get update -y && \
           sudo apt-get upgrade -y && \
-          sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev libquantlib0v5 curl libcurl4-openssl-dev libssl-dev libzmq3-dev lcov
+          sudo apt-get install pkg-config libboost-all-dev libquantlib0-dev libquantlib0v5 curl libcurl4-openssl-dev libssl-dev libzmq3-dev lcov llvm
 
       - name: Set reusable strings
         id: strings
@@ -87,15 +87,15 @@ jobs:
 
       - name: Configure CMake
         run: |
-          CMAKE_CXX_FLAGS=""
-          if [[ "${{ matrix.compiler.cpp }}" == "g++" && "${{ matrix.build_type }}" == "Debug" ]]; then
-            CMAKE_CXX_FLAGS="--coverage"
+          EXTRA_CMAKE_FLAGS=""
+          if [[ "${{ matrix.build_type }}" == "Debug" ]]; then
+            EXTRA_CMAKE_FLAGS="-DENABLE_COVERAGE=ON"
           fi
           cmake -B ${{ steps.strings.outputs.build-output-dir }} \
           -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cpp }} \
           -DCMAKE_C_COMPILER=${{ matrix.compiler.c }} \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS} \
+          $EXTRA_CMAKE_FLAGS \
           -S ${{ github.workspace }}
 
       - name: Build
@@ -105,24 +105,29 @@ jobs:
         working-directory: ${{ steps.strings.outputs.build-output-dir }}
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
 
-      - name: Generate C++ coverage report
-        if: matrix.build_type == 'Debug'
-        working-directory: ./build
-        run: |
-          lcov --capture --directory . --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' --output-file coverage.info
-          lcov --list coverage.info
+      #      - name: Generate gcov report (for GCC)
+      #        if: matrix.compiler.cpp == 'g++' && matrix.build_type == 'Debug'
+      #        working-directory: ./build
+      #        run: |
+      #          lcov --capture --directory . --output-file coverage.info
+      #          lcov --remove coverage.info '/usr/*' --output-file coverage.info
+
+      #      - name: Generate llvm-cov report (for Clang)
+      #        if: matrix.compiler.cpp == 'clang++' && matrix.build_type == 'Debug'
+      #        working-directory: ./build
+      #        run: |
+      #          llvm-profdata merge -sparse default.profraw -o default.profdata
+      #          llvm-cov export -format=lcov -instr-profile=default.profdata rich_on_tests > coverage.info
 
       - name: Upload C++ Executable Artifact
         uses: actions/upload-artifact@v4
         with:
           name: trading-engine-${{ matrix.os }}-${{ matrix.compiler.c }}-${{ matrix.build_type }}
           path: build/hello
-
-      - name: Upload C++ coverage to Codecov
-        if: matrix.compiler.cpp == 'clang++' && matrix.build_type == 'Debug'
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./build/coverage.info
-          fail_ci_if_error: true
+#      - name: Upload C++ coverage to Codecov
+#        if: matrix.compiler.cpp == 'clang++' && matrix.build_type == 'Debug'
+#        uses: codecov/codecov-action@v4
+#        with:
+#          token: ${{ secrets.CODECOV_TOKEN }}
+#          files: ./build/coverage.info
+#          fail_ci_if_error: true

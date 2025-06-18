@@ -45,7 +45,7 @@ include_directories(include)
 # add_library(core STATIC ${SOURCES}) later to be used as core engine
 
 add_executable(hello ${SOURCES} ${HEADERS} src/main.cpp)
-target_link_libraries(hello PUBLIC Boost::boost QuantLib libzmq GTest::gtest_main)
+target_link_libraries(hello PUBLIC Boost::boost QuantLib libzmq)
 
 # add_subdirectory() - build recursively.
 
@@ -53,7 +53,30 @@ target_link_libraries(hello PUBLIC Boost::boost QuantLib libzmq GTest::gtest_mai
 # Testing Configuration
 # ===================================================================
 enable_testing()
+option(ENABLE_COVERAGE "Enable code coverage" OFF)
 add_executable(rich_on_tests ${SOURCES} ${TESTS})
-target_link_libraries(rich_on_tests PUBLIC Boost::boost QuantLib libzmq GTest::gtest_main)
+target_link_libraries(rich_on_tests PUBLIC
+    Boost::boost
+    QuantLib
+    libzmq
+    GTest::gtest_main
+)
+if(ENABLE_COVERAGE)
+    # None of this is actually working, the coverage does not get generated.
+    # TODO: Needs investigation.
+    message(STATUS "Code coverage enabled")
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(STATUS "Using GCC for code coverage")
+        target_compile_options(rich_on_tests INTERFACE --coverage)
+        target_link_options(rich_on_tests INTERFACE --coverage)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        message(STATUS "Using Clang for code coverage")
+        target_compile_options(rich_on_tests INTERFACE -fprofile-instr-generate -fcoverage-mapping)
+        target_link_options(rich_on_tests INTERFACE -fprofile-instr-generate)
+    else()
+        message(WARNING "Code coverage is not supported for the current compiler.")
+    endif()
+endif()
+
 include(GoogleTest)
 gtest_discover_tests(rich_on_tests)
