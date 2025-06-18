@@ -92,10 +92,10 @@ jobs:
           if [[ "${{ matrix.compiler.cpp }}" == "g++" && "${{ matrix.build_type }}" == "Debug" ]]; then
             CMAKE_CXX_FLAGS="--coverage"
           fi
-          cmake -B ${{ steps.strings.outputs.build-output-dir }}
-          -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cpp }}
-          -DCMAKE_C_COMPILER=${{ matrix.compiler.c }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          cmake -B ${{ steps.strings.outputs.build-output-dir }} \
+          -DCMAKE_CXX_COMPILER=${{ matrix.compiler.cpp }} \
+          -DCMAKE_C_COMPILER=${{ matrix.compiler.c }} \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS} \
           -S ${{ github.workspace }}
 
