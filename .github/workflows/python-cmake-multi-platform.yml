@@ -29,12 +29,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install pyright pytest websockets zmq msgpack
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
       - name: Lint with pyright
         run: |
           pyright
+
       - name: Test with pytest
         run: |
-          pytest --cov=data-ingestion/src --cov-report=xml:coverage.xml data-ingestion/src/
+          pytest data-ingestion/src/
         env:
           APCA_API_KEY_ID: "DUMMY_KEY_FOR_TESTING"
           APCA_API_SECRET_KEY: "DUMMY_SECRET_FOR_TESTING"
