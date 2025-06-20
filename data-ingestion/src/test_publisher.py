@@ -35,9 +35,10 @@ class TestPublisher(unittest.TestCase):
 
         unpacked_data = publisher.MARKET_EVENT.unpack(sent_payload)
         self.assertEqual(unpacked_data[0], 1)
-        self.assertEqual(unpacked_data[1], sample_quote["t"])
-        self.assertAlmostEqual(unpacked_data[2], sample_quote["bp"])
-        self.assertEqual(unpacked_data[6], 1234567890)
+        self.assertEqual(unpacked_data[1], b"AAPL\0\0\0")
+        self.assertEqual(unpacked_data[2], sample_quote["t"])
+        self.assertAlmostEqual(unpacked_data[3], sample_quote["bp"])
+        self.assertEqual(unpacked_data[7], 1234567890)
 
     @patch("time.time_ns", return_value=9876543210)
     def test_handle_valid_trade(self, _):
@@ -57,8 +58,9 @@ class TestPublisher(unittest.TestCase):
             self.mock_zmq_socket.send_multipart.call_args[0][0][1]
         )
         self.assertEqual(unpacked_data[0], 2)
-        self.assertAlmostEqual(unpacked_data[2], sample_trade["p"])
-        self.assertEqual(unpacked_data[6], 9876543210)
+        self.assertEqual(unpacked_data[1], b"GOOGL\0\0")
+        self.assertAlmostEqual(unpacked_data[3], sample_trade["p"])
+        self.assertEqual(unpacked_data[7], 9876543210)
 
     def test_handle_malformed_data_is_ignored(self):
         bad_message = {"T": "q", "t": 123}

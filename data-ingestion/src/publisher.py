@@ -10,14 +10,14 @@ import time
 
 # Format
 # B: 1-byte uint (EventType: 1=Quote, 2=Trade)
+# 7s: 7-byte symbol
 # Q: 8-byte ulonglong (Timestamp)
 # d: 8-byte double (Price1)
 # I: 4-byte uint (Size1)
 # d: 8-byte double (Price2)
 # I: 4-byte uint (Size2)
 # Q: 8-byte ulonglong (arrived_at nanos ts)
-# 7x: 7 bytes of padding to make the total size 40 bytes.
-MARKET_EVENT = struct.Struct("<BQdIdIQ7x")
+MARKET_EVENT = struct.Struct("<B7sQdIdIQ")
 assert MARKET_EVENT.size == 48, "Struct size mismatch"
 
 
@@ -43,6 +43,7 @@ async def handle_market_data(message, zmq_socket):
                 timestamp = int(raw_timestamp)
 
             topic = symbol.encode("utf-8")
+            symbol_bytes = symbol.ljust(7, "\0").encode("utf-8")[:7]
             packed_data = None
             if msg_type == "q":
                 event_type = 1
@@ -53,6 +54,7 @@ async def handle_market_data(message, zmq_socket):
 
                 packed_data = MARKET_EVENT.pack(
                     event_type,
+                    symbol_bytes,
                     timestamp,
                     bid_price,
                     bid_size,
@@ -68,6 +70,7 @@ async def handle_market_data(message, zmq_socket):
 
                 packed_data = MARKET_EVENT.pack(
                     event_type,
+                    symbol_bytes,
                     timestamp,
                     trade_price,
                     trade_size,
