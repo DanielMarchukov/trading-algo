@@ -1,5 +1,4 @@
-#ifndef SIMPLE_MARKET_MAKING_STRATEGY_HPP
-#define SIMPLE_MARKET_MAKING_STRATEGY_HPP
+#pragma once
 
 #include "Strategy.hpp"
 #include <string.h>
@@ -44,5 +43,3 @@ class SimpleMarketMakingStrategy : public Strategy {
     double last_trade_price_;
     uint64_t order_id_counter_;
 };
-
-#endif // SIMPLE_MARKET_MAKING_STRATEGY_HPP

@@ -1,5 +1,4 @@
-#ifndef MARKET_EVENT_HPP
-#define MARKET_EVENT_HPP
+#pragma once
 
 #include <cstdint>
 
@@ -17,5 +16,3 @@ struct MarketEvent {
 #pragma pack(pop)
 
 static_assert(sizeof(MarketEvent) == 48, "Struct size mismatch");
-
-#endif

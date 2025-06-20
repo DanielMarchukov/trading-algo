@@ -1,5 +1,4 @@
-#ifndef ORDER_HPP
-#define ORDER_HPP
+#pragma once
 
 #include <cstdint>
 
@@ -19,5 +18,3 @@ struct Order {
 #pragma pack(pop)
 
 static_assert(sizeof(Order) == 30, "Expected size is 26 bytes");
-
-#endif // ORDER_HPP

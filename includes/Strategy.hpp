@@ -1,5 +1,4 @@
-#ifndef STRATEGY_HPP
-#define STRATEGY_HPP
+#pragma once
 
 #include "MarketEvent.hpp"
 #include "Order.hpp"
@@ -11,5 +10,3 @@ class Strategy {
 
     std::vector<Order> onMarketEvent(const MarketEvent &event);
 };
-
-#endif // STRATEGY_HPP

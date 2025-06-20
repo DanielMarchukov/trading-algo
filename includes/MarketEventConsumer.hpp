@@ -1,5 +1,4 @@
-#ifndef MARKET_EVENT_CONSUMER_HPP
-#define MARKET_EVENT_CONSUMER_HPP
+#pragma once
 
 #include "MarketEvent.hpp"
 #include "Order.hpp"
@@ -51,5 +50,3 @@ template <typename StrategyType> class MarketEventConsumer {
     zmq::context_t context_;
     zmq::socket_t subscriber_;
 };
-
-#endif // MARKET_EVENT_CONSUMER_HPP

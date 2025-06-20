@@ -37,11 +37,11 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-march=native")
 
 file(GLOB_RECURSE SOURCES src/*.cpp)
-file(GLOB_RECURSE HEADERS include/*.hpp)
+file(GLOB_RECURSE HEADERS includes/*.hpp)
 file(GLOB_RECURSE TESTS tests/*.cpp)
 list(FILTER SOURCES EXCLUDE REGEX "main.cpp")
 
-include_directories(include)
+include_directories(includes)
 # add_library(core STATIC ${SOURCES}) later to be used as core engine
 
 add_executable(hello ${SOURCES} ${HEADERS} src/main.cpp)
