@@ -1,4 +1,5 @@
 #pragma once
+
 #include "MarketEventConsumer.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
 #include <atomic>

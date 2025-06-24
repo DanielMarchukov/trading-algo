@@ -1,5 +1,6 @@
 #include "TradingEngine.hpp"
 #include "Order.hpp"
+#include "PositionManager.hpp"
 #include <chrono>
 #include <csignal>
 #include <iostream>
@@ -41,21 +42,21 @@ void TradingEngine::launch_consumers() {
     std::cout << "C++ Trading Engine starting up. Launching threads..."
               << std::endl;
 
+    auto risk_manager =
+        std::make_shared<RiskManager>(std::make_shared<PositionManager>());
+
     for (size_t i = 0; i < symbols_.size(); ++i) {
-        auto callback = [symbol =
-                             symbols_[i]](const std::vector<Order> &orders) {
-            std::cout << "--- Orders for " << symbol << " ---" << std::endl;
-            for (const auto &order : orders) {
-                std::cout << "  ID: " << order.id << ", Side: "
-                          << (order.side == OrderSide::Buy ? "Buy" : "Sell")
-                          << ", Qty: " << order.quantity
-                          << ", Px: " << order.price << std::endl;
-            }
+        auto callback = [symbol = symbols_[i]](const Order &order) {
+            std::cout << "--- Order for " << symbol << " ---" << std::endl;
+            std::cout << "  ID: " << order.id << ", Side: "
+                      << (order.side == OrderSide::Buy ? "Buy" : "Sell")
+                      << ", Qty: " << order.quantity << ", Px: " << order.price
+                      << std::endl;
         };
 
         auto consumer =
             std::make_unique<MarketEventConsumer<SimpleMarketMakingStrategy>>(
-                ipc_address_, symbols_[i], is_running_, callback);
+                ipc_address_, symbols_[i], is_running_, callback, risk_manager);
 
         consumer_threads_.push_back(
             {std::thread(&MarketEventConsumer<SimpleMarketMakingStrategy>::run,
@@ -70,6 +71,7 @@ void TradingEngine::launch_consumers() {
 
 void TradingEngine::main_loop() {
     while (is_running_.load()) {
+        // Main loop sleeps while spawned threads are processing market events.
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }

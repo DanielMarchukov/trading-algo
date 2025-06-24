@@ -2,6 +2,7 @@
 
 #include "MarketEvent.hpp"
 #include "Order.hpp"
+#include "RiskManager.hpp"
 #include <atomic>
 #include <functional>
 #include <string>
@@ -9,14 +10,16 @@
 
 template <typename StrategyType> class MarketEventConsumer {
   public:
-    using Callback = std::function<void(const std::vector<Order> &)>;
+    using Callback = std::function<void(const Order &)>;
 
     MarketEventConsumer(const std::string &ipc_address,
                         const std::string &symbol,
-                        std::atomic<bool> &is_running, Callback callback)
+                        std::atomic<bool> &is_running, Callback callback,
+                        std::shared_ptr<RiskManager> risk_manager)
         : ipc_address_(ipc_address), symbol_(symbol), is_running_(is_running),
           callback_(std::move(callback)), strategy_type_(), context_(1),
-          subscriber_(context_, zmq::socket_type::sub) {
+          subscriber_(context_, zmq::socket_type::sub),
+          risk_manager_(risk_manager) {
         subscriber_.set(zmq::sockopt::rcvtimeo, 500);
         subscriber_.connect(ipc_address_);
         subscriber_.set(zmq::sockopt::subscribe, symbol_);
@@ -33,9 +36,10 @@ template <typename StrategyType> class MarketEventConsumer {
             if (subscriber_.recv(payload, zmq::recv_flags::none) &&
                 payload.size() == sizeof(MarketEvent)) {
                 const MarketEvent *event = payload.data<MarketEvent>();
-                auto orders = strategy_type_.onMarketEvent(*event);
-                if (orders.size() > 0 && callback_) {
-                    callback_(orders);
+                for (auto &order : strategy_type_.onMarketEvent(*event)) {
+                    if (risk_manager_->onNewOrder(order) && callback_) {
+                        callback_(order);
+                    }
                 }
             }
         }
@@ -49,4 +53,5 @@ template <typename StrategyType> class MarketEventConsumer {
     StrategyType strategy_type_;
     zmq::context_t context_;
     zmq::socket_t subscriber_;
+    std::shared_ptr<RiskManager> risk_manager_;
 };
