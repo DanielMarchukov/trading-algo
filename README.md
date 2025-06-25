@@ -50,6 +50,8 @@ Below is a diagram of the proposed architecture.
 
 ### 📈 Architecture
 
+#### Initial Architecture Diagram
+
 ```text
                                   [ Alpaca Websocket ]
                                           |
@@ -112,6 +114,57 @@ Below is a diagram of the proposed architecture.
 +------------------------------------------------------------------------------------+
 ```
 
+#### Existing Architecture Diagram
+
+```text
+                               +----------------------------------+
+                               |     Python Data Publisher        |
+                               |    (Pinned to e.g. Core 0)       |
+                               +----------------------------------+
+                                                |
+                                                | 48-byte MarketEvent
+                                                | [ZMQ IPC: ipc:///tmp/market_data.sock]
+                                                V
++--------------------------------------------------------------------------------------------------+
+|                                   C++ TRADING ENGINE PROCESS                                     |
+|                                                                                                  |
+|   +---------------------------------------+      +-------------------------------------------+   |
+|   |      TradingEngine (main thread)      |      |      ExecutionGateway (Worker Thread 1)   |   |
+|   |---------------------------------------|      |-------------------------------------------|   |
+|   | - Owns all shared components          |      | - Listens on a thread-safe Order Queue    |   |
+|   | - Creates & launches all threads      |      | - Makes slow, blocking REST API calls     |   |
+|   | - Manages clean shutdown              |      | - Receives Fills from broker (simulated)  |   |
+|   +---------------------------------------+      | - WRITES to PositionManager               |   |
+|                  |     ^                         +-------------------------------------------+   |
+| (Creates &       |     | (Shared via std::shared_ptr)                                            |
+|  Injects)        |     |                                                                         |
+|   +--------------+-----+------------------+      +-----------------------------------------+     |
+|   | std::shared_ptr<PositionManager>      |      |      ThreadSafeQueue<Order>             |     |
+|   | std::shared_ptr<RiskManager>          |      |-----------------------------------------|     |
+|   | std::shared_ptr<ThreadSafeQueue>      |      | - Decouples Hot Path from Cold Path     |     |
+|   +---------------------------------------+      | - Single point of contention (Mutex)    |     |
+|                                                  +-----------------------------------------+     |
+|                                                                                                  |
+| /-------------------------------------------------------------------------------------------\    |
+| |                     HOT PATH - CONSUMER THREAD (e.g. "AAPL" on Core 2)                    |    |
+| |-------------------------------------------------------------------------------------------|... |
+| | 1. SUB socket receives MarketEvent                                                        |    |
+| |           |                                                                               |    |
+| |           V (Direct C++ function call)                                                    |    |
+| | 2. strategy.processMarketEvent() -> returns std::vector<Order>                            |    |
+| |           |                                                                               |    |
+| |           V (Loop through proposed orders)                                                |    |
+| | 3. risk_manager.onNewOrder(order) -> returns bool                                         |    |
+| |    (Performs a lock-free READ from PositionManager)                                       |    |
+| |           |                                                                               |    |
+| |           V (If Approved)                                                                 |    |
+| | 4. PUSH order onto the ThreadSafeQueue                                                    |    |
+| |              --- END OF LOW-LATENCY HOT PATH (sub-microsecond) ---                        |    |
+| \-------------------------------------------------------------------------------------------/    |
+|                                                                                                  |
++--------------------------------------------------------------------------------------------------+
+```
+
 The arrows depict the data flow of a market event/fill through the system.
 
 ## 🔧 Key Design Decisions
@@ -151,7 +204,7 @@ Initially this project started out with trying to be pure CMake project when it 
 
 The other aspect is related to my goal for making this project easy to consume and run locally for anyone - I care about correctness and ease of setup.
 
-### Static Dispatch, Template Metaprogramming over Dynamic Dispatch
+### Static Dispatch and Template Metaprogramming over Dynamic Dispatch
 
 TBD
 
@@ -178,7 +231,7 @@ The idea is be to run historical data through the same flow as live data.
 There will be some considerations to address, especially with handling historical data,
 getting it ingested, etc.
 
-### Multiplatform support
+### ~Multiplatform support~ -- DONE
 
 Currently, I suspect my setup does not work on Windows, which I want to address at some point and verify I am able to run the code anywhere.
 

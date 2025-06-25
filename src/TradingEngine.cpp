@@ -5,6 +5,15 @@
 #include <csignal>
 #include <iostream>
 
+#if defined(_WIN32)
+#include <windows.h>
+#elif defined(__linux__) || defined(__gnu_linux__)
+#include <pthread.h>
+#elif defined(__APPLE__)
+#include <mach/thread_act.h>
+#include <mach/thread_policy.h>
+#endif
+
 namespace {
 std::atomic<bool> *g_is_running_ptr = nullptr;
 void signal_handler(int signum) {
@@ -17,14 +26,36 @@ void signal_handler(int signum) {
 } // namespace
 
 void pin_thread_to_core(std::thread &t, int core_id) {
+#if defined(__linux__) || defined(__gnu_linux__)
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(core_id, &cpuset);
-    if (pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset) !=
-        0) {
-        std::cerr << "Error: Could not pin thread to core " << core_id
+    int rc =
+        pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+        std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    }
+#elif defined(_WIN32)
+    DWORD_PTR mask = 1LL << core_id;
+    if (SetThreadAffinityMask(t.native_handle(), mask) == 0) {
+        std::cerr << "Error calling SetThreadAffinityMask: " << GetLastError()
                   << std::endl;
     }
+#elif defined(__APPLE__)
+    thread_affinity_policy_data_t policy = {core_id};
+    thread_port_t mach_thread = pthread_mach_thread_np(t.native_handle());
+    if (thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY,
+                          (thread_policy_t)&policy,
+                          THREAD_AFFINITY_POLICY_COUNT) != KERN_SUCCESS) {
+        std::cerr << "Error calling thread_policy_set" << std::endl;
+    }
+#else
+    // For other systems, this is a no-op.
+    (void)t; // Suppress unused parameter warning
+    (void)core_id;
+    std::cout << "Warning: CPU pinning not supported on this platform."
+              << std::endl;
+#endif
 }
 
 TradingEngine::TradingEngine()

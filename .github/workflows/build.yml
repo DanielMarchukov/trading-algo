@@ -1,0 +1,104 @@
+name: Build and Test Project
+
+on:
+  push:
+    branches: ["mainline"]
+  pull_request:
+    branches: ["mainline"]
+
+jobs:
+  build-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov websockets pyzmq msgpack
+          if [ -f data-ingestion/requirements.txt ]; then pip install -r data-ingestion/requirements.txt; fi
+
+      - name: Lint with pyright
+        run: pyright data-ingestion/src/
+
+      - name: Test with pytest
+        run: pytest data-ingestion/src/
+        env:
+          APCA_API_KEY_ID: "DUMMY_KEY_FOR_TESTING"
+          APCA_API_SECRET_KEY: "DUMMY_SECRET_FOR_TESTING"
+
+  build-cpp:
+    needs: build-python
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            build_type: Debug
+          - os: ubuntu-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+            build_type: Debug
+          - os: windows-latest
+            build_type: Debug
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup vcpkg
+        uses: microsoft/vcpkg-action@v2
+        with:
+          vcpkg-manifest: vcpkg.json
+          vcpkg-commit-id: main
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . `
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
+            -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+        env:
+          CC: ${{ matrix.c_compiler }}
+          CXX: ${{ matrix.cpp_compiler }}
+        shell: bash
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test
+        working-directory: ./build
+        run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+
+      - name: Upload C++ Executable Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-engine-${{ matrix.os }}-${{ matrix.cpp_compiler || 'msvc' }}-${{ matrix.build_type }}
+          path: |
+            build/hello
+            build/Release/hello.exe
+          if-no-files-found: ignore
+#       - name: Install libraries - PkgConfig, Boost, QuantLib, CURL, OpenSSL, ZMQ, lcov, llvm
+#         id: install
+#         shell: bash
+#         run: |
+#           sudo apt-get update -y && \
+#           sudo apt-get upgrade -y && \
+#           sudo apt-get install pkg-config libboost-all-dev \
+#           libquantlib0-dev libquantlib0v5 curl \
+#           libcurl4-openssl-dev libssl-dev libzmq3-dev \
+#           lcov llvm autoconf automake autoconf-archive \
+#           linux-libc-dev
