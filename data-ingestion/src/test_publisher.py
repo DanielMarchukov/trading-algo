@@ -31,13 +31,15 @@ class TestPublisher(unittest.TestCase):
         sent_topic, sent_payload = call_args[0], call_args[1]
 
         self.assertEqual(sent_topic, b"AAPL")
-        self.assertEqual(len(sent_payload), 48)
+        self.assertEqual(len(sent_payload), 40)
 
         unpacked_data = publisher.MARKET_EVENT.unpack(sent_payload)
         self.assertEqual(unpacked_data[0], 1)
         self.assertEqual(unpacked_data[1], b"AAPL\0\0\0")
         self.assertEqual(unpacked_data[2], sample_quote["t"])
-        self.assertAlmostEqual(unpacked_data[3], sample_quote["bp"])
+        self.assertEqual(
+            unpacked_data[3], sample_quote["bp"] * publisher.SCALING_FACTOR
+        )
         self.assertEqual(unpacked_data[7], 1234567890)
 
     @patch("time.time_ns", return_value=9876543210)
@@ -59,7 +61,7 @@ class TestPublisher(unittest.TestCase):
         )
         self.assertEqual(unpacked_data[0], 2)
         self.assertEqual(unpacked_data[1], b"GOOGL\0\0")
-        self.assertAlmostEqual(unpacked_data[3], sample_trade["p"])
+        self.assertEqual(unpacked_data[3], sample_trade["p"] * publisher.SCALING_FACTOR)
         self.assertEqual(unpacked_data[7], 9876543210)
 
     def test_handle_malformed_data_is_ignored(self):

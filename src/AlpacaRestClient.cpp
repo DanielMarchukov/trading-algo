@@ -18,20 +18,18 @@ AlpacaRestClient::AlpacaRestClient() {
     session_.SetHeader({{"Content-Type", "application/json"}});
 }
 
-bool AlpacaRestClient::placeOrder(const Order &order) {
+void AlpacaRestClient::placeOrder(const Order &order) {
     nlohmann::json payload;
     payload["symbol"] = std::string_view(order.symbol);
     payload["qty"] = std::to_string(order.quantity);
     payload["side"] = (order.side == OrderSide::Buy) ? "buy" : "sell";
-    payload["type"] = "market";
+    payload["type"] = (order.type == OrderType::Market) ? "market" : "limit";
     payload["time_in_force"] = "day";
+    if (order.type == OrderType::Limit) {
+        payload["limit_price"] =
+            std::to_string((double)order.price / SCALING_FACTOR);
+    }
     json_payload_buffer_ = payload.dump();
     session_.SetBody(cpr::Body{json_payload_buffer_});
     cpr::Response r = session_.Post();
-
-    if (r.status_code == 200) {
-        return true;
-    }
-
-    return false;
 }

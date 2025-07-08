@@ -4,6 +4,7 @@
   "version": "0.0.2",
   "dependencies": [
     "boost",
+    "boost-beast",
     "quantlib",
     "zeromq",
     "cppzmq",

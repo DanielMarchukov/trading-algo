@@ -12,7 +12,7 @@ class SimpleMarketMakingStrategyTest : public ::testing::Test {
 TEST_F(SimpleMarketMakingStrategyTest, GeneratesOrdersOnTradeEvent) {
     MarketEvent trade_event{};
     trade_event.eventType = 2;
-    trade_event.p1 = 150.00;
+    trade_event.p1 = 1500000;
 
     std::vector<Order> generated_orders = strategy.onMarketEvent(trade_event);
 
@@ -22,18 +22,18 @@ TEST_F(SimpleMarketMakingStrategyTest, GeneratesOrdersOnTradeEvent) {
     EXPECT_EQ(buy_order.side, OrderSide::Buy);
     EXPECT_EQ(buy_order.type, OrderType::Limit);
     EXPECT_EQ(buy_order.quantity, 100);
-    EXPECT_DOUBLE_EQ(buy_order.price, 149.99);
+    EXPECT_EQ(buy_order.price, 1499900);
     EXPECT_EQ(sell_order.side, OrderSide::Sell);
     EXPECT_EQ(sell_order.type, OrderType::Limit);
     EXPECT_EQ(sell_order.quantity, 100);
-    EXPECT_DOUBLE_EQ(sell_order.price, 150.01);
+    EXPECT_EQ(sell_order.price, 1500100);
 }
 
 TEST_F(SimpleMarketMakingStrategyTest, IgnoresQuoteEvent) {
     MarketEvent quote_event{};
     quote_event.eventType = 1;
-    quote_event.p1 = 150.00;
-    quote_event.p2 = 150.02;
+    quote_event.p1 = 1500000;
+    quote_event.p2 = 1500200;
 
     std::vector<Order> generated_orders = strategy.onMarketEvent(quote_event);
 
@@ -43,11 +43,11 @@ TEST_F(SimpleMarketMakingStrategyTest, IgnoresQuoteEvent) {
 TEST_F(SimpleMarketMakingStrategyTest, OrderIdIncrements) {
     MarketEvent trade1{};
     trade1.eventType = 2;
-    trade1.p1 = 100.00;
+    trade1.p1 = 1000000;
 
     MarketEvent trade2{};
     trade2.eventType = 2;
-    trade2.p1 = 101.00;
+    trade2.p1 = 1010000;
 
     std::vector<Order> orders1 = strategy.onMarketEvent(trade1);
     ASSERT_EQ(orders1.size(), 2);

@@ -22,7 +22,7 @@ class SimpleMarketMakingStrategy : public Strategy {
                 buy_order.side = OrderSide::Buy;
                 buy_order.type = OrderType::Limit;
                 buy_order.quantity = 100;
-                buy_order.price = last_trade_price_ - 0.01;
+                buy_order.price = last_trade_price_ - 100;
                 orders.push_back(buy_order);
 
                 Order sell_order{};
@@ -32,7 +32,7 @@ class SimpleMarketMakingStrategy : public Strategy {
                 sell_order.side = OrderSide::Sell;
                 sell_order.type = OrderType::Limit;
                 sell_order.quantity = 100;
-                sell_order.price = last_trade_price_ + 0.01;
+                sell_order.price = last_trade_price_ + 100;
                 orders.push_back(sell_order);
             }
         }
