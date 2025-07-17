@@ -61,10 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup vcpkg
-        uses: microsoft/vcpkg-action@v2
-        with:
-          vcpkg-manifest: vcpkg.json
-          vcpkg-commit-id: main
+        uses: lukka/run-vcpkg@v11.5
 
       - name: Configure CMake
         run: |
