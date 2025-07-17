@@ -60,15 +60,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
 
       - name: Configure CMake
-        run: |
-          cmake -B build -S . `
-            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} `
-            -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+        run: >
+          cmake -B build -S .
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
