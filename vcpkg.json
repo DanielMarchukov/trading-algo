@@ -11,5 +11,6 @@
     "cpr",
     "nlohmann-json",
     "gtest"
-  ]
+  ],
+  "builtin-baseline": "a7e1aaa71c18983804825d0c759523f721c54226"
 }
