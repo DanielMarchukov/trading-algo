@@ -12,5 +12,5 @@
     "nlohmann-json",
     "gtest"
   ],
-  "builtin-baseline": "a7e1aaa71c18983804825d0c759523f721c54226"
+  "builtin-baseline": "043abf2fa419c288d594a6b96b98a811457bd9b5"
 }
