@@ -63,6 +63,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cache vcpkg dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_installed
+          key: ${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.build_type }}-
+
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
 
