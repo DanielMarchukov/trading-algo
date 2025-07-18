@@ -20,7 +20,7 @@ else()
     message(WARNING "LTO is not supported")
 endif()
 
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED COMPONENTS lockfree)
 find_package(cppzmq CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -44,7 +44,7 @@ include_directories(include)
 
 add_executable(hello src/main.cpp ${SOURCES})
 target_link_libraries(hello PRIVATE
-    Boost::boost
+    Boost::lockfree
     libzmq
     cppzmq
     nlohmann_json::nlohmann_json
@@ -60,7 +60,7 @@ option(ENABLE_COVERAGE "Enable code coverage" OFF)
 
 add_executable(rich_on_tests ${SOURCES} ${TESTS})
 target_link_libraries(rich_on_tests PUBLIC
-    Boost::boost
+    Boost::lockfree
     cppzmq
     libzmq
     cpr::cpr
