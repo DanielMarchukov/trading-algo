@@ -7,10 +7,6 @@
       "name": "boost",
       "default-features": false
     },
-    {
-      "name": "quantlib",
-      "default-features": false
-    },
     "uwebsockets",
     "zeromq",
     "cppzmq",

@@ -75,7 +75,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.build_type }}-
 
-      - name: Setup vcpkg (Windows)
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
 
       - name: Install build prerequisites (Linux)

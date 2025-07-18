@@ -21,7 +21,6 @@ else()
 endif()
 
 find_package(Boost REQUIRED)
-find_package(QuantLib CONFIG REQUIRED)
 find_package(cppzmq CONFIG REQUIRED)
 find_package(cpr REQUIRED)
 find_package(nlohmann_json REQUIRED)
@@ -63,7 +62,6 @@ option(ENABLE_COVERAGE "Enable code coverage" OFF)
 add_executable(rich_on_tests ${SOURCES} ${TESTS})
 target_link_libraries(rich_on_tests PUBLIC
     Boost::boost
-    QuantLib::QuantLib
     cppzmq
     libzmq
     cpr::cpr
