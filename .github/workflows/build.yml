@@ -57,7 +57,7 @@ jobs:
             vcpkg_triplet: x64-linux
           - os: windows-latest
             build_type: Debug
-            vcpkg_triplet: x64-windows-static-quantlib
+            vcpkg_triplet: x64-windows-static
           - os: macos-latest
             build_type: Debug
             vcpkg_triplet: arm64-osx
@@ -75,17 +75,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ matrix.build_type }}-
 
-      - name: Setup vcpkg (Unix)
-        if: runner.os != 'Windows'
-        uses: lukka/run-vcpkg@v11
-        env:
-          VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/custom-triplets
-
       - name: Setup vcpkg (Windows)
-        if: runner.os == 'Windows'
         uses: lukka/run-vcpkg@v11
-        env:
-          VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}\custom-triplets
 
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux'
