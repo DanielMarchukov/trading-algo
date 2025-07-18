@@ -77,8 +77,8 @@ jobs:
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
-        with:
-          vcpkg-overlay-triplets-path: "${{ github.workspace }}/custom-triplets"
+        env:
+          VCPKG_OVERLAY_TRIPLETS: ${{ github.workspace }}/custom-triplets
 
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux'
