@@ -80,6 +80,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config
 
+      - name: Install build prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install autoconf automake libtool
+
       - name: Configure CMake
         if: runner.os != 'Windows'
         run: >
