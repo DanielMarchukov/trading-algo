@@ -3,7 +3,12 @@
   "name": "rich-on-paper",
   "version": "0.0.2",
   "dependencies": [
-    "boost",
+    {
+      "name": "boost",
+      "features": [],
+      "default-features": false,
+      "version>=": "1.87.0"
+    },
     "uwebsockets",
     "quantlib",
     "zeromq",
