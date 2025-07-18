@@ -93,10 +93,8 @@ jobs:
       - name: Disable libbacktrace on macOS
         if: runner.os == 'macOS'
         run: |
-          mkdir -p overlays/libbacktrace
-          echo '{"name": "libbacktrace", "version-string": "1"}' > overlays/libbacktrace/vcpkg.json
-          echo 'set(VCPKG_POLICY_EMPTY_PACKAGE enabled)' > overlays/libbacktrace/vcpkg.json
-          echo 'add_port_overlay("libbacktrace" "${{ github.workspace }}/overlays/libbacktrace")' >> ${{ env.VCPKG_ROOT }}/triplets/community/arm-osx.vcpkg.cmake
+          VCPKG_PORTS_DIR=$(find ${{ env.VCPKG_ROOT }} -type d -name "ports")
+          rm -rf $VCPKG_PORTS_DIR/libbacktrace
 
       - name: Configure CMake
         if: runner.os != 'Windows'
