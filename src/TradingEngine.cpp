@@ -1,8 +1,6 @@
 #include "TradingEngine.hpp"
-#include "Order.hpp"
-#include "PositionManager.hpp"
-#include <chrono>
 #include <csignal>
+#include <filesystem>
 #include <iostream>
 
 #if defined(_WIN32)
@@ -30,10 +28,9 @@ void pin_thread_to_core(std::thread &t, int core_id) {
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
     CPU_SET(core_id, &cpuset);
-    int rc =
-        pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset);
-    if (rc != 0) {
-        std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    if (pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset) !=
+        0) {
+        std::cerr << "Error calling pthread_setaffinity_np\n";
     }
 #elif defined(_WIN32)
     DWORD_PTR mask = 1LL << core_id;
@@ -50,44 +47,73 @@ void pin_thread_to_core(std::thread &t, int core_id) {
         std::cerr << "Error calling thread_policy_set" << std::endl;
     }
 #else
-    // For other systems, this is a no-op.
-    (void)t; // Suppress unused parameter warning
+    (void)t;
     (void)core_id;
     std::cout << "Warning: CPU pinning not supported on this platform."
               << std::endl;
 #endif
 }
 
-TradingEngine::TradingEngine()
-    : is_running_(true), ipc_address_("ipc:///tmp/market_data.sock"),
-      symbols_({"AAPL", "GOOGL", "AMZN"}) {
+TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
+                             std::unique_ptr<IRestClient> rest_client,
+                             Mode mode)
+    : is_running_(true), symbols_(symbols) {
     setup_signal_handler();
+
+    risk_manager_ =
+        std::make_shared<RiskManager>(std::make_shared<PositionManager>());
+    order_queue_ = std::make_shared<ThreadSafeQueue<Order>>();
+
+    order_gateway_ = std::make_unique<OrderGateway>(is_running_, order_queue_,
+                                                    std::move(rest_client));
+
+    if (mode == Mode::Test) {
+        ipc_address_ = "tcp://127.0.0.1:5555";
+    } else {
+#ifdef _WIN32
+        // Windows doesn't support IPC, so production must use TCP.
+        ipc_address_ = "tcp://127.0.0.1:5555";
+#else
+        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+        std::filesystem::path socket_path = temp_dir / "market_data.sock";
+        ipc_address_ = "ipc://" + socket_path.string();
+#endif
+    }
+}
+
+TradingEngine::~TradingEngine() {
+    std::cout << "TradingEngine destructor: Starting shutdown..." << std::endl;
+    if (is_running_.load()) {
+        stop();
+    }
+    shutdown();
+    std::cout << "TradingEngine destructor: Shutdown complete." << std::endl;
 }
 
 void TradingEngine::setup_signal_handler() {
     g_is_running_ptr = &is_running_;
     std::signal(SIGINT, signal_handler);
+    std::signal(SIGTERM, signal_handler);
+}
+
+void TradingEngine::launch_gateway() {
+    order_gateway_thread_ =
+        std::thread(&OrderGateway::run, order_gateway_.get());
+    std::cout << "Pinned OrderGateway thread to CPU Core 0" << std::endl;
+    pin_thread_to_core(order_gateway_thread_, 0);
 }
 
 void TradingEngine::launch_consumers() {
-    std::cout << "C++ Trading Engine starting up. Launching threads..."
-              << std::endl;
-
-    auto risk_manager =
-        std::make_shared<RiskManager>(std::make_shared<PositionManager>());
-
     for (size_t i = 0; i < symbols_.size(); ++i) {
-        auto callback = [symbol = symbols_[i]](const Order &order) {
-            std::cout << "--- Order for " << symbol << " ---" << std::endl;
-            std::cout << "  ID: " << order.id << ", Side: "
-                      << (order.side == OrderSide::Buy ? "Buy" : "Sell")
-                      << ", Qty: " << order.quantity << ", Px: " << order.price
-                      << std::endl;
+        const auto &symbol = symbols_[i];
+        auto callback = [this](const Order &order) {
+            this->order_queue_->push(order);
         };
 
         auto consumer =
             std::make_unique<MarketEventConsumer<SimpleMarketMakingStrategy>>(
-                ipc_address_, symbols_[i], is_running_, callback, risk_manager);
+                context_, ipc_address_, symbol, is_running_, callback,
+                risk_manager_);
 
         consumer_threads_.push_back(
             {std::thread(&MarketEventConsumer<SimpleMarketMakingStrategy>::run,
@@ -95,28 +121,43 @@ void TradingEngine::launch_consumers() {
              std::move(consumer)});
 
         pin_thread_to_core(consumer_threads_.back().thread, i + 1);
-        std::cout << "Pinned thread for " << symbols_[i] << " to CPU Core "
+        std::cout << "Pinned thread for " << symbol << " to CPU Core "
                   << (i + 1) << std::endl;
     }
 }
 
 void TradingEngine::main_loop() {
     while (is_running_.load()) {
-        // Main loop sleeps while spawned threads are processing market events.
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 }
 
 void TradingEngine::shutdown() {
+    if (order_gateway_thread_.joinable()) {
+        order_gateway_thread_.join();
+    }
     for (auto &ct : consumer_threads_) {
         if (ct.thread.joinable()) {
             ct.thread.join();
         }
     }
+
+    consumer_threads_.clear();
+    order_gateway_.reset();
 }
 
 void TradingEngine::run() {
+    std::cout << "Starting trading engine..." << std::endl;
+    launch_gateway();
     launch_consumers();
     main_loop();
+
+    std::cout << "Main loop exited. Shutting down threads..." << std::endl;
     shutdown();
 }
+
+void TradingEngine::stop() { is_running_.store(false); }
+
+zmq::context_t &TradingEngine::getContext() { return context_; }
+
+const std::string &TradingEngine::getIPCAddress() const { return ipc_address_; }

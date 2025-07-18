@@ -1,21 +1,29 @@
 #include "AlpacaRestClient.hpp"
 #include <cstdlib>
+#include <iostream>
 #include <stdexcept>
+#include <string_view>
 
 AlpacaRestClient::AlpacaRestClient() {
+    // Retrieve API credentials from environment variables.
     const char *api_key_cstr = std::getenv("APCA_API_KEY_ID");
     const char *api_secret_cstr = std::getenv("APCA_API_SECRET_KEY");
+    const char *base_url_cstr =
+        std::getenv("APCA_API_BASE_URL"); // Allow overriding for paper/live
+
     if (!api_key_cstr || !api_secret_cstr) {
         throw std::runtime_error("FATAL: APCA_API_KEY_ID and/or "
                                  "APCA_API_SECRET_KEY not set in environment.");
     }
 
-    std::string api_key = api_key_cstr;
-    std::string api_secret = api_secret_cstr;
-    session_.SetUrl(cpr::Url{base_url_ + "/v2/orders"});
-    session_.SetHeader(
-        {{"APCA-API-KEY-ID", api_key}, {"APCA-API-SECRET-KEY", api_secret}});
-    session_.SetHeader({{"Content-Type", "application/json"}});
+    api_key_ = api_key_cstr;
+    api_secret_ = api_secret_cstr;
+
+    if (base_url_cstr) {
+        base_url_ = cpr::Url{base_url_cstr};
+    } else {
+        base_url_ = cpr::Url{"https://paper-api.alpaca.markets"};
+    }
 }
 
 void AlpacaRestClient::placeOrder(const Order &order) {
@@ -25,11 +33,23 @@ void AlpacaRestClient::placeOrder(const Order &order) {
     payload["side"] = (order.side == OrderSide::Buy) ? "buy" : "sell";
     payload["type"] = (order.type == OrderType::Market) ? "market" : "limit";
     payload["time_in_force"] = "day";
+
     if (order.type == OrderType::Limit) {
         payload["limit_price"] =
-            std::to_string((double)order.price / SCALING_FACTOR);
+            std::to_string(static_cast<double>(order.price) / SCALING_FACTOR);
     }
-    json_payload_buffer_ = payload.dump();
-    session_.SetBody(cpr::Body{json_payload_buffer_});
-    cpr::Response r = session_.Post();
+
+    cpr::Response r =
+        cpr::Post(cpr::Url{base_url_ + "/v2/orders"},
+                  cpr::Header{{"APCA-API-KEY-ID", api_key_},
+                              {"APCA-API-SECRET-KEY", api_secret_},
+                              {"Content-Type", "application/json"}},
+                  cpr::Body{payload.dump()});
+
+    if (r.status_code >= 400) {
+        std::cerr << "Error placing order: " << r.status_code << " - " << r.text
+                  << std::endl;
+    } else {
+        std::cout << "Successfully placed order: " << r.text << std::endl;
+    }
 }

@@ -1,57 +1,74 @@
 #pragma once
 
 #include "MarketEvent.hpp"
-#include "Order.hpp"
 #include "RiskManager.hpp"
 #include <atomic>
 #include <functional>
+#include <iostream>
+#include <memory>
 #include <string>
 #include <zmq.hpp>
 
 template <typename StrategyType> class MarketEventConsumer {
   public:
-    using Callback = std::function<void(const Order &)>;
+    using OrderCallback = std::function<void(const Order &)>;
 
-    MarketEventConsumer(const std::string &ipc_address,
+    MarketEventConsumer(zmq::context_t &context, const std::string &address,
                         const std::string &symbol,
-                        std::atomic<bool> &is_running, Callback callback,
+                        std::atomic<bool> &is_running,
+                        OrderCallback order_callback,
                         std::shared_ptr<RiskManager> risk_manager)
-        : ipc_address_(ipc_address), symbol_(symbol), is_running_(is_running),
-          callback_(std::move(callback)), strategy_type_(), context_(1),
-          subscriber_(context_, zmq::socket_type::sub),
+        : subscriber_(context, zmq::socket_type::sub), address_(address),
+          symbol_(symbol), is_running_(is_running),
+          order_callback_(order_callback),
+          strategy_(std::make_unique<StrategyType>()),
           risk_manager_(risk_manager) {
-        subscriber_.set(zmq::sockopt::rcvtimeo, 500);
-        subscriber_.connect(ipc_address_);
-        subscriber_.set(zmq::sockopt::subscribe, symbol_);
+        try {
+            subscriber_.set(zmq::sockopt::rcvtimeo, 100);
+            subscriber_.set(zmq::sockopt::subscribe, symbol_);
+            subscriber_.connect(address_);
+        } catch (const zmq::error_t &e) {
+            std::cerr << "MarketEventConsumer for " << symbol_
+                      << " ZMQ error during construction: " << e.what()
+                      << std::endl;
+            throw;
+        }
     }
 
     void run() {
         while (is_running_.load()) {
             zmq::message_t topic;
-            if (!subscriber_.recv(topic, zmq::recv_flags::none)) {
+            zmq::message_t payload;
+
+            auto topic_res = subscriber_.recv(topic, zmq::recv_flags::none);
+            if (!topic_res.has_value()) {
                 continue;
             }
 
-            zmq::message_t payload;
-            if (subscriber_.recv(payload, zmq::recv_flags::none) &&
-                payload.size() == sizeof(MarketEvent)) {
-                const MarketEvent *event = payload.data<MarketEvent>();
-                for (auto &order : strategy_type_.onMarketEvent(*event)) {
-                    if (risk_manager_->onNewOrder(order) && callback_) {
-                        callback_(order);
-                    }
+            auto payload_res = subscriber_.recv(payload, zmq::recv_flags::none);
+            if (!payload_res.has_value()) {
+                continue;
+            }
+
+            const MarketEvent *event =
+                static_cast<const MarketEvent *>(payload.data());
+            auto orders = strategy_->onMarketEvent(*event);
+            for (const auto &order : orders) {
+                if (risk_manager_->onNewOrder(order)) {
+                    order_callback_(order);
                 }
             }
         }
+        std::cout << "MarketEventConsumer for " << symbol_ << " stopped."
+                  << std::endl;
     }
 
   private:
-    std::string ipc_address_;
+    zmq::socket_t subscriber_;
+    std::string address_;
     std::string symbol_;
     std::atomic<bool> &is_running_;
-    Callback callback_;
-    StrategyType strategy_type_;
-    zmq::context_t context_;
-    zmq::socket_t subscriber_;
+    OrderCallback order_callback_;
+    std::unique_ptr<StrategyType> strategy_;
     std::shared_ptr<RiskManager> risk_manager_;
 };

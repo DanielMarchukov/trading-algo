@@ -1,18 +1,18 @@
 #pragma once
 
+#include "IRestClient.hpp"
 #include "Order.hpp"
 #include <cpr/cpr.h>
 #include <nlohmann/json.hpp>
 #include <string>
 
-class AlpacaRestClient {
+class AlpacaRestClient : public IRestClient {
   public:
     AlpacaRestClient();
-    ~AlpacaRestClient() = default;
-    void placeOrder(const Order &order);
+    void placeOrder(const Order &order) override;
 
   private:
-    const std::string base_url_ = "https://paper-api.alpaca.markets";
-    cpr::Session session_;
-    std::string json_payload_buffer_;
+    std::string api_key_;
+    std::string api_secret_;
+    cpr::Url base_url_;
 };

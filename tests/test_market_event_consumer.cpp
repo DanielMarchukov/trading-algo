@@ -3,10 +3,15 @@
 #include "Order.hpp"
 #include "Strategy.hpp"
 #include <chrono>
+#include <filesystem>
 #include <future>
 #include <gtest/gtest.h>
 #include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
+#endif
 
 struct ThreadGuard {
     std::thread t;
@@ -39,8 +44,14 @@ class MockStrategy : public Strategy {
 class MarketEventConsumerTest : public ::testing::Test {
   protected:
     void SetUp() override {
-        ipc_address =
-            "ipc:///tmp/test_market_data_" + std::to_string(getpid()) + ".sock";
+#ifdef _WIN32
+        ipc_address = "tcp://127.0.0.1:5555";
+#else
+        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+        std::filesystem::path socket_path =
+            temp_dir / ("test_market_data.sock");
+        ipc_address = "ipc:///" + socket_path.string();
+#endif
         risk_manager_ =
             std::make_shared<RiskManager>(std::make_shared<PositionManager>());
     }
@@ -50,17 +61,21 @@ class MarketEventConsumerTest : public ::testing::Test {
 };
 
 TEST_F(MarketEventConsumerTest, CallsStrategyAndReceivesOrders) {
+    zmq::context_t context(1);
+    zmq::socket_t publisher(context, zmq::socket_type::pub);
+    publisher.bind(ipc_address);
+
     std::atomic<bool> is_test_running(true);
     std::promise<Order> promise;
     auto future = promise.get_future();
     auto test_callback = [&](const Order &order) { promise.set_value(order); };
-    MarketEventConsumer<MockStrategy> consumer(
-        ipc_address, "TEST", is_test_running, test_callback, risk_manager_);
+    MarketEventConsumer<MockStrategy> consumer(context, ipc_address, "TEST",
+                                               is_test_running, test_callback,
+                                               risk_manager_);
+
     ThreadGuard consumer_thread_guard{
         std::thread(&MarketEventConsumer<MockStrategy>::run, &consumer)};
-    zmq::context_t context(1);
-    zmq::socket_t publisher(context, zmq::socket_type::pub);
-    publisher.bind(ipc_address);
+
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     MarketEvent sent_event{};
     sent_event.eventType = 2;
