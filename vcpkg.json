@@ -5,12 +5,13 @@
   "dependencies": [
     {
       "name": "boost",
-      "features": [],
-      "default-features": false,
-      "version>=": "1.87.0"
+      "default-features": false
+    },
+    {
+      "name": "quantlib",
+      "default-features": false
     },
     "uwebsockets",
-    "quantlib",
     "zeromq",
     "cppzmq",
     "cpr",
