@@ -12,7 +12,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 include(CheckIPOSupported)
-check_ipo_supported(RESTULT LTO_SUPPORTED)
+check_ipo_supported(RESULT LTO_SUPPORTED)
 if(LTO_SUPPORTED)
     message(STATUS "LTO is supported")
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -22,7 +22,7 @@ endif()
 
 find_package(Boost REQUIRED)
 find_package(cppzmq CONFIG REQUIRED)
-find_package(cpr REQUIRED)
+find_package(cpr CONFIG REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(GTest REQUIRED)
 find_package(unofficial-uwebsockets CONFIG REQUIRED)
@@ -45,7 +45,6 @@ include_directories(include)
 add_executable(hello src/main.cpp ${SOURCES})
 target_link_libraries(hello PRIVATE
     Boost::boost
-    QuantLib::QuantLib
     libzmq
     cppzmq
     nlohmann_json::nlohmann_json
