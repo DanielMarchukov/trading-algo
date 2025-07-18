@@ -12,11 +12,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 find_package(Boost REQUIRED)
-find_package(QuantLib REQUIRED)
+find_package(QuantLib CONFIG REQUIRED)
 find_package(cppzmq CONFIG REQUIRED)
 find_package(cpr REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(GTest REQUIRED)
+find_package(unofficial-uwebsockets CONFIG REQUIRED)
 
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-march=native")
@@ -36,6 +37,7 @@ target_link_libraries(hello PRIVATE
     cppzmq
     nlohmann_json::nlohmann_json
     cpr::cpr
+    unofficial::uwebsockets::uwebsockets
 )
 
 # ===================================================================
