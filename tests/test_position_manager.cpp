@@ -1,5 +1,6 @@
 #include "Fill.hpp"
 #include "PositionManager.hpp"
+#include "Utils.hpp"
 #include <gtest/gtest.h>
 
 class PositionManagerTest : public ::testing::Test {
@@ -14,7 +15,7 @@ TEST_F(PositionManagerTest, NewPositionIsZero) {
 
 TEST_F(PositionManagerTest, ProcessBuyFill) {
     Fill buy_fill{};
-    strncpy_s(buy_fill.symbol, "AAPL", sizeof(buy_fill.symbol));
+    strncpy(buy_fill.symbol, "AAPL", sizeof(buy_fill.symbol));
     buy_fill.side = OrderSide::Buy;
     buy_fill.quantity = 100;
 
@@ -25,7 +26,7 @@ TEST_F(PositionManagerTest, ProcessBuyFill) {
 
 TEST_F(PositionManagerTest, ProcessSellFill) {
     Fill sell_fill{};
-    strncpy_s(sell_fill.symbol, "AAPL", sizeof(sell_fill.symbol));
+    strncpy(sell_fill.symbol, "AAPL", sizeof(sell_fill.symbol));
     sell_fill.side = OrderSide::Sell;
     sell_fill.quantity = 75;
 
@@ -36,17 +37,17 @@ TEST_F(PositionManagerTest, ProcessSellFill) {
 
 TEST_F(PositionManagerTest, HandlesMultipleSymbolsAndFills) {
     Fill aapl_buy{};
-    strncpy_s(aapl_buy.symbol, "AAPL", sizeof(aapl_buy.symbol));
+    strncpy(aapl_buy.symbol, "AAPL", sizeof(aapl_buy.symbol));
     aapl_buy.side = OrderSide::Buy;
     aapl_buy.quantity = 200;
 
     Fill googl_buy{};
-    strncpy_s(googl_buy.symbol, "GOOGL", sizeof(googl_buy.symbol));
+    strncpy(googl_buy.symbol, "GOOGL", sizeof(googl_buy.symbol));
     googl_buy.side = OrderSide::Buy;
     googl_buy.quantity = 50;
 
     Fill aapl_sell{};
-    strncpy_s(aapl_sell.symbol, "AAPL", sizeof(aapl_sell.symbol));
+    strncpy(aapl_sell.symbol, "AAPL", sizeof(aapl_sell.symbol));
     aapl_sell.side = OrderSide::Sell;
     aapl_sell.quantity = 50;
 

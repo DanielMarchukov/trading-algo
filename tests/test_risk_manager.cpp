@@ -1,6 +1,7 @@
 #include "Order.hpp"
 #include "PositionManager.hpp"
 #include "RiskManager.hpp"
+#include "Utils.hpp"
 #include <gtest/gtest.h>
 #include <memory>
 
@@ -14,7 +15,7 @@ class RiskManagerTest : public ::testing::Test {
     static Order createOrder(const char *symbol, const OrderSide side, const uint32_t qty,
                       const uint32_t price) {
         Order order{};
-        strncpy_s(order.symbol, symbol, sizeof(order.symbol));
+        strncpy(order.symbol, symbol, sizeof(order.symbol));
         order.side = side;
         order.quantity = qty;
         order.price = price;
@@ -32,7 +33,7 @@ TEST_F(RiskManagerTest, ApprovesValidOrder) {
 
 TEST_F(RiskManagerTest, RejectsOrderExceedingMaxPosition) {
     Fill existing_position_fill{};
-    strncpy_s(existing_position_fill.symbol, "AAPL",
+    strncpy(existing_position_fill.symbol, "AAPL",
             sizeof(existing_position_fill.symbol));
     existing_position_fill.side = OrderSide::Buy;
     existing_position_fill.quantity = 950;
@@ -44,7 +45,7 @@ TEST_F(RiskManagerTest, RejectsOrderExceedingMaxPosition) {
 
 TEST_F(RiskManagerTest, ApprovesOrderWithinMaxPosition) {
     Fill existing_position_fill{};
-    strncpy_s(existing_position_fill.symbol, "AAPL",
+    strncpy(existing_position_fill.symbol, "AAPL",
             sizeof(existing_position_fill.symbol));
     existing_position_fill.side = OrderSide::Buy;
     existing_position_fill.quantity = 950;
