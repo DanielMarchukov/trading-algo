@@ -113,14 +113,14 @@ class TestPublisher(unittest.TestCase):
             self.assertEqual(publisher.get_zmq_address(), "tcp://127.0.0.1:5555")
 
             sys.platform = "linux"
-            self.assertEqual(publisher.get_zmq_address(), "ipc:///tmp/market_data.sock")
+            self.assertEqual(publisher.get_zmq_address(), "ipc://tmp/market_data.sock")
 
             sys.platform = "darwin"
-            self.assertEqual(publisher.get_zmq_address(), "ipc:///tmp/market_data.sock")
+            self.assertEqual(publisher.get_zmq_address(), "ipc://tmp/market_data.sock")
         finally:
             sys.platform = original_platform
 
-    @patch('os.sched_setaffinity')
+    @patch('os.sched_setaffinity') # type: ignore
     def test_cpu_affinity_linux(self, mock_setaffinity):
         """Test CPU affinity setting on Linux."""
         original_platform = sys.platform
@@ -152,7 +152,6 @@ class TestPublisher(unittest.TestCase):
         original_platform = sys.platform
         try:
             sys.platform = "darwin"
-            # Should not crash, just print a message
             publisher.set_cpu_affinity(0)
         finally:
             sys.platform = original_platform

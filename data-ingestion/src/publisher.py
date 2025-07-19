@@ -65,7 +65,7 @@ def get_zmq_address():
     if sys.platform == "win32":
         return "tcp://127.0.0.1:5555"
     else:
-        return "ipc:///tmp/market_data.sock"
+        return "ipc://tmp/market_data.sock"
 
 async def handle_market_data(message, zmq_socket):
     try:
