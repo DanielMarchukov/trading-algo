@@ -120,7 +120,7 @@ class TestPublisher(unittest.TestCase):
         finally:
             sys.platform = original_platform
 
-    @patch('os.sched_setaffinity') # type: ignore
+    @patch('os.sched_setaffinity', create=True)
     def test_cpu_affinity_linux(self, mock_setaffinity):
         """Test CPU affinity setting on Linux."""
         original_platform = sys.platform
