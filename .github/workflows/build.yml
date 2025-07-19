@@ -150,7 +150,7 @@ jobs:
         if: runner.os == 'Linux' && matrix.c_compiler == 'gcc'
         run: |
           cd build
-          lcov --capture --directory . --output-file coverage.info
+          lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch,gcov
           lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info
           lcov --list coverage.info
 
@@ -160,8 +160,7 @@ jobs:
           cd build
           llvm-profdata merge -sparse default.profraw -o default.profdata
           llvm-cov export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
-          # Filter out system headers and test files
-          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
 
       # Coverage collection for macOS with GCC (if using GCC)
       - name: Collect coverage (GCC on macOS)
