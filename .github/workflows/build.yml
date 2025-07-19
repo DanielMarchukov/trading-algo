@@ -8,18 +8,29 @@ on:
 
 jobs:
   build-python:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.12"]
+
+    runs-on: ${{ matrix.os }}
+
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
+          path: |
+            ~/.cache/pip
+            ~/Library/Caches/pip
+            ~\AppData\Local\pip\Cache
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-
@@ -28,13 +39,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pytest pytest-cov websockets pyzmq msgpack
-          if [ -f data-ingestion/requirements.txt ]; then pip install -r data-ingestion/requirements.txt; fi
+          pip install -r data-ingestion/requirements.txt
 
       - name: Lint with pyright
         run: pyright data-ingestion/src/
 
       - name: Test with pytest
-        run: pytest data-ingestion/src/
+        run: pytest data-ingestion/src/ -v
         env:
           APCA_API_KEY_ID: "DUMMY_KEY_FOR_TESTING"
           APCA_API_SECRET_KEY: "DUMMY_SECRET_FOR_TESTING"

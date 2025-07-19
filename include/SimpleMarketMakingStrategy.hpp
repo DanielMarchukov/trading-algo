@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Strategy.hpp"
+#include "Utils.hpp"
 #include <string.h>
 
 class SimpleMarketMakingStrategy : public Strategy {
@@ -17,7 +18,7 @@ class SimpleMarketMakingStrategy : public Strategy {
             if (last_trade_price_ > 0) {
                 Order buy_order{};
                 buy_order.id = ++order_id_counter_;
-                strncpy_s(buy_order.symbol, event.symbol,
+                strncpy(buy_order.symbol, event.symbol,
                         sizeof(buy_order.symbol) - 1);
                 buy_order.side = OrderSide::Buy;
                 buy_order.type = OrderType::Limit;
@@ -27,7 +28,7 @@ class SimpleMarketMakingStrategy : public Strategy {
 
                 Order sell_order{};
                 sell_order.id = ++order_id_counter_;
-                strncpy_s(sell_order.symbol, event.symbol,
+                strncpy(sell_order.symbol, event.symbol,
                         sizeof(sell_order.symbol) - 1);
                 sell_order.side = OrderSide::Sell;
                 sell_order.type = OrderType::Limit;
