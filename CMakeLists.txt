@@ -51,6 +51,10 @@ target_link_libraries(hello PRIVATE
     unofficial::uwebsockets::uwebsockets
 )
 
+if(MSVC)
+    target_compile_definitions(hello PRIVATE _CRT_SECURE_NO_WARNINGS)
+endif()
+
 # ===================================================================
 # Testing Configuration
 # ===================================================================

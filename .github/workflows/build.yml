@@ -62,7 +62,6 @@ jobs:
           verbose: true
 
   build-cpp:
-    needs: build-python
     strategy:
       fail-fast: false
       matrix:
@@ -104,7 +103,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm
 
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS'
