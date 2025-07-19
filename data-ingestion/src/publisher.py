@@ -8,7 +8,7 @@ import zmq.asyncio
 import sys
 import time
 
-# Platform-specific imports for CPU affinity
+WINDOWS_AFFINITY_AVAILABLE = False
 if sys.platform == "win32":
     try:
         import win32api
