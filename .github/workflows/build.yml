@@ -44,11 +44,22 @@ jobs:
       - name: Lint with pyright
         run: pyright data-ingestion/src/
 
-      - name: Test with pytest
-        run: pytest data-ingestion/src/ -v
+      - name: Test with pytest and coverage
+        run: |
+          pytest data-ingestion/src/ -v --cov=data-ingestion/src --cov-report=xml --cov-report=term
         env:
           APCA_API_KEY_ID: "DUMMY_KEY_FOR_TESTING"
           APCA_API_SECRET_KEY: "DUMMY_SECRET_FOR_TESTING"
+
+      - name: Upload Python coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: python
+          name: python-${{ matrix.os }}
+          fail_ci_if_error: false
+          verbose: true
 
   build-cpp:
     needs: build-python
@@ -114,6 +125,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
           -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+          -DENABLE_COVERAGE=ON
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
@@ -135,6 +147,43 @@ jobs:
         working-directory: ./build
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
 
+      - name: Collect coverage (GCC on Linux)
+        if: runner.os == 'Linux' && matrix.c_compiler == 'gcc'
+        run: |
+          cd build
+          lcov --capture --directory . --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Collect coverage (Clang)
+        if: (runner.os == 'Linux' || runner.os == 'macOS') && matrix.cpp_compiler == 'clang++'
+        run: |
+          cd build
+          llvm-profdata merge -sparse default.profraw -o default.profdata
+          llvm-cov export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
+          # Filter out system headers and test files
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info
+
+      # Coverage collection for macOS with GCC (if using GCC)
+      - name: Collect coverage (GCC on macOS)
+        if: runner.os == 'macOS' && matrix.c_compiler == 'gcc'
+        run: |
+          cd build
+          lcov --capture --directory . --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' '/opt/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Upload C++ coverage to Codecov
+        if: runner.os != 'Windows'
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./build/coverage.info
+          flags: cpp
+          name: cpp-${{ matrix.os }}-${{ matrix.cpp_compiler || 'default' }}
+          fail_ci_if_error: false
+          verbose: true
+
       - name: Upload C++ Executable Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -142,7 +191,9 @@ jobs:
           path: |
             build/hello
             build/Release/hello.exe
+            build/Debug/hello.exe
           if-no-files-found: ignore
+
 #       - name: Install libraries - PkgConfig, Boost, QuantLib, CURL, OpenSSL, ZMQ, lcov, llvm
 #         id: install
 #         shell: bash
