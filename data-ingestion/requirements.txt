@@ -59,3 +59,5 @@ urllib3==2.4.0
 wcwidth==0.2.13
 websocket-client==1.8.0
 websockets==15.0.1
+# Platform-specific dependencies
+pywin32==306; sys_platform == 'win32'

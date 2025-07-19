@@ -7,6 +7,21 @@ import zmq
 import zmq.asyncio
 import sys
 import time
+import platform
+
+# Platform-specific imports for CPU affinity
+if sys.platform == "win32":
+    try:
+        import win32api
+        import win32process
+        import win32con
+        WINDOWS_AFFINITY_AVAILABLE = True
+    except ImportError:
+        WINDOWS_AFFINITY_AVAILABLE = False
+elif sys.platform == "darwin":
+    # macOS doesn't have direct Python CPU affinity support
+    # Could use ctypes to call pthread functions, but keeping it simple
+    pass
 
 # Format
 # B: 1-byte uint (EventType: 1=Quote, 2=Trade)
@@ -22,6 +37,47 @@ assert MARKET_EVENT.size == 40, "Struct size mismatch"
 
 SCALING_FACTOR = 10000
 
+
+def set_cpu_affinity(cpu_id=0):
+    """Set CPU affinity for the current process to a specific CPU core.
+
+    Args:
+        cpu_id: The CPU core to pin to (0-based index)
+    """
+    if sys.platform.startswith("linux"):
+        try:
+            os.sched_setaffinity(0, {cpu_id})
+            print(f"CPU affinity set to core {cpu_id} (Linux)")
+        except (AttributeError, OSError) as e:
+            print(f"Cannot set CPU affinity on Linux: {e}")
+
+    elif sys.platform == "win32" and WINDOWS_AFFINITY_AVAILABLE:
+        try:
+            handle = win32api.GetCurrentProcess()
+            affinity_mask = 1 << cpu_id
+            win32process.SetProcessAffinityMask(handle, affinity_mask)
+            print(f"CPU affinity set to core {cpu_id} (Windows)")
+        except Exception as e:
+            print(f"Cannot set CPU affinity on Windows: {e}")
+
+    elif sys.platform == "darwin":
+        # macOS doesn't have easy Python CPU affinity support
+        # Would need to use ctypes to call pthread_setaffinity_np
+        print("CPU affinity not implemented for macOS (not critical for performance)")
+
+    else:
+        print(f"CPU affinity not supported on platform: {sys.platform}")
+
+
+def get_zmq_address():
+    """Get the appropriate ZMQ address based on the platform.
+
+    Windows doesn't support IPC (Unix domain sockets), so use TCP.
+    """
+    if sys.platform == "win32":
+        return "tcp://127.0.0.1:5555"
+    else:
+        return "ipc:///tmp/market_data.sock"
 
 async def handle_market_data(message, zmq_socket):
     try:
@@ -39,7 +95,7 @@ async def handle_market_data(message, zmq_socket):
             raw_timestamp = item.get("t", 0)
             if isinstance(raw_timestamp, msgpack.Timestamp):
                 timestamp = (
-                    raw_timestamp.seconds * 1_000_000_000 + raw_timestamp.nanoseconds
+                        raw_timestamp.seconds * 1_000_000_000 + raw_timestamp.nanoseconds
                 )
             else:
                 timestamp = int(raw_timestamp)
@@ -84,11 +140,11 @@ async def handle_market_data(message, zmq_socket):
             if packed_data:
                 await zmq_socket.send_multipart([topic, packed_data])
     except (
-        msgpack.UnpackException,
-        msgpack.ExtraData,
-        websockets.ConnectionClosedError,
-        IndexError,
-        AttributeError,
+            msgpack.UnpackException,
+            msgpack.ExtraData,
+            websockets.ConnectionClosedError,
+            IndexError,
+            AttributeError,
     ) as e:
         print(f"Caught exception: {e}")
 
@@ -107,9 +163,9 @@ async def run_communication_loop(websocket, zmq_socket):
         auth_response_msg = await websocket.recv()
         auth_response = msgpack.unpackb(auth_response_msg, raw=False)
         if (
-            not isinstance(auth_response, list)
-            or not auth_response
-            or auth_response[0].get("T") != "success"
+                not isinstance(auth_response, list)
+                or not auth_response
+                or auth_response[0].get("T") != "success"
         ):
             print(f"FATAL: Authentication failed: {auth_response}")
             return
@@ -126,8 +182,8 @@ async def run_communication_loop(websocket, zmq_socket):
         subscription_response_msg = await websocket.recv()
         subscription_response = msgpack.unpackb(subscription_response_msg, raw=False)
         if (
-            not isinstance(subscription_response, list)
-            or subscription_response[0].get("T") != "success"
+                not isinstance(subscription_response, list)
+                or subscription_response[0].get("T") != "success"
         ):
             print(f"FATAL: Subscription failed: {subscription_response}")
             return
@@ -140,7 +196,12 @@ async def run_communication_loop(websocket, zmq_socket):
         return
 
 
-async def main(zmq_address):
+async def main(zmq_address=None):
+    if zmq_address is None:
+        zmq_address = get_zmq_address()
+
+    print(f"Using ZMQ address: {zmq_address}")
+
     uri = "wss://stream.data.alpaca.markets/v2/iex"
     headers = {"Content-Type": "application/msgpack"}
     context = zmq.asyncio.Context()
@@ -160,11 +221,5 @@ async def main(zmq_address):
 
 
 if __name__ == "__main__":
-    if sys.platform.startswith("linux"):
-        try:
-            os.sched_setaffinity(0, {0})
-        except AttributeError:
-            print("Cannot set CPU affinity")
-
-    ipc_socket = "ipc:///tmp/market_data.sock"
-    asyncio.run(main(ipc_socket))
+    set_cpu_affinity(0)
+    asyncio.run(main())
