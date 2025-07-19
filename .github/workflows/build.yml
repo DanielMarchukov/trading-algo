@@ -150,7 +150,7 @@ jobs:
         if: runner.os == 'Linux' && matrix.c_compiler == 'gcc'
         run: |
           cd build
-          lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch,gcov
+          lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch,gcov --quiet
           lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info
           lcov --list coverage.info
 
