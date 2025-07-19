@@ -8,20 +8,6 @@ import zmq.asyncio
 import sys
 import time
 
-WINDOWS_AFFINITY_AVAILABLE = False
-if sys.platform == "win32":
-    try:
-        import win32api
-        import win32process
-        import win32con
-        WINDOWS_AFFINITY_AVAILABLE = True
-    except ImportError:
-        WINDOWS_AFFINITY_AVAILABLE = False
-elif sys.platform == "darwin":
-    # macOS doesn't have direct Python CPU affinity support
-    # Could use ctypes to call pthread functions, but keeping it simple
-    pass
-
 # Format
 # B: 1-byte uint (EventType: 1=Quote, 2=Trade)
 # 7s: 7-byte symbol
@@ -45,18 +31,21 @@ def set_cpu_affinity(cpu_id=0):
     """
     if sys.platform.startswith("linux") and hasattr(os, 'sched_setaffinity'):
         try:
-            os.sched_setaffinity(0, {cpu_id})
+            os.sched_setaffinity(0, {cpu_id}) # type: ignore
             print(f"CPU affinity set to core {cpu_id} (Linux)")
         except (AttributeError, OSError) as e:
             print(f"Cannot set CPU affinity on Linux: {e}")
 
-    elif sys.platform == "win32" and WINDOWS_AFFINITY_AVAILABLE:
+    elif sys.platform == "win32":
         try:
+            import win32api
+            import win32process
+
             handle = win32api.GetCurrentProcess()
             affinity_mask = 1 << cpu_id
             win32process.SetProcessAffinityMask(handle, affinity_mask)
             print(f"CPU affinity set to core {cpu_id} (Windows)")
-        except Exception as e:
+        except (ImportError, Exception) as e:
             print(f"Cannot set CPU affinity on Windows: {e}")
 
     elif sys.platform == "darwin":
