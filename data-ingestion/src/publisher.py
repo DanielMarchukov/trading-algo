@@ -43,7 +43,7 @@ def set_cpu_affinity(cpu_id=0):
     Args:
         cpu_id: The CPU core to pin to (0-based index)
     """
-    if sys.platform.startswith("linux"):
+    if sys.platform.startswith("linux") and hasattr(os, 'sched_setaffinity'):
         try:
             os.sched_setaffinity(0, {cpu_id})
             print(f"CPU affinity set to core {cpu_id} (Linux)")
