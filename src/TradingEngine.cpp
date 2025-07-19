@@ -38,7 +38,7 @@ void pin_thread_to_core(std::thread &t, size_t core_id) {
                   << std::endl;
     }
 #elif defined(__APPLE__)
-    thread_affinity_policy_data_t policy = {core_id};
+    thread_affinity_policy_data_t policy = {static_cast<integer_t>(core_id)};
     thread_port_t mach_thread = pthread_mach_thread_np(t.native_handle());
     if (thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY,
                           (thread_policy_t)&policy,
