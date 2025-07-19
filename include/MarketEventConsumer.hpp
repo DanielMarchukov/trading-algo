@@ -16,8 +16,8 @@ template <typename StrategyType> class MarketEventConsumer {
     MarketEventConsumer(zmq::context_t &context, const std::string &address,
                         const std::string &symbol,
                         std::atomic<bool> &is_running,
-                        OrderCallback order_callback,
-                        std::shared_ptr<RiskManager> risk_manager)
+                        const OrderCallback &order_callback,
+                        const std::shared_ptr<RiskManager> &risk_manager)
         : subscriber_(context, zmq::socket_type::sub), address_(address),
           symbol_(symbol), is_running_(is_running),
           order_callback_(order_callback),
@@ -40,20 +40,16 @@ template <typename StrategyType> class MarketEventConsumer {
             zmq::message_t topic;
             zmq::message_t payload;
 
-            auto topic_res = subscriber_.recv(topic, zmq::recv_flags::none);
-            if (!topic_res.has_value()) {
+            if (auto topic_res = subscriber_.recv(topic, zmq::recv_flags::none); !topic_res.has_value()) {
                 continue;
             }
 
-            auto payload_res = subscriber_.recv(payload, zmq::recv_flags::none);
-            if (!payload_res.has_value()) {
+            if (auto payload_res = subscriber_.recv(payload, zmq::recv_flags::none); !payload_res.has_value()) {
                 continue;
             }
 
-            const MarketEvent *event =
-                static_cast<const MarketEvent *>(payload.data());
-            auto orders = strategy_->onMarketEvent(*event);
-            for (const auto &order : orders) {
+            auto event = static_cast<const MarketEvent *>(payload.data());
+            for (auto orders = strategy_->onMarketEvent(*event); const auto &order : orders) {
                 if (risk_manager_->onNewOrder(order)) {
                     order_callback_(order);
                 }

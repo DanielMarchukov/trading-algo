@@ -1,10 +1,12 @@
+#pragma once
+
 #include "Order.hpp"
 #include "PositionManager.hpp"
 #include <memory>
 
 class RiskManager {
   public:
-    explicit RiskManager(std::shared_ptr<PositionManager> position_manager);
+    explicit RiskManager(const std::shared_ptr<PositionManager> &position_manager);
 
     bool onNewOrder(const Order &order) const;
 

@@ -15,7 +15,7 @@
 
 struct ThreadGuard {
     std::thread t;
-    ThreadGuard(std::thread &&thread) : t(std::move(thread)) {}
+    explicit ThreadGuard(std::thread &&thread) : t(std::move(thread)) {}
     ~ThreadGuard() {
         if (t.joinable()) {
             t.join();
@@ -27,7 +27,7 @@ struct ThreadGuard {
 
 class MockStrategy : public Strategy {
   public:
-    std::vector<Order> onMarketEvent(const MarketEvent &event) {
+    static std::vector<Order> onMarketEvent(const MarketEvent &event) {
         std::vector<Order> orders;
         if (event.eventType == 2) {
             Order buy_order{};

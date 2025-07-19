@@ -3,7 +3,7 @@
 
 void PositionManager::onFill(const Fill &fill) {
     SymbolKey key{};
-    strncpy(key.value, fill.symbol, sizeof(key.value) - 1);
+    strncpy_s(key.value, fill.symbol, sizeof(key.value) - 1);
 
     if (fill.side == OrderSide::Buy) {
         positions_[key].fetch_add(fill.quantity, std::memory_order_relaxed);
@@ -14,7 +14,7 @@ void PositionManager::onFill(const Fill &fill) {
 
 int PositionManager::getPosition(std::string_view symbol) const {
     SymbolKey key{};
-    strncpy(key.value, symbol.data(),
+    strncpy_s(key.value, symbol.data(),
             std::min(symbol.size(), sizeof(key.value) - 1));
     auto it = positions_.find(key);
     if (it == positions_.end()) {

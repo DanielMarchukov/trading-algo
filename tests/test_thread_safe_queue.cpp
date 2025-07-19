@@ -33,7 +33,7 @@ TEST_F(ThreadSafeQueueTest, TryPopBehavesCorrectly) {
 }
 
 TEST_F(ThreadSafeQueueTest, MultiThreadedProducerConsumer) {
-    const int num_items = 1000;
+    constexpr int num_items = 1000;
     std::vector<Order> produced_orders;
 
     std::thread producer_thread([&]() {

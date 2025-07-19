@@ -6,7 +6,7 @@
 class SimpleMarketMakingStrategy : public Strategy {
   public:
     SimpleMarketMakingStrategy()
-        : last_trade_price_(0.0), order_id_counter_(0) {}
+        : last_trade_price_(0), order_id_counter_(0) {}
 
     std::vector<Order> onMarketEvent(const MarketEvent &event) {
         std::vector<Order> orders;
@@ -17,7 +17,7 @@ class SimpleMarketMakingStrategy : public Strategy {
             if (last_trade_price_ > 0) {
                 Order buy_order{};
                 buy_order.id = ++order_id_counter_;
-                strncpy(buy_order.symbol, event.symbol,
+                strncpy_s(buy_order.symbol, event.symbol,
                         sizeof(buy_order.symbol) - 1);
                 buy_order.side = OrderSide::Buy;
                 buy_order.type = OrderType::Limit;
@@ -27,7 +27,7 @@ class SimpleMarketMakingStrategy : public Strategy {
 
                 Order sell_order{};
                 sell_order.id = ++order_id_counter_;
-                strncpy(sell_order.symbol, event.symbol,
+                strncpy_s(sell_order.symbol, event.symbol,
                         sizeof(sell_order.symbol) - 1);
                 sell_order.side = OrderSide::Sell;
                 sell_order.type = OrderType::Limit;
@@ -40,6 +40,6 @@ class SimpleMarketMakingStrategy : public Strategy {
     }
 
   private:
-    double last_trade_price_;
+    uint32_t last_trade_price_;
     uint64_t order_id_counter_;
 };

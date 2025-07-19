@@ -2,9 +2,7 @@ cmake_minimum_required(VERSION 3.28.3)
 
 project(RichOnPaper VERSION 0.0.3)
 
-if(POLICY CMP0167)
-    cmake_policy(SET CMP0167 NEW)
-endif()
+cmake_policy(SET CMP0167 NEW)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,7 +27,7 @@ else()
     add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-march=native")
 endif()
 
-find_package(Boost REQUIRED COMPONENTS lockfree)
+find_package(Boost CONFIG REQUIRED COMPONENTS lockfree)
 find_package(cppzmq CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(nlohmann_json REQUIRED)

@@ -9,10 +9,10 @@
 class OrderGateway {
   public:
     OrderGateway(std::atomic<bool> &is_running,
-                 std::shared_ptr<ThreadSafeQueue<Order>> order_queue,
+                 const std::shared_ptr<ThreadSafeQueue<Order>> &order_queue,
                  std::unique_ptr<IRestClient> rest_client);
 
-    void run();
+    void run() const;
 
   private:
     std::atomic<bool> &is_running_;

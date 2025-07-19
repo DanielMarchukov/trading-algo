@@ -1,16 +1,7 @@
 # CMake
-CMakeLists.txt.user
-CMakeCache.txt
-CMakeFiles
-CMakeScripts
 Testing
-Makefile
-cmake_install.cmake
-install_manifest.txt
 compile_commands.json
-CTestTestfile.cmake
 _deps
-CMakeUserPresets.json
 build/
 .cache/
 env/
@@ -54,3 +45,12 @@ hello
 *.exe
 *.out
 *.app
+
+# Setup files
+/setup/env.bat.template
+/setup/env.ps1.template
+/setup/rebuild.bat
+/setup/run_tests.bat
+/setup/run_trading_system.bat
+/setup/run_trading_system.ps1
+.idea/

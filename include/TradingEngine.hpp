@@ -11,23 +11,18 @@
 #include <thread>
 #include <vector>
 
-void pin_thread_to_core(std::thread &t, int core_id);
+void pin_thread_to_core(std::thread &t, size_t core_id);
 
 class TradingEngine {
   public:
-    enum class Mode { Production, Test };
 
     explicit TradingEngine(const std::vector<std::string> &symbols,
-                           std::unique_ptr<IRestClient> rest_client,
-                           Mode mode = Mode::Production);
+                           std::unique_ptr<IRestClient> rest_client);
 
     ~TradingEngine();
 
     void run();
     void stop();
-
-    zmq::context_t &getContext();
-    const std::string &getIPCAddress() const;
 
   private:
     struct ConsumerThread {
@@ -39,7 +34,7 @@ class TradingEngine {
     void setup_signal_handler();
     void launch_gateway();
     void launch_consumers();
-    void main_loop();
+    void main_loop()const;
     void shutdown();
 
     std::atomic<bool> is_running_;

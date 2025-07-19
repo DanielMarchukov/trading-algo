@@ -7,7 +7,7 @@
 #include <memory>
 #include <thread>
 
-class MockRestClient : public IRestClient {
+class MockRestClient final : public IRestClient {
   public:
     explicit MockRestClient(std::promise<void> *p = nullptr)
         : promise_to_fulfill(p) {}
@@ -31,10 +31,10 @@ struct ThreadGuard {
 };
 
 TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
-    std::atomic<bool> is_running(true);
-    auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
+    std::atomic is_running(true);
+    const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
     std::promise<void> promise;
-    auto future = promise.get_future();
+    const auto future = promise.get_future();
 
     auto mock_client = std::make_unique<MockRestClient>(&promise);
     OrderGateway gateway(is_running, order_queue, std::move(mock_client));
@@ -45,7 +45,7 @@ TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
     test_order.id = 999;
     order_queue->push(test_order);
 
-    auto status = future.wait_for(std::chrono::seconds(2));
+    const auto status = future.wait_for(std::chrono::seconds(2));
     ASSERT_EQ(status, std::future_status::ready);
 
     is_running.store(false);

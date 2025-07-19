@@ -9,8 +9,8 @@ struct MarketEvent {
     uint64_t timestamp;
     uint32_t p1; // Bid or Trade price
     uint32_t s1; // Bid or Trade size
-    uint32_t p2; // Ask or Trade price
-    uint32_t s2; // Ask or Trade size
+    uint32_t p2; // Ask price
+    uint32_t s2; // Ask size
     uint64_t arrivedAt;
 };
 #pragma pack(pop)

@@ -6,7 +6,7 @@
 
 int main() {
     try {
-        std::vector<std::string> symbols = {"AAPL", "GOOGL", "AMZN"};
+        const std::vector<std::string> symbols = {"AAPL", "GOOGL", "AMZN"};
 
         auto alpaca_client = std::make_unique<AlpacaRestClient>();
 

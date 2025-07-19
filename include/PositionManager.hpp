@@ -1,4 +1,5 @@
 #pragma once
+
 #include "Fill.hpp"
 #include <atomic>
 #include <cstring>
@@ -6,7 +7,7 @@
 #include <unordered_map>
 
 struct SymbolKey {
-    char value[8] = {0};
+    char value[8] = {};
 
     bool operator==(const SymbolKey &other) const {
         return strncmp(value, other.value, sizeof(value)) == 0;

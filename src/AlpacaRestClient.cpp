@@ -1,11 +1,10 @@
 #include "AlpacaRestClient.hpp"
-#include <cstdlib>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <stdexcept>
 #include <string_view>
 
 AlpacaRestClient::AlpacaRestClient() {
-    // Retrieve API credentials from environment variables.
     const char *api_key_cstr = std::getenv("APCA_API_KEY_ID");
     const char *api_secret_cstr = std::getenv("APCA_API_SECRET_KEY");
     const char *base_url_cstr =
@@ -39,7 +38,7 @@ void AlpacaRestClient::placeOrder(const Order &order) {
             std::to_string(static_cast<double>(order.price) / SCALING_FACTOR);
     }
 
-    cpr::Response r =
+    const cpr::Response r =
         cpr::Post(cpr::Url{base_url_ + "/v2/orders"},
                   cpr::Header{{"APCA-API-KEY-ID", api_key_},
                               {"APCA-API-SECRET-KEY", api_secret_},

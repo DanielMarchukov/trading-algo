@@ -1,6 +1,6 @@
 #include "RiskManager.hpp"
 
-RiskManager::RiskManager(std::shared_ptr<PositionManager> position_manager)
+RiskManager::RiskManager(const std::shared_ptr<PositionManager> &position_manager)
     : position_manager_(position_manager) {
     // TODO: Load parameters from some config.
 }
@@ -10,7 +10,7 @@ bool RiskManager::onNewOrder(const Order &order) const {
         return false;
     }
 
-    int current_position = position_manager_->getPosition(order.symbol);
+    const int current_position = position_manager_->getPosition(order.symbol);
     int new_position = current_position;
     if (order.side == OrderSide::Buy) {
         new_position += order.quantity;
@@ -22,7 +22,7 @@ bool RiskManager::onNewOrder(const Order &order) const {
         return false;
     }
 
-    if (order.price > 0 && (order.price * order.quantity) > max_order_value_) {
+    if (order.price > 0 && (order.price * order.quantity) > max_order_value_ * SCALING_FACTOR) {
         return false;
     }
     return true;

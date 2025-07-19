@@ -14,7 +14,7 @@
 
 namespace {
 std::atomic<bool> *g_is_running_ptr = nullptr;
-void signal_handler(int signum) {
+void signal_handler(const int signum) {
     if (g_is_running_ptr) {
         std::cout << "\nSignal " << signum
                   << " received. Initiating shutdown..." << std::endl;
@@ -23,7 +23,7 @@ void signal_handler(int signum) {
 }
 } // namespace
 
-void pin_thread_to_core(std::thread &t, int core_id) {
+void pin_thread_to_core(std::thread &t, size_t core_id) {
 #if defined(__linux__) || defined(__gnu_linux__)
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
@@ -33,8 +33,7 @@ void pin_thread_to_core(std::thread &t, int core_id) {
         std::cerr << "Error calling pthread_setaffinity_np\n";
     }
 #elif defined(_WIN32)
-    DWORD_PTR mask = 1LL << core_id;
-    if (SetThreadAffinityMask(t.native_handle(), mask) == 0) {
+    if (const DWORD_PTR mask = 1LL << core_id; SetThreadAffinityMask(t.native_handle(), mask) == 0) {
         std::cerr << "Error calling SetThreadAffinityMask: " << GetLastError()
                   << std::endl;
     }
@@ -55,30 +54,23 @@ void pin_thread_to_core(std::thread &t, int core_id) {
 }
 
 TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
-                             std::unique_ptr<IRestClient> rest_client,
-                             Mode mode)
+                             std::unique_ptr<IRestClient> rest_client)
     : is_running_(true), symbols_(symbols) {
     setup_signal_handler();
-
     risk_manager_ =
         std::make_shared<RiskManager>(std::make_shared<PositionManager>());
     order_queue_ = std::make_shared<ThreadSafeQueue<Order>>();
-
     order_gateway_ = std::make_unique<OrderGateway>(is_running_, order_queue_,
                                                     std::move(rest_client));
 
-    if (mode == Mode::Test) {
-        ipc_address_ = "tcp://127.0.0.1:5555";
-    } else {
 #ifdef _WIN32
-        // Windows doesn't support IPC, so production must use TCP.
-        ipc_address_ = "tcp://127.0.0.1:5555";
+    // Windows doesn't support IPC, so production must use TCP.
+    ipc_address_ = "tcp://127.0.0.1:5555";
 #else
-        std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-        std::filesystem::path socket_path = temp_dir / "market_data.sock";
-        ipc_address_ = "ipc://" + socket_path.string();
+    std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
+    std::filesystem::path socket_path = temp_dir / "market_data.sock";
+    ipc_address_ = "ipc://" + socket_path.string();
 #endif
-    }
 }
 
 TradingEngine::~TradingEngine() {
@@ -126,7 +118,7 @@ void TradingEngine::launch_consumers() {
     }
 }
 
-void TradingEngine::main_loop() {
+void TradingEngine::main_loop() const {
     while (is_running_.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
@@ -136,9 +128,9 @@ void TradingEngine::shutdown() {
     if (order_gateway_thread_.joinable()) {
         order_gateway_thread_.join();
     }
-    for (auto &ct : consumer_threads_) {
-        if (ct.thread.joinable()) {
-            ct.thread.join();
+    for (auto &[thread, consumer] : consumer_threads_) {
+        if (thread.joinable()) {
+            thread.join();
         }
     }
 
@@ -157,7 +149,3 @@ void TradingEngine::run() {
 }
 
 void TradingEngine::stop() { is_running_.store(false); }
-
-zmq::context_t &TradingEngine::getContext() { return context_; }
-
-const std::string &TradingEngine::getIPCAddress() const { return ipc_address_; }
