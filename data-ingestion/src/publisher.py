@@ -7,7 +7,6 @@ import zmq
 import zmq.asyncio
 import sys
 import time
-import platform
 
 # Platform-specific imports for CPU affinity
 if sys.platform == "win32":
