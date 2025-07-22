@@ -14,7 +14,7 @@ struct Order {
     char symbol[8];
     OrderSide side;
     OrderType type;
-    uint32_t quantity;
+    int32_t quantity;
     uint32_t price;
 };
 #pragma pack(pop)

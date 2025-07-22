@@ -12,7 +12,7 @@ void PositionManager::onFill(const Fill &fill) {
     }
 }
 
-int PositionManager::getPosition(std::string_view symbol) const {
+int PositionManager::getPosition(const std::string_view symbol) const {
     SymbolKey key{};
     strncpy(key.value, symbol.data(),
             std::min(symbol.size(), sizeof(key.value) - 1));

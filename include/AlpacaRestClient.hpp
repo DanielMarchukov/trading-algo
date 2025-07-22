@@ -5,7 +5,7 @@
 #include <cpr/cpr.h>
 #include <string>
 
-class AlpacaRestClient : public IRestClient {
+class AlpacaRestClient final : public IRestClient {
   public:
     AlpacaRestClient();
     void placeOrder(const Order &order) override;

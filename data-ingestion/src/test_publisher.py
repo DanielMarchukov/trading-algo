@@ -1,4 +1,5 @@
 import asyncio
+import os
 import msgpack
 import unittest
 import sys
@@ -11,6 +12,14 @@ class TestPublisher(unittest.TestCase):
 
     def setUp(self):
         self.mock_zmq_socket = AsyncMock()
+        if not os.environ.get("APCA_API_SECRET_KEY") or not os.environ.get("APCA_API_KEY_ID"):
+            os.environ["APCA_API_KEY_ID"] = 'dummy_api_key'
+            os.environ["APCA_API_SECRET_KEY"] = 'dummy_api_secret'
+
+    def tearDown(self):
+        if os.environ.get("APCA_API_SECRET_KEY") or os.environ.get("APCA_API_KEY_ID"):
+            os.environ.pop("APCA_API_KEY_ID")
+            os.environ.pop("APCA_API_SECRET_KEY")
 
     @patch("time.time_ns", return_value=1234567890)
     def test_handle_valid_quote(self, _):
@@ -74,6 +83,7 @@ class TestPublisher(unittest.TestCase):
         self.mock_zmq_socket.send_multipart.assert_not_called()
 
     def test_successful_run_loop(self):
+
         mock_websocket = AsyncMock()
         auth_success = msgpack.packb([{"T": "success", "msg": "authenticated"}])
         sub_success = msgpack.packb([{"T": "success", "msg": "subscribed"}])

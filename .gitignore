@@ -54,3 +54,5 @@ hello
 /setup/run_trading_system.bat
 /setup/run_trading_system.ps1
 .idea/
+/.coverage
+/coverage.xml

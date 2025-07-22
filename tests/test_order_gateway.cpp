@@ -1,6 +1,7 @@
 #include "IRestClient.hpp"
 #include "Order.hpp"
 #include "OrderGateway.hpp"
+#include "ThreadGuard.hpp"
 #include "ThreadSafeQueue.hpp"
 #include <future>
 #include <gtest/gtest.h>
@@ -19,15 +20,6 @@ class MockRestClient final : public IRestClient {
     }
 
     std::promise<void> *promise_to_fulfill = nullptr;
-};
-
-struct ThreadGuard {
-    std::thread t;
-    explicit ThreadGuard(std::thread &&thread) : t(std::move(thread)) {}
-    ~ThreadGuard() {
-        if (t.joinable())
-            t.join();
-    }
 };
 
 TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {

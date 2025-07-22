@@ -58,3 +58,27 @@ TEST_F(PositionManagerTest, HandlesMultipleSymbolsAndFills) {
     EXPECT_EQ(pm.getPosition("AAPL"), 150); // 200 - 50
     EXPECT_EQ(pm.getPosition("GOOGL"), 50);
 }
+
+TEST_F(PositionManagerTest, HandlesMaxLengthSymbol) {
+    Fill fill{};
+    memset(fill.symbol, 'X', sizeof(fill.symbol) - 1);
+    fill.symbol[sizeof(fill.symbol) - 1] = '\0';
+    fill.side = OrderSide::Buy;
+    fill.quantity = 100;
+
+    pm.onFill(fill);
+
+    EXPECT_EQ(pm.getPosition(fill.symbol), 100);
+}
+
+TEST_F(PositionManagerTest, HandlesEmptySymbol) {
+    Fill fill{};
+    fill.symbol[0] = '\0';
+    fill.side = OrderSide::Buy;
+    fill.quantity = 50;
+
+    pm.onFill(fill);
+
+    EXPECT_EQ(pm.getPosition(""), 50);
+}
+

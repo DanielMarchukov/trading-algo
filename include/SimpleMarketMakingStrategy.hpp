@@ -2,7 +2,6 @@
 
 #include "Strategy.hpp"
 #include "Utils.hpp"
-#include <string.h>
 
 class SimpleMarketMakingStrategy : public Strategy {
   public:

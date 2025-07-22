@@ -11,7 +11,7 @@ bool RiskManager::onNewOrder(const Order &order) const {
     }
 
     const int current_position = position_manager_->getPosition(order.symbol);
-    int new_position = current_position;
+    int32_t new_position = current_position;
     if (order.side == OrderSide::Buy) {
         new_position += order.quantity;
     } else {

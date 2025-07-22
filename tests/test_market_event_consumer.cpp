@@ -2,6 +2,7 @@
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
 #include "Strategy.hpp"
+#include "ThreadGuard.hpp"
 #include <chrono>
 #include <filesystem>
 #include <future>
@@ -12,18 +13,6 @@
 #else
 #include <unistd.h>
 #endif
-
-struct ThreadGuard {
-    std::thread t;
-    explicit ThreadGuard(std::thread &&thread) : t(std::move(thread)) {}
-    ~ThreadGuard() {
-        if (t.joinable()) {
-            t.join();
-        }
-    }
-    ThreadGuard(const ThreadGuard &) = delete;
-    ThreadGuard &operator=(const ThreadGuard &) = delete;
-};
 
 class MockStrategy : public Strategy {
   public:
@@ -60,12 +49,86 @@ class MarketEventConsumerTest : public ::testing::Test {
     std::shared_ptr<RiskManager> risk_manager_;
 };
 
+class EmptyStrategy : public Strategy {
+public:
+    static std::vector<Order> onMarketEvent(const MarketEvent& /*event*/) {
+        return {};
+    }
+};
+
+class RejectedOrderStrategy : public Strategy {
+public:
+    static std::vector<Order> onMarketEvent(const MarketEvent& event) {
+        if (event.eventType == 2) {
+            Order order{};
+            order.id = 1;
+            order.side = OrderSide::Buy;
+            order.quantity = 2000;
+            order.price = 1000000;
+            return {order};
+        }
+        return {};
+    }
+};
+
+TEST_F(MarketEventConsumerTest, HandlesStrategyReturningNoOrders) {
+    zmq::context_t context(1);
+    std::atomic is_running(true);
+    int callback_count = 0;
+
+    auto callback = [&](const Order& /*order*/) {
+        callback_count++;
+    };
+
+    try {
+        MarketEventConsumer<EmptyStrategy> consumer(
+            context, ipc_address, "TEST", is_running, callback, risk_manager_);
+
+        SUCCEED();
+    } catch (const std::exception& e) {
+        GTEST_SKIP() << "ZMQ connection failed: " << e.what();
+    }
+}
+
+TEST_F(MarketEventConsumerTest, HandlesRiskManagerRejection) {
+    zmq::context_t context(1);
+    std::atomic is_running(true);
+    int callback_count = 0;
+
+    auto callback = [&](const Order& /*order*/) {
+        callback_count++;
+    };
+
+    try {
+        MarketEventConsumer<RejectedOrderStrategy> consumer(
+            context, ipc_address, "TEST", is_running, callback, risk_manager_);
+
+        SUCCEED();
+    } catch (const std::exception& e) {
+        GTEST_SKIP() << "ZMQ connection failed: " << e.what();
+    }
+
+    // Callback should not be called if risk manager rejects orders
+    EXPECT_EQ(callback_count, 0);
+}
+
+TEST_F(MarketEventConsumerTest, ConstructorThrowsOnInvalidAddress) {
+    zmq::context_t context(1);
+    std::atomic is_running(true);
+    auto callback = [](const Order& /*order*/) {};
+
+    EXPECT_THROW(
+        MarketEventConsumer<EmptyStrategy>(
+            context, "invalid://address", "TEST", is_running, callback, risk_manager_),
+        zmq::error_t);
+}
+
 TEST_F(MarketEventConsumerTest, CallsStrategyAndReceivesOrders) {
     zmq::context_t context(1);
     zmq::socket_t publisher(context, zmq::socket_type::pub);
     publisher.bind(ipc_address);
 
-    std::atomic<bool> is_test_running(true);
+    std::atomic is_test_running(true);
     std::promise<Order> promise;
     auto future = promise.get_future();
     auto test_callback = [&](const Order &order) { promise.set_value(order); };

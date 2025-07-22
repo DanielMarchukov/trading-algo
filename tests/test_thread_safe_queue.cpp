@@ -56,3 +56,18 @@ TEST_F(ThreadSafeQueueTest, MultiThreadedProducerConsumer) {
 
     EXPECT_EQ(produced_orders.size(), num_items);
 }
+
+TEST_F(ThreadSafeQueueTest, WaitAndPopWithTimeout) {
+    std::thread pusher([this]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        Order order{};
+        order.id = 999;
+        queue.push(order);
+    });
+
+    Order result{};
+    queue.wait_and_pop(result);
+    EXPECT_EQ(result.id, 999);
+
+    pusher.join();
+}

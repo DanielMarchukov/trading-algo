@@ -7,6 +7,6 @@ struct Fill {
     uint64_t executionId;
     uint64_t orderId;
     OrderSide side;
-    uint32_t quantity;
+    int32_t quantity;
     double price;
 };

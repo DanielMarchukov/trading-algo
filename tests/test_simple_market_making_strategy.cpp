@@ -59,3 +59,12 @@ TEST_F(SimpleMarketMakingStrategyTest, OrderIdIncrements) {
     EXPECT_EQ(orders2[0].id, 3);
     EXPECT_EQ(orders2[1].id, 4);
 }
+
+TEST_F(SimpleMarketMakingStrategyTest, HandlesZeroPrice) {
+    MarketEvent trade_event{};
+    trade_event.eventType = 2;
+    trade_event.p1 = 0;
+
+    const auto orders = strategy.onMarketEvent(trade_event);
+    EXPECT_TRUE(orders.empty());
+}

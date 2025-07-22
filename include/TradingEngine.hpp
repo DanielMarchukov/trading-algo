@@ -34,7 +34,7 @@ class TradingEngine {
     void setup_signal_handler();
     void launch_gateway();
     void launch_consumers();
-    void main_loop()const;
+    void main_loop() const;
     void shutdown();
 
     std::atomic<bool> is_running_;

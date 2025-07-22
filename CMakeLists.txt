@@ -52,6 +52,7 @@ target_link_libraries(hello PRIVATE
 )
 
 if(MSVC)
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
     target_compile_definitions(hello PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
@@ -81,6 +82,10 @@ if(ENABLE_COVERAGE)
         message(STATUS "Using Clang for code coverage")
         target_compile_options(rich_on_tests PUBLIC -fprofile-instr-generate -fcoverage-mapping)
         target_link_options(rich_on_tests PUBLIC -fprofile-instr-generate)
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        message(STATUS "Using MSVC - coverage requires external tools (OpenCppCoverage)")
+        target_compile_options(rich_on_tests PUBLIC /Zi)
+        target_link_options(rich_on_tests PUBLIC /DEBUG)
     else()
         message(WARNING "Code coverage is not supported for the current compiler.")
     endif()
