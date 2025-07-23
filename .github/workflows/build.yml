@@ -371,7 +371,6 @@ jobs:
           cd ${{ env.VCPKG_ROOT }}
           ./vcpkg version >> ../cpp-deps-report.txt 2>&1 || true
           cd - > /dev/null
-          
           echo "" >> cpp-deps-report.txt
           echo "=== Project Manifest (vcpkg.json) ===" >> cpp-deps-report.txt
           if [ -f "vcpkg.json" ]; then
@@ -379,16 +378,16 @@ jobs:
           else
             echo "vcpkg.json not found" >> cpp-deps-report.txt
           fi
-          
+
           echo "" >> cpp-deps-report.txt
           echo "=== Installed Packages ===" >> cpp-deps-report.txt
           cd ${{ env.VCPKG_ROOT }}
           ./vcpkg list >> ../cpp-deps-report.txt 2>&1 || true
-          
+
           echo "" >> ../cpp-deps-report.txt
           echo "=== vcpkg Integrate Status ===" >> ../cpp-deps-report.txt
           ./vcpkg integrate show >> ../cpp-deps-report.txt 2>&1 || true
-          
+
           cd - > /dev/null
           cat cpp-deps-report.txt
         continue-on-error: true
