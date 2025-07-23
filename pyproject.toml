@@ -175,6 +175,7 @@ addopts = [
     "-p no:cacheprovider"
 ]
 testpaths = ["data-ingestion/src"]
+pythonpath = ["data-ingestion/src"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
