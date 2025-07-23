@@ -70,6 +70,7 @@ bandit[toml]==1.7.5
 safety==2.4.0b2  # Use older version compatible with pydantic 2.x
 mypy==1.8.0
 pre-commit==3.6.0
+PyYAML==6.0.1
 
 # Security and dependency scanning
 pip-audit==2.6.1

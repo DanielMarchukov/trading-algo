@@ -16,13 +16,13 @@ class TestPublisher(unittest.TestCase):
         if not os.environ.get("APCA_API_SECRET_KEY") or not os.environ.get(
             "APCA_API_KEY_ID"
         ):
-            os.environ["APCA_API_KEY_ID"] = "dummy_api_key"
-            os.environ["APCA_API_SECRET_KEY"] = "dummy_api_secret"
+            os.environ["APCA_API_KEY_ID"] = "dummy_api_key"  # nosec
+            os.environ["APCA_API_SECRET_KEY"] = "dummy_api_secret"  # nosec
 
     def tearDown(self):
         if os.environ.get("APCA_API_SECRET_KEY") or os.environ.get("APCA_API_KEY_ID"):
-            os.environ.pop("APCA_API_KEY_ID")
-            os.environ.pop("APCA_API_SECRET_KEY")
+            os.environ.pop("APCA_API_KEY_ID", None)
+            os.environ.pop("APCA_API_SECRET_KEY", None)
 
     @patch("time.time_ns", return_value=1234567890)
     def test_handle_valid_quote(self, _):

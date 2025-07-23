@@ -42,14 +42,8 @@ list(FILTER SOURCES EXCLUDE REGEX "main.cpp")
 include_directories(include)
 
 add_executable(hello src/main.cpp ${SOURCES})
-target_link_libraries(hello PRIVATE
-    Boost::lockfree
-    libzmq
-    cppzmq
-    nlohmann_json::nlohmann_json
-    cpr::cpr
-    unofficial::uwebsockets::uwebsockets
-)
+target_link_libraries(hello PRIVATE Boost::lockfree libzmq cppzmq nlohmann_json::nlohmann_json
+                                    cpr::cpr unofficial::uwebsockets::uwebsockets)
 
 if(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
@@ -63,14 +57,8 @@ enable_testing()
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 
 add_executable(rich_on_tests ${SOURCES} ${TESTS})
-target_link_libraries(rich_on_tests PUBLIC
-    Boost::lockfree
-    cppzmq
-    libzmq
-    cpr::cpr
-    nlohmann_json::nlohmann_json
-    GTest::gtest_main
-)
+target_link_libraries(rich_on_tests PUBLIC Boost::lockfree cppzmq libzmq cpr::cpr
+                                           nlohmann_json::nlohmann_json GTest::gtest_main)
 
 if(ENABLE_COVERAGE)
     message(STATUS "Code coverage enabled")
@@ -93,4 +81,3 @@ endif()
 
 include(GoogleTest)
 gtest_discover_tests(rich_on_tests)
-

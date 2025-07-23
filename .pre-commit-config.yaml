@@ -32,6 +32,7 @@ repos:
       - id: bandit
         files: ^data-ingestion/
         args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["toml"]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v17.0.6
@@ -45,12 +46,14 @@ repos:
     hooks:
       - id: cmake-format
         files: CMakeLists\.txt|\.cmake$
+        additional_dependencies: ["pyyaml"]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.39.0
     hooks:
       - id: markdownlint
-        args: ["--config", ".markdownlint.json"]
+        args: ["--config", ".markdownlint.json", "--fix"]
+        files: \.(md|markdown)$
 
 ci:
   autofix_commit_msg: |
