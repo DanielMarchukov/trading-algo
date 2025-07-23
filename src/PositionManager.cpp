@@ -1,5 +1,6 @@
 #include "PositionManager.hpp"
 #include "Utils.hpp"
+#include <mutex>
 
 void PositionManager::onFill(const Fill &fill) {
     SymbolKey key{};
