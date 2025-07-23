@@ -1,12 +1,13 @@
 import asyncio
 import os
-import msgpack
 import struct
+import sys
+import time
+
+import msgpack
 import websockets
 import zmq
 import zmq.asyncio
-import sys
-import time
 
 # Format
 # B: 1-byte uint (EventType: 1=Quote, 2=Trade)
@@ -29,9 +30,9 @@ def set_cpu_affinity(cpu_id=0):
     Args:
         cpu_id: The CPU core to pin to (0-based index)
     """
-    if sys.platform.startswith("linux") and hasattr(os, 'sched_setaffinity'):
+    if sys.platform.startswith("linux") and hasattr(os, "sched_setaffinity"):
         try:
-            os.sched_setaffinity(0, {cpu_id}) # type: ignore
+            os.sched_setaffinity(0, {cpu_id})  # type: ignore
             print(f"CPU affinity set to core {cpu_id} (Linux)")
         except (AttributeError, OSError) as e:
             print(f"Cannot set CPU affinity on Linux: {e}")
@@ -67,6 +68,7 @@ def get_zmq_address():
     else:
         return "ipc://tmp/market_data.sock"
 
+
 async def handle_market_data(message, zmq_socket):
     try:
         arrived_at = time.time_ns()
@@ -83,7 +85,7 @@ async def handle_market_data(message, zmq_socket):
             raw_timestamp = item.get("t", 0)
             if isinstance(raw_timestamp, msgpack.Timestamp):
                 timestamp = (
-                        raw_timestamp.seconds * 1_000_000_000 + raw_timestamp.nanoseconds
+                    raw_timestamp.seconds * 1_000_000_000 + raw_timestamp.nanoseconds
                 )
             else:
                 timestamp = int(raw_timestamp)
@@ -128,11 +130,11 @@ async def handle_market_data(message, zmq_socket):
             if packed_data:
                 await zmq_socket.send_multipart([topic, packed_data])
     except (
-            msgpack.UnpackException,
-            msgpack.ExtraData,
-            websockets.ConnectionClosedError,
-            IndexError,
-            AttributeError,
+        msgpack.UnpackException,
+        msgpack.ExtraData,
+        websockets.ConnectionClosedError,
+        IndexError,
+        AttributeError,
     ) as e:
         print(f"Caught exception: {e}")
 
@@ -151,9 +153,9 @@ async def run_communication_loop(websocket, zmq_socket):
         auth_response_msg = await websocket.recv()
         auth_response = msgpack.unpackb(auth_response_msg, raw=False)
         if (
-                not isinstance(auth_response, list)
-                or not auth_response
-                or auth_response[0].get("T") != "success"
+            not isinstance(auth_response, list)
+            or not auth_response
+            or auth_response[0].get("T") != "success"
         ):
             print(f"FATAL: Authentication failed: {auth_response}")
             return
@@ -170,8 +172,8 @@ async def run_communication_loop(websocket, zmq_socket):
         subscription_response_msg = await websocket.recv()
         subscription_response = msgpack.unpackb(subscription_response_msg, raw=False)
         if (
-                not isinstance(subscription_response, list)
-                or subscription_response[0].get("T") != "success"
+            not isinstance(subscription_response, list)
+            or subscription_response[0].get("T") != "success"
         ):
             print(f"FATAL: Subscription failed: {subscription_response}")
             return

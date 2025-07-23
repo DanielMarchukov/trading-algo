@@ -1,9 +1,10 @@
 import asyncio
 import os
+import sys
+
 import msgpack
 import unittest
-import sys
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import publisher
 
@@ -12,9 +13,11 @@ class TestPublisher(unittest.TestCase):
 
     def setUp(self):
         self.mock_zmq_socket = AsyncMock()
-        if not os.environ.get("APCA_API_SECRET_KEY") or not os.environ.get("APCA_API_KEY_ID"):
-            os.environ["APCA_API_KEY_ID"] = 'dummy_api_key'
-            os.environ["APCA_API_SECRET_KEY"] = 'dummy_api_secret'
+        if not os.environ.get("APCA_API_SECRET_KEY") or not os.environ.get(
+            "APCA_API_KEY_ID"
+        ):
+            os.environ["APCA_API_KEY_ID"] = "dummy_api_key"
+            os.environ["APCA_API_SECRET_KEY"] = "dummy_api_secret"
 
     def tearDown(self):
         if os.environ.get("APCA_API_SECRET_KEY") or os.environ.get("APCA_API_KEY_ID"):
@@ -71,7 +74,9 @@ class TestPublisher(unittest.TestCase):
         )
         self.assertEqual(unpacked_data[0], 2)
         self.assertEqual(unpacked_data[1], b"GOOGL\0\0")
-        self.assertEqual(unpacked_data[3], int(sample_trade["p"] * publisher.SCALING_FACTOR))
+        self.assertEqual(
+            unpacked_data[3], int(sample_trade["p"] * publisher.SCALING_FACTOR)
+        )
         self.assertEqual(unpacked_data[7], 9876543210)
 
     def test_handle_malformed_data_is_ignored(self):
@@ -130,7 +135,7 @@ class TestPublisher(unittest.TestCase):
         finally:
             sys.platform = original_platform
 
-    @patch('os.sched_setaffinity', create=True)
+    @patch("os.sched_setaffinity", create=True)
     def test_cpu_affinity_linux(self, mock_setaffinity):
         """Test CPU affinity setting on Linux."""
         original_platform = sys.platform
@@ -146,9 +151,11 @@ class TestPublisher(unittest.TestCase):
         original_platform = sys.platform
         try:
             sys.platform = "win32"
-            if 'win32api' in sys.modules or 'win32process' in sys.modules:
-                with patch('win32api.GetCurrentProcess') as mock_get_process, \
-                        patch('win32process.SetProcessAffinityMask') as mock_set_affinity:
+            if "win32api" in sys.modules or "win32process" in sys.modules:
+                with (
+                    patch("win32api.GetCurrentProcess") as mock_get_process,
+                    patch("win32process.SetProcessAffinityMask") as mock_set_affinity,
+                ):
                     mock_get_process.return_value = MagicMock()
                     publisher.set_cpu_affinity(1)
                     mock_set_affinity.assert_called_once()
