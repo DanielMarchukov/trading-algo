@@ -66,6 +66,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Debug
           - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
@@ -82,9 +83,25 @@ jobs:
           - os: macos-latest
             build_type: Debug
             vcpkg_triplet: arm64-osx
+          # Release
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            build_type: Release
+            vcpkg_triplet: x64-linux
+          - os: ubuntu-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+            build_type: Release
+            vcpkg_triplet: x64-linux
+          - os: windows-latest
+            build_type: Release
+            vcpkg_triplet: x64-windows-static
+          - os: macos-latest
+            build_type: Release
+            vcpkg_triplet: arm64-osx
 
     runs-on: ${{ matrix.os }}
-
     steps:
       - uses: actions/checkout@v4
 
@@ -113,13 +130,15 @@ jobs:
 
       - name: Install OpenCppCoverage (Windows)
         if: runner.os == 'Windows'
-        run: choco install opencppcoverage
+        run: |
+          choco install opencppcoverage
+          echo "C:\Program Files\OpenCppCoverage" >> $GITHUB_PATH
 
       - name: Set Compilers for macOS
         if: runner.os == 'macOS'
         run: |
-          echo "CC=$(brew --prefix llvm@20)/bin/clang" >> $GITHUB_ENV
-          echo "CXX=$(brew --prefix llvm@20)/bin/clang++" >> $GITHUB_ENV
+          echo "CC=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
+          echo "CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
 
       - name: Configure CMake
         if: runner.os != 'Windows'
@@ -190,7 +209,7 @@ jobs:
           OpenCppCoverage --sources ..\src --sources ..\include --export_type=cobertura:coverage.xml -- Debug\rich_on_tests.exe
 
       - name: Upload C++ coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./build/coverage.info
@@ -208,15 +227,3 @@ jobs:
             build/Release/hello.exe
             build/Debug/hello.exe
           if-no-files-found: ignore
-
-#       - name: Install libraries - PkgConfig, Boost, QuantLib, CURL, OpenSSL, ZMQ, lcov, llvm
-#         id: install
-#         shell: bash
-#         run: |
-#           sudo apt-get update -y && \
-#           sudo apt-get upgrade -y && \
-#           sudo apt-get install pkg-config libboost-all-dev \
-#           libquantlib0-dev libquantlib0v5 curl \
-#           libcurl4-openssl-dev libssl-dev libzmq3-dev \
-#           lcov llvm autoconf automake autoconf-archive \
-#           linux-libc-dev
