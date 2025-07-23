@@ -131,6 +131,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy
+          clang-format --version
 
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS'
