@@ -3,6 +3,7 @@
 #include "Fill.hpp"
 #include <atomic>
 #include <cstring>
+#include <shared_mutex>
 #include <string_view>
 #include <unordered_map>
 
@@ -30,4 +31,5 @@ class PositionManager {
 
   private:
     std::unordered_map<SymbolKey, std::atomic<int>, SymbolKeyHash> positions_;
+    std::shared_mutex mutex_;
 };
