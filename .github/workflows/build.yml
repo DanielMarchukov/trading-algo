@@ -233,13 +233,33 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: ./build
         run: |
+          $projectRoot = Resolve-Path ".."
+          $srcPath = Join-Path $projectRoot "src"
+          $includePath = Join-Path $projectRoot "include"
+          
+          # Find the test executable
+          $testExe = ""
+          if (Test-Path ".\${{ matrix.build_type }}\rich_on_tests.exe") {
+            $testExe = ".\${{ matrix.build_type }}\rich_on_tests.exe"
+          } elseif (Test-Path ".\Debug\rich_on_tests.exe") {
+            $testExe = ".\Debug\rich_on_tests.exe"
+          } elseif (Test-Path ".\Release\rich_on_tests.exe") {
+            $testExe = ".\Release\rich_on_tests.exe"
+          } else {
+            Write-Error "Could not find rich_on_tests.exe in any build configuration"
+            exit 1
+          }
+          
+          Write-Host "Using test executable: $testExe"
+          Write-Host "Coverage source paths: $srcPath, $includePath"
+          
           $openCppCoveragePath = Get-Command OpenCppCoverage -ErrorAction SilentlyContinue
           if ($openCppCoveragePath) {
             Write-Host "Using OpenCppCoverage from PATH: $($openCppCoveragePath.Source)"
-            OpenCppCoverage --sources ..\src --sources ..\include --export_type=cobertura:coverage.xml -- .\Debug\rich_on_tests.exe
+            OpenCppCoverage --sources "$srcPath" --sources "$includePath" --export_type=cobertura:coverage.xml -- $testExe
           } elseif (Test-Path "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe") {
             Write-Host "Using OpenCppCoverage from full path"
-            & "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe" --sources ..\src --sources ..\include --export_type=cobertura:coverage.xml -- .\Debug\rich_on_tests.exe
+            & "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe" --sources "$srcPath" --sources "$includePath" --export_type=cobertura:coverage.xml -- $testExe
           } else {
             Write-Error "OpenCppCoverage not found in PATH or at expected location"
             exit 1

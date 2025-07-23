@@ -14,7 +14,8 @@ TEST_F(SimpleMarketMakingStrategyTest, GeneratesOrdersOnTradeEvent) {
     trade_event.eventType = 2;
     trade_event.p1 = 1500000;
 
-    const std::vector<Order> generated_orders = strategy.onMarketEvent(trade_event);
+    const std::vector<Order> generated_orders =
+        strategy.onMarketEvent(trade_event);
 
     ASSERT_EQ(generated_orders.size(), 2);
     const auto &buy_order = generated_orders[0];
@@ -35,7 +36,8 @@ TEST_F(SimpleMarketMakingStrategyTest, IgnoresQuoteEvent) {
     quote_event.p1 = 1500000;
     quote_event.p2 = 1500200;
 
-    const std::vector<Order> generated_orders = strategy.onMarketEvent(quote_event);
+    const std::vector<Order> generated_orders =
+        strategy.onMarketEvent(quote_event);
 
     EXPECT_TRUE(generated_orders.empty());
 }

@@ -1,15 +1,15 @@
-#include "TradingEngine.hpp"
 #include "IRestClient.hpp"
+#include "TradingEngine.hpp"
 #include <gtest/gtest.h>
 #include <memory>
 
 class MockRestClientForEngine : public IRestClient {
-public:
-    void placeOrder(const Order& /*order*/) override {}
+  public:
+    void placeOrder(const Order & /*order*/) override {}
 };
 
 class TradingEngineTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
         setenv("APCA_API_KEY_ID", "test_key", 1);
         setenv("APCA_API_SECRET_KEY", "test_secret", 1);

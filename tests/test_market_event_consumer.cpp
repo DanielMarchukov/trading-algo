@@ -50,15 +50,15 @@ class MarketEventConsumerTest : public ::testing::Test {
 };
 
 class EmptyStrategy : public Strategy {
-public:
-    static std::vector<Order> onMarketEvent(const MarketEvent& /*event*/) {
+  public:
+    static std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) {
         return {};
     }
 };
 
 class RejectedOrderStrategy : public Strategy {
-public:
-    static std::vector<Order> onMarketEvent(const MarketEvent& event) {
+  public:
+    static std::vector<Order> onMarketEvent(const MarketEvent &event) {
         if (event.eventType == 2) {
             Order order{};
             order.id = 1;
@@ -76,16 +76,14 @@ TEST_F(MarketEventConsumerTest, HandlesStrategyReturningNoOrders) {
     std::atomic is_running(true);
     int callback_count = 0;
 
-    auto callback = [&](const Order& /*order*/) {
-        callback_count++;
-    };
+    auto callback = [&](const Order & /*order*/) { callback_count++; };
 
     try {
         MarketEventConsumer<EmptyStrategy> consumer(
             context, ipc_address, "TEST", is_running, callback, risk_manager_);
 
         SUCCEED();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         GTEST_SKIP() << "ZMQ connection failed: " << e.what();
     }
 }
@@ -95,16 +93,14 @@ TEST_F(MarketEventConsumerTest, HandlesRiskManagerRejection) {
     std::atomic is_running(true);
     int callback_count = 0;
 
-    auto callback = [&](const Order& /*order*/) {
-        callback_count++;
-    };
+    auto callback = [&](const Order & /*order*/) { callback_count++; };
 
     try {
         MarketEventConsumer<RejectedOrderStrategy> consumer(
             context, ipc_address, "TEST", is_running, callback, risk_manager_);
 
         SUCCEED();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         GTEST_SKIP() << "ZMQ connection failed: " << e.what();
     }
 
@@ -115,11 +111,11 @@ TEST_F(MarketEventConsumerTest, HandlesRiskManagerRejection) {
 TEST_F(MarketEventConsumerTest, ConstructorThrowsOnInvalidAddress) {
     zmq::context_t context(1);
     std::atomic is_running(true);
-    auto callback = [](const Order& /*order*/) {};
+    auto callback = [](const Order & /*order*/) {};
 
     EXPECT_THROW(
-        MarketEventConsumer<EmptyStrategy>(
-            context, "invalid://address", "TEST", is_running, callback, risk_manager_),
+        MarketEventConsumer<EmptyStrategy>(context, "invalid://address", "TEST",
+                                           is_running, callback, risk_manager_),
         zmq::error_t);
 }
 

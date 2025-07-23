@@ -1,14 +1,16 @@
 #include "AlpacaRestClient.hpp"
-#include <gtest/gtest.h>
 #include <Utils.hpp>
+#include <gtest/gtest.h>
 
 class AlpacaRestClientTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
-        const char* key = std::getenv("APCA_API_KEY_ID");
-        const char* secret = std::getenv("APCA_API_SECRET_KEY");
-        if (key) original_key_ = key;
-        if (secret) original_secret_ = secret;
+        const char *key = std::getenv("APCA_API_KEY_ID");
+        const char *secret = std::getenv("APCA_API_SECRET_KEY");
+        if (key)
+            original_key_ = key;
+        if (secret)
+            original_secret_ = secret;
 
         setenv("APCA_API_KEY_ID", "test_key", 1);
         setenv("APCA_API_SECRET_KEY", "test_secret", 1);
@@ -28,7 +30,7 @@ protected:
         }
     }
 
-private:
+  private:
     std::string original_key_;
     std::string original_secret_;
 };

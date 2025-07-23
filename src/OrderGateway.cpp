@@ -1,11 +1,12 @@
 #include "OrderGateway.hpp"
-#include <thread>
 #include <chrono>
 #include <iostream>
+#include <thread>
 
-OrderGateway::OrderGateway(std::atomic<bool> &is_running,
-                           const std::shared_ptr<ThreadSafeQueue<Order>> &order_queue,
-                           std::unique_ptr<IRestClient> rest_client)
+OrderGateway::OrderGateway(
+    std::atomic<bool> &is_running,
+    const std::shared_ptr<ThreadSafeQueue<Order>> &order_queue,
+    std::unique_ptr<IRestClient> rest_client)
     : is_running_(is_running), order_queue_(order_queue),
       rest_client_(std::move(rest_client)) {}
 
@@ -14,10 +15,12 @@ void OrderGateway::run() const {
         if (Order order_to_execute{}; order_queue_->try_pop(order_to_execute)) {
             try {
                 rest_client_->placeOrder(order_to_execute);
-            } catch (const std::exception& e) {
-                std::cerr << "OrderGateway: Error placing order: " << e.what() << std::endl;
+            } catch (const std::exception &e) {
+                std::cerr << "OrderGateway: Error placing order: " << e.what()
+                          << std::endl;
             } catch (...) {
-                std::cerr << "OrderGateway: Unknown error placing order" << std::endl;
+                std::cerr << "OrderGateway: Unknown error placing order"
+                          << std::endl;
             }
 
         } else {

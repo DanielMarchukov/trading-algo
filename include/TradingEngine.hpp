@@ -15,7 +15,6 @@ void pin_thread_to_core(std::thread &t, size_t core_id);
 
 class TradingEngine {
   public:
-
     explicit TradingEngine(const std::vector<std::string> &symbols,
                            std::unique_ptr<IRestClient> rest_client);
 

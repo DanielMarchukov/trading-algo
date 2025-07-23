@@ -33,7 +33,8 @@ void pin_thread_to_core(std::thread &t, size_t core_id) {
         std::cerr << "Error calling pthread_setaffinity_np\n";
     }
 #elif defined(_WIN32)
-    if (const DWORD_PTR mask = 1LL << core_id; SetThreadAffinityMask(t.native_handle(), mask) == 0) {
+    if (const DWORD_PTR mask = 1LL << core_id;
+        SetThreadAffinityMask(t.native_handle(), mask) == 0) {
         std::cerr << "Error calling SetThreadAffinityMask: " << GetLastError()
                   << std::endl;
     }

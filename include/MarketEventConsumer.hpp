@@ -15,12 +15,12 @@ template <typename StrategyType> class MarketEventConsumer {
     using OrderCallback = std::function<void(const Order &)>;
 
     MarketEventConsumer(zmq::context_t &context, std::string address,
-                        std::string symbol,std::atomic<bool> &is_running,
+                        std::string symbol, std::atomic<bool> &is_running,
                         OrderCallback order_callback,
                         const std::shared_ptr<RiskManager> &risk_manager)
-        : subscriber_(context, zmq::socket_type::sub), address_(std::move(address)),
-          symbol_(std::move(symbol)), is_running_(is_running),
-          order_callback_(std::move(order_callback)),
+        : subscriber_(context, zmq::socket_type::sub),
+          address_(std::move(address)), symbol_(std::move(symbol)),
+          is_running_(is_running), order_callback_(std::move(order_callback)),
           strategy_(std::make_unique<StrategyType>()),
           risk_manager_(risk_manager) {
         try {
@@ -40,16 +40,20 @@ template <typename StrategyType> class MarketEventConsumer {
             zmq::message_t topic;
             zmq::message_t payload;
 
-            if (auto topic_res = subscriber_.recv(topic, zmq::recv_flags::none); !topic_res.has_value()) {
+            if (auto topic_res = subscriber_.recv(topic, zmq::recv_flags::none);
+                !topic_res.has_value()) {
                 continue;
             }
 
-            if (auto payload_res = subscriber_.recv(payload, zmq::recv_flags::none); !payload_res.has_value()) {
+            if (auto payload_res =
+                    subscriber_.recv(payload, zmq::recv_flags::none);
+                !payload_res.has_value()) {
                 continue;
             }
 
             auto event = static_cast<const MarketEvent *>(payload.data());
-            for (auto orders = strategy_->onMarketEvent(*event); const auto &order : orders) {
+            for (auto orders = strategy_->onMarketEvent(*event);
+                 const auto &order : orders) {
                 if (risk_manager_->onNewOrder(order)) {
                     order_callback_(order);
                 }

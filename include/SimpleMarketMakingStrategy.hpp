@@ -5,8 +5,7 @@
 
 class SimpleMarketMakingStrategy : public Strategy {
   public:
-    SimpleMarketMakingStrategy()
-        : last_trade_price_(0), order_id_counter_(0) {}
+    SimpleMarketMakingStrategy() : last_trade_price_(0), order_id_counter_(0) {}
 
     std::vector<Order> onMarketEvent(const MarketEvent &event) {
         std::vector<Order> orders;

@@ -6,15 +6,15 @@
 #include <thread>
 
 class ThrowingStrategy final : public Strategy {
-public:
-    static std::vector<Order> onMarketEvent(const MarketEvent&) {
+  public:
+    static std::vector<Order> onMarketEvent(const MarketEvent &) {
         throw std::runtime_error("Strategy error");
     }
 };
 
 class ThrowingRestClient final : public IRestClient {
-public:
-    void placeOrder(const Order&) override {
+  public:
+    void placeOrder(const Order &) override {
         throw std::runtime_error("Network error");
     }
 };
@@ -22,17 +22,18 @@ public:
 TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
     zmq::context_t context(1);
     std::atomic is_running(true);
-    const auto risk_manager = std::make_shared<RiskManager>(std::make_shared<PositionManager>());
+    const auto risk_manager =
+        std::make_shared<RiskManager>(std::make_shared<PositionManager>());
 
     bool callback_called = false;
-    auto callback = [&](const Order&) { callback_called = true; };
+    auto callback = [&](const Order &) { callback_called = true; };
 
     MarketEventConsumer<ThrowingStrategy> consumer(
-        context, "tcp://127.0.0.1:5556", "TEST",
-        is_running, callback, risk_manager
-    );
+        context, "tcp://127.0.0.1:5556", "TEST", is_running, callback,
+        risk_manager);
 
-    std::thread consumer_thread(&MarketEventConsumer<ThrowingStrategy>::run, &consumer);
+    std::thread consumer_thread(&MarketEventConsumer<ThrowingStrategy>::run,
+                                &consumer);
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     is_running.store(false);
     consumer_thread.join();
@@ -89,7 +90,7 @@ TEST(PositionManagerConcurrencyTest, HandlesMultiThreadedUpdates) {
         });
     }
 
-    for (auto& t : threads) {
+    for (auto &t : threads) {
         t.join();
     }
 

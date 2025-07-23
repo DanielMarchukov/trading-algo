@@ -12,8 +12,8 @@ class RiskManagerTest : public ::testing::Test {
         risk_manager_ = std::make_unique<RiskManager>(pos_manager_);
     }
 
-    static Order createOrder(const char *symbol, const OrderSide side, const int32_t qty,
-                      const uint32_t price) {
+    static Order createOrder(const char *symbol, const OrderSide side,
+                             const int32_t qty, const uint32_t price) {
         Order order{};
         strncpy(order.symbol, symbol, sizeof(order.symbol));
         order.side = side;
@@ -27,7 +27,8 @@ class RiskManagerTest : public ::testing::Test {
 };
 
 TEST_F(RiskManagerTest, ApprovesValidOrder) {
-    const Order valid_order = createOrder("AAPL", OrderSide::Buy, 90, 100 * SCALING_FACTOR);
+    const Order valid_order =
+        createOrder("AAPL", OrderSide::Buy, 90, 100 * SCALING_FACTOR);
     EXPECT_TRUE(risk_manager_->onNewOrder(valid_order));
 }
 
@@ -39,7 +40,8 @@ TEST_F(RiskManagerTest, RejectsOrderExceedingMaxPosition) {
     existing_position_fill.quantity = 950;
     pos_manager_->onFill(existing_position_fill);
 
-    const Order large_order = createOrder("AAPL", OrderSide::Buy, 99, 100 * SCALING_FACTOR);
+    const Order large_order =
+        createOrder("AAPL", OrderSide::Buy, 99, 100 * SCALING_FACTOR);
     EXPECT_FALSE(risk_manager_->onNewOrder(large_order));
 }
 
@@ -51,12 +53,14 @@ TEST_F(RiskManagerTest, ApprovesOrderWithinMaxPosition) {
     existing_position_fill.quantity = 950;
     pos_manager_->onFill(existing_position_fill);
 
-    const Order okay_order = createOrder("AAPL", OrderSide::Buy, 50, 100 * SCALING_FACTOR);
+    const Order okay_order =
+        createOrder("AAPL", OrderSide::Buy, 50, 100 * SCALING_FACTOR);
     EXPECT_TRUE(risk_manager_->onNewOrder(okay_order));
 }
 
 TEST_F(RiskManagerTest, RejectsOrderExceedingMaxValue) {
-    const Order expensive_order = createOrder("GOOGL", OrderSide::Buy, 300, 200 * SCALING_FACTOR);
+    const Order expensive_order =
+        createOrder("GOOGL", OrderSide::Buy, 300, 200 * SCALING_FACTOR);
     EXPECT_FALSE(risk_manager_->onNewOrder(expensive_order));
 }
 
@@ -85,7 +89,8 @@ TEST_F(RiskManagerTest, HandlesMaximumAllowedPosition) {
     EXPECT_TRUE(risk_manager_->onNewOrder(order));
 
     // Order that would exceed the limit should be rejected
-    Order over_limit_order = createOrder("AAPL", OrderSide::Buy, 2, 100 * SCALING_FACTOR);
+    Order over_limit_order =
+        createOrder("AAPL", OrderSide::Buy, 2, 100 * SCALING_FACTOR);
     EXPECT_FALSE(risk_manager_->onNewOrder(over_limit_order));
 }
 
@@ -96,7 +101,8 @@ TEST_F(RiskManagerTest, HandlesNegativePositionLimits) {
     short_fill.quantity = 999;
     pos_manager_->onFill(short_fill);
 
-    const Order order = createOrder("AAPL", OrderSide::Sell, 2, 100 * SCALING_FACTOR);
+    const Order order =
+        createOrder("AAPL", OrderSide::Sell, 2, 100 * SCALING_FACTOR);
     EXPECT_FALSE(risk_manager_->onNewOrder(order));
 }
 
@@ -105,16 +111,19 @@ TEST_F(RiskManagerTest, HandlesMaxOrderValueBoundary) {
     const Order max_order = createOrder("AAPL", OrderSide::Buy, 100, max_price);
     EXPECT_TRUE(risk_manager_->onNewOrder(max_order));
 
-    const Order over_limit = createOrder("AAPL", OrderSide::Buy, 100, max_price + 1);
+    const Order over_limit =
+        createOrder("AAPL", OrderSide::Buy, 100, max_price + 1);
     EXPECT_FALSE(risk_manager_->onNewOrder(over_limit));
 }
 
 TEST_F(RiskManagerTest, HandlesDifferentOrderTypes) {
-    Order market_order = createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
+    Order market_order =
+        createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
     market_order.type = OrderType::Market;
     EXPECT_TRUE(risk_manager_->onNewOrder(market_order));
 
-    Order limit_order = createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
+    Order limit_order =
+        createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
     limit_order.type = OrderType::Limit;
     EXPECT_TRUE(risk_manager_->onNewOrder(limit_order));
 }

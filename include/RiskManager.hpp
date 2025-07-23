@@ -6,7 +6,8 @@
 
 class RiskManager {
   public:
-    explicit RiskManager(const std::shared_ptr<PositionManager> &position_manager);
+    explicit RiskManager(
+        const std::shared_ptr<PositionManager> &position_manager);
 
     [[nodiscard]] bool onNewOrder(const Order &order) const;
 

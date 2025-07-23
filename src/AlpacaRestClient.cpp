@@ -1,6 +1,6 @@
 #include "AlpacaRestClient.hpp"
-#include <nlohmann/json.hpp>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string_view>
 

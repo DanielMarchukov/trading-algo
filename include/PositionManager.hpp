@@ -26,7 +26,7 @@ class PositionManager {
     PositionManager() = default;
 
     void onFill(const Fill &fill);
-    int getPosition(std::string_view symbol) const;
+    [[nodiscard]] int getPosition(std::string_view symbol) const;
 
   private:
     std::unordered_map<SymbolKey, std::atomic<int>, SymbolKeyHash> positions_;

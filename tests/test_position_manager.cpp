@@ -81,4 +81,3 @@ TEST_F(PositionManagerTest, HandlesEmptySymbol) {
 
     EXPECT_EQ(pm.getPosition(""), 50);
 }
-
