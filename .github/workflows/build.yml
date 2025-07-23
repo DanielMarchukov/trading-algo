@@ -142,7 +142,9 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           choco install opencppcoverage
-          echo "C:\Program Files\OpenCppCoverage" >> $GITHUB_PATH
+          refreshenv
+          Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
+          Update-SessionEnvironment
 
       - name: Set Compilers for macOS
         if: runner.os == 'macOS'
@@ -231,7 +233,17 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: ./build
         run: |
-          OpenCppCoverage --sources ..\src --sources ..\include --export_type=cobertura:coverage.xml -- Debug\rich_on_tests.exe
+          $openCppCoveragePath = Get-Command OpenCppCoverage -ErrorAction SilentlyContinue
+          if ($openCppCoveragePath) {
+            Write-Host "Using OpenCppCoverage from PATH: $($openCppCoveragePath.Source)"
+            OpenCppCoverage --sources ..\src --sources ..\include --export_type=cobertura:coverage.xml -- .\Debug\rich_on_tests.exe
+          } elseif (Test-Path "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe") {
+            Write-Host "Using OpenCppCoverage from full path"
+            & "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe" --sources ..\src --sources ..\include --export_type=cobertura:coverage.xml -- .\Debug\rich_on_tests.exe
+          } else {
+            Write-Error "OpenCppCoverage not found in PATH or at expected location"
+            exit 1
+          }
 
       - name: Upload C++ coverage to Codecov
         uses: codecov/codecov-action@v5
