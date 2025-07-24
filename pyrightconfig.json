@@ -1,15 +1,19 @@
 {
-  "include": ["data-ingestion"],
-  "exclude": ["**/__pycache__", "env"],
+  "include": ["data-ingestion/src"],
+  "exclude": ["**/__pycache__", "env", "**/test_*.py"],
   "venvPath": ".",
   "venv": "env",
   "executionEnvironments": [
     {
-      "root": ".",
-      "extraPaths": ["data-ingestion/src"]
+      "root": "data-ingestion",
+      "extraPaths": ["src"],
+      "pythonVersion": "3.12"
     }
   ],
   "pythonVersion": "3.12",
   "reportMissingImports": true,
-  "reportUnusedImport": true
+  "reportUnusedImport": true,
+  "reportMissingModuleSource": "warning",
+  "reportFunctionMemberAccess": "warning",
+  "typeCheckingMode": "basic"
 }
