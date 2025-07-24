@@ -189,7 +189,7 @@ jobs:
       - name: Run clang-tidy static analysis
         if: runner.os == 'Linux' && matrix.c_compiler == 'clang' && matrix.build_type == 'Debug'
         run: |
-          clang-tidy src/**/*.cpp tests/**/*.cpp -p build/ --format-style=file
+          find src/ tests/ -name "*.cpp" | xargs clang-tidy -p build/ --format-style=file
         continue-on-error: true
 
       - name: Test (Clang)

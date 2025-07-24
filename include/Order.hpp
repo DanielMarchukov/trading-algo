@@ -10,12 +10,12 @@ constexpr int16_t SCALING_FACTOR = 10000;
 
 #pragma pack(push, 1)
 struct Order {
-    uint64_t id;
-    char symbol[8];
-    OrderSide side;
-    OrderType type;
-    int32_t quantity;
-    uint32_t price;
+  uint64_t id;
+  char symbol[8];
+  OrderSide side;
+  OrderType type;
+  int32_t quantity;
+  uint32_t price;
 };
 #pragma pack(pop)
 

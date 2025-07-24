@@ -3,10 +3,10 @@
 #include <cstdint>
 
 struct Fill {
-    char symbol[8];
-    uint64_t executionId;
-    uint64_t orderId;
-    OrderSide side;
-    int32_t quantity;
-    double price;
+  char symbol[8];
+  uint64_t executionId;
+  uint64_t orderId;
+  OrderSide side;
+  int32_t quantity;
+  double price;
 };

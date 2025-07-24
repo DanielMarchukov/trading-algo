@@ -5,8 +5,8 @@
 #include <vector>
 
 class Strategy {
-  public:
-    ~Strategy() = default;
+public:
+  ~Strategy() = default;
 
-    std::vector<Order> onMarketEvent(const MarketEvent &event);
+  std::vector<Order> onMarketEvent(const MarketEvent &event);
 };

@@ -3,8 +3,8 @@
 #include "Order.hpp"
 
 class IRestClient {
-  public:
-    virtual ~IRestClient() = default;
+public:
+  virtual ~IRestClient() = default;
 
-    virtual void placeOrder(const Order &order) = 0;
+  virtual void placeOrder(const Order &order) = 0;
 };

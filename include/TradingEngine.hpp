@@ -14,35 +14,34 @@
 void pin_thread_to_core(std::thread &t, size_t core_id);
 
 class TradingEngine {
-  public:
-    explicit TradingEngine(const std::vector<std::string> &symbols,
-                           std::unique_ptr<IRestClient> rest_client);
+public:
+  explicit TradingEngine(const std::vector<std::string> &symbols,
+                         std::unique_ptr<IRestClient> rest_client);
 
-    ~TradingEngine();
+  ~TradingEngine();
 
-    void run();
-    void stop();
+  void run();
+  void stop();
 
-  private:
-    struct ConsumerThread {
-        std::thread thread;
-        std::unique_ptr<MarketEventConsumer<SimpleMarketMakingStrategy>>
-            consumer;
-    };
+private:
+  struct ConsumerThread {
+    std::thread thread;
+    std::unique_ptr<MarketEventConsumer<SimpleMarketMakingStrategy>> consumer;
+  };
 
-    void setup_signal_handler();
-    void launch_gateway();
-    void launch_consumers();
-    void main_loop() const;
-    void shutdown();
+  void setup_signal_handler();
+  void launch_gateway();
+  void launch_consumers();
+  void main_loop() const;
+  void shutdown();
 
-    std::atomic<bool> is_running_;
-    std::string ipc_address_;
-    std::vector<std::string> symbols_;
-    std::shared_ptr<RiskManager> risk_manager_;
-    zmq::context_t context_{1};
-    std::shared_ptr<ThreadSafeQueue<Order>> order_queue_;
-    std::unique_ptr<OrderGateway> order_gateway_;
-    std::thread order_gateway_thread_;
-    std::vector<ConsumerThread> consumer_threads_;
+  std::atomic<bool> is_running_;
+  std::string ipc_address_;
+  std::vector<std::string> symbols_;
+  std::shared_ptr<RiskManager> risk_manager_;
+  zmq::context_t context_{1};
+  std::shared_ptr<ThreadSafeQueue<Order>> order_queue_;
+  std::unique_ptr<OrderGateway> order_gateway_;
+  std::thread order_gateway_thread_;
+  std::vector<ConsumerThread> consumer_threads_;
 };
