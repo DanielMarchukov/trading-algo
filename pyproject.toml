@@ -62,8 +62,7 @@ known_third_party = [
     "websockets",
     "zmq",
     "msgpack",
-    "pytest",
-    "unittest"
+    "pytest"
 ]
 
 [tool.pylint.main]

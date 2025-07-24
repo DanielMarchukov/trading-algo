@@ -426,7 +426,7 @@ jobs:
 
       - name: Run mypy type checking
         run: |
-          mypy data-ingestion/src/ --ignore-missing-imports
+          find data-ingestion/src -name "*.py" -exec mypy {} + --ignore-missing-imports
         continue-on-error: true
 
       - name: Verify Python coverage threshold

@@ -27,7 +27,7 @@ packaging==25.0
 pandas==2.2.3
 parso==0.8.4
 pexpect==4.9.0
-pillow==11.2.1
+pillow==11.3.0
 pluggy==1.6.0
 prompt_toolkit==3.0.51
 ptyprocess==0.7.0
@@ -42,7 +42,7 @@ pyparsing==3.2.3
 python-dateutil==2.9.0.post0
 pytz==2025.2
 pyzmq==26.4.0
-requests==2.32.3
+requests==2.32.4
 rich==14.0.0
 six==1.17.0
 sseclient-py==1.8.0
@@ -51,7 +51,7 @@ traitlets==5.14.3
 typing-inspection==0.4.1
 typing_extensions==4.13.2
 tzdata==2025.2
-urllib3==2.4.0
+urllib3==2.5.0
 wcwidth==0.2.13
 websocket-client==1.8.0
 websockets==15.0.1
@@ -63,7 +63,7 @@ coverage==7.9.1
 pyright==1.1.402
 
 # Code quality and security tools
-black==24.1.1
+black==24.3.0
 isort==5.13.2
 pylint==3.0.0
 bandit[toml]==1.7.5

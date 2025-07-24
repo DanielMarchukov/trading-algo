@@ -46,7 +46,7 @@ def set_cpu_affinity(cpu_id=0):
             affinity_mask = 1 << cpu_id
             win32process.SetProcessAffinityMask(handle, affinity_mask)
             print(f"CPU affinity set to core {cpu_id} (Windows)")
-        except (ImportError, Exception) as e:
+        except (ImportError, OSError, AttributeError) as e:
             print(f"Cannot set CPU affinity on Windows: {e}")
 
     elif sys.platform == "darwin":
@@ -65,8 +65,7 @@ def get_zmq_address():
     """
     if sys.platform == "win32":
         return "tcp://127.0.0.1:5555"
-    else:
-        return "ipc://tmp/market_data.sock"
+    return "ipc://tmp/market_data.sock"
 
 
 async def handle_market_data(message, zmq_socket):
@@ -83,7 +82,7 @@ async def handle_market_data(message, zmq_socket):
                 continue
 
             raw_timestamp = item.get("t", 0)
-            if isinstance(raw_timestamp, msgpack.Timestamp):
+            if isinstance(raw_timestamp, msgpack.Timestamp):  # type: ignore
                 timestamp = (
                     raw_timestamp.seconds * 1_000_000_000 + raw_timestamp.nanoseconds
                 )
