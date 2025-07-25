@@ -7,8 +7,7 @@
 AlpacaRestClient::AlpacaRestClient() {
   const char *api_key_cstr = std::getenv("APCA_API_KEY_ID");
   const char *api_secret_cstr = std::getenv("APCA_API_SECRET_KEY");
-  const char *base_url_cstr =
-      std::getenv("APCA_API_BASE_URL"); // Allow overriding for paper/live
+  const char *base_url_cstr = std::getenv("APCA_API_BASE_URL");
 
   if (!api_key_cstr || !api_secret_cstr) {
     throw std::runtime_error("FATAL: APCA_API_KEY_ID and/or "

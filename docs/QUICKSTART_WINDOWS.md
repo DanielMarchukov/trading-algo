@@ -7,7 +7,7 @@
 - CMake 3.28.3+
 - Ninja build system
 - vcpkg package manager
-- Git for Windows
+- Git
 
 ## Windows-Specific Considerations
 
@@ -35,11 +35,9 @@
 **Option 1 - PowerShell (Recommended):**
 
 ```powershell
-# Copy and edit the template
-Copy-Item .env.ps1.template env.ps1
-notepad env.ps1
 
-# Source the environment
+Copy-Item env.ps1.template env.ps1
+notepad env.ps1
 . .\env.ps1
 ```
 

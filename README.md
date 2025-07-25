@@ -1,6 +1,6 @@
 # Rich on Paper - Low-Latency Trading Engine
 
-## Context and Scope
+## Introduction
 
 This project is about building an ultra-low latency trading engine capable of processing real-time market data and
 executing trades with a target internal processing latency of less than 50 microseconds. The architecture leverages
@@ -23,7 +23,7 @@ I have set out the following goals for this project, with functional and non-fun
 ### Functional requirements
 
 - Process real-time market data.
-- Create buy/sell signals.
+- Create buy/sell orders.
 - Evaluate risk the risk of trades.
 - Track currently held positions, performance, PnL metrics.
 - Communicate with the exchange API, send out orders.
@@ -37,7 +37,7 @@ later on as a stretch goal.
 - At least 80% test coverage over the codebase.
 - Multiplatform support and ease of setup to run locally on any machine.
 
-## 🚀 Design
+## Design
 
 The approach is to split the application into multiple key components:
 
@@ -48,15 +48,18 @@ Strategy.
 - [Hot Path] Strategy - constructs buy/sell orders based on market events.
 - [Hot Path] Risk Manager - filters out orders that violate risk limits. Refers to Position Manager for current
 positions and PnL.
-- [Hot/Cold Path] Execution Gateway - sends out orders via Exchange APIs (hot). Passes fill events to
-Position Manager (cold).
+- [Warm/Cold Path] Order Gateway - sends out orders via Exchange APIs (warm/cold).
+- [Cold Path] Passes fill events to Position Manager (cold).
 - [Cold Path] Position Manager - tracks current positions, PnL, and provides state to the Risk Manager.
 
-Based on my research, this approach is close to real world trading applications, which I aim to replicate.
+Based on my research, this approach is close enough to real world trading applications, which I aim to replicate.
+The close enough means that in the real world, I'd use kernel bypass via DPDK and custom network interface cards, at
+least FIX protocol, and have a direct cable to the exchange. All of this might happen, but not in the initial
+implementation.
+
+### Architecture
 
 Below is a diagram of the proposed architecture.
-
-### 📈 Architecture
 
 #### Initial Architecture Diagram
 
@@ -74,12 +77,12 @@ Below is a diagram of the proposed architecture.
 |  |---------------------------|          |                           |
 |  | - Connects to Websocket   |          |                           |
 |  | - Normalizes data into a  |          |                           |
-|  |   48-byte struct          |          |                           |
+|  |   40-byte struct          |          |                           |
 |  +---------------------------+          |                           |
 |              |                          |                           |
 +--------------|--------------------------+ - - - - - - - - - - - - - +
                |
-               | 48-byte MarketEvent
+               | 40-byte MarketEvent
                | [ ZMQ: ipc://market_data.sock ]
                V
 +------------------------------------------------------------------------------------+
@@ -122,6 +125,13 @@ Below is a diagram of the proposed architecture.
 +------------------------------------------------------------------------------------+
 ```
 
+The above initial architecture I went with had some flaws, namely:
+
+- The hot path is bottlenecked by making REST API calls to place an order
+- There is no way to know if an order has been filled without a component that listens to Trade Fill events.
+
+I addressed these issues in the next iteration.
+
 #### Existing Architecture Diagram
 
 ```text
@@ -130,7 +140,7 @@ Below is a diagram of the proposed architecture.
                                |    (Pinned to e.g. Core 0)       |
                                +----------------------------------+
                                                 |
-                                                | 48-byte MarketEvent
+                                                | 40-byte MarketEvent
                                                 | [ZMQ IPC: ipc:///tmp/market_data.sock]
                                                 V
 +--------------------------------------------------------------------------------------------------+
@@ -175,17 +185,18 @@ Below is a diagram of the proposed architecture.
 
 The arrows depict the data flow of a market event/fill through the system.
 
-## 🔧 Key Design Decisions
+## Key Design Decisions
 
 ### Python over C++ for the data ingestion
 
 There were a few reasons for this choice:
 
-- Initial quick prototuping through Python
-- I wanted to explore multi language stack - using Python and C++ for the trading system, together.
+- Initial quick prototyping through Python
+- I wanted to explore multi-language stack - using Python and C++ for the trading system, together.
 - Alpaca's C++ library is not well maintained, but their Python library has more recent updates and more community
 resources/support.
-- I can deepen my Low-Latency Python knowledge.
+- I can deepen my Low-Latency Python knowledge, which is maybe a bit of an oxymoron but was still interesting to
+find out Python has some features towards it.
 
 ### ZeroMQ for communication between processes
 
@@ -194,13 +205,18 @@ experience as well as theoretical knowledge that messaging queue systems are not
 Redis is fast as a cache, but still is not there for the ultra low latency requirement that I have set out
 (less than 50 microseconds). So the real choice is between using ZeroMQ or shared memory.
 
-ZeroMQ is quite easy to setup and get going with. It does not meet the ultra low latency requirement - potentially
-possible if going for inproc protocol instead of IPC (inproc is similar to shared memory), but it has the
-infrastructure to support exchange between processes, or even between threads.
+ZeroMQ is quite easy to set up and get going with. It has some overhead though, as it's not the ultra lowest latency
+option. But it does a very good job of bridging the gap between Python and C++ and allowing the two processes to
+communicate. There are a few settings that can be tuned for lower latency requirements.
 
 Long-term, shared memory wins out, and is a good learning opportunity. The difference is that shared memory, ring
 buffers - these can be a project of its own, and the initial goal is to get things running quickly, then iterate on it.
-Especially I don't expect ZeroMQ to be a significant tech debt. It still wins over the other options.
+Especially I don't expect ZeroMQ to be a significant tech debt.
+
+One thing to note that IPC protocol is not supported in Windows, as it's based on Unix. Windows has its own
+implementation available for equivalent approach to IPC, but I decided to go with TCP for Windows implementation. I
+only want minimal support for Windows in the event that I need to run/debug/develop my project on a Windows machine
+temporarily. The main intended platform is Linux.
 
 ### Alpaca API now, Databento later
 
@@ -220,23 +236,41 @@ market data to exchange latency in the sub-100 microseconds range. That is becau
 the data through their C++ client. Going for C++ data ingestion is a very likely future improvement, hence Databento
 remains a top contender for data ingestion.
 
+Also, not ruling out others as well in the future, especially for backtesting support, as quality data can be hard
+to come by when trying to develop trading strategies.
+
 ### vcpkg over raw CMakeLists.txt based dependency management
 
 Initially this project started out with trying to be pure CMake project when it comes to dependencies, and soon I
-realised not all C++ dependencies/libraries are trivially available. New CMake versions make it possible to fetch
-the source and build it inside the project, but that adds a lot of compile time, and sometimes I needed custom CMake
-code to actually be able to find/build the libraries.
+realised not all C++ dependencies/libraries are trivially available, even with CMake updates - new CMake versions
+make it possible to fetch the source and build it inside the project. Though I noticed that adds a lot of compile time,
+and sometimes I needed custom CMake code to actually be able to find/build the libraries.
 
 The other aspect is related to my goal for making this project easy to consume and run locally for anyone - I care
 about correctness and ease of setup.
 
 ### Static Dispatch and Template Metaprogramming over Dynamic Dispatch
 
-TBD
+Broadly, this is about the compiler optimisation and performance. Dynamic Dispatch is not cache friendly as the
+vtable lookups are done on the heap/not readily available in CPU caches. Static Polymorphism, Static Dispatch avoid
+this by having decisions made at compile-time rather than runtime. This can also go hand-in-hand with branch
+prediction, inlining code, and all the other fancy stuff compilers do to make the code faster/more optimised.
 
-## Future improvements
+Templates are also in general useful for enforcing type safety.
 
-In no particular order.
+## Future improvements and work
+
+In no particular priority/implementation order:
+
+- Replace Python ingestion with C++; Move to Databento dataset
+- Replace ZeroMQ with RingBuffer or alternative fast queue
+- Implement Backtesting support for historical data; Historical trading performance
+- ~Multiplatform support~ - DONE. (The GH Actions pipeline and local setup works across Ubuntu Linux, MacOS, Windows
+  platforms)
+- Integration Testing.
+- Performance Benchmarking and reporting results.
+- Async, low-latency logger
+- Configuration files - I should load my different strategy, risk, setup variables from a yml file on application start.
 
 ### Replace Python ingestion with C++ and move to Databento dataset
 
@@ -247,10 +281,12 @@ This will bring several benefits:
 - Wider range of exchanges supported; Alpaca's data only covers IEX.
 - Ultimately, C++ is faster than Python.
 
-### Replace ZeroMQ with Ring Buffer (LMAX Disruptor)
+### Replace ZeroMQ with Ring Buffer
 
 I can utilize shared memory and a ring buffer to achieve lower latency than ZeroMQ, which is a message broker. This
-will allow for more direct communication between threads and reduce overhead.
+will allow for more direct communication between threads and reduce overhead. This is also a huge learning
+opportunity on how to implement this data structure properly using atomics etc. I believe it needs to be Single
+Producer Single Consumer architecture
 
 ### Backtesting support
 
