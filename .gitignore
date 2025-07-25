@@ -58,4 +58,10 @@ htmlcov/
 .coverage
 coverage.xml
 *.coverage
-/LastCoverageResults.log
+LastCoverageResults.log
+
+# Environment files with secrets
+.env
+env.ps1
+env.bat
+!*.template

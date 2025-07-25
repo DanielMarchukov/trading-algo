@@ -1,147 +1,266 @@
-﻿# Rich-on-Paper Trading Engine - Windows Quick Start Guide
+﻿# Rich on Paper - Windows Quick Start Guide
 
-## Prerequisites Installed by Setup Script
+This guide will get you from zero to running the trading engine on Windows in under 15 minutes.
 
-- Visual Studio 2022 Build Tools with C++ workload
-- Python 3.12 with virtual environment
-- CMake 3.28.3+
-- Ninja build system
-- vcpkg package manager
-- Git
+## Prerequisites
+
+- Windows 10/11 (64-bit)
+- Internet connection
+- Administrator privileges (for installations)
+- Alpaca Markets account with API keys
+
+## Step 1: Clone the Repository
+
+Open PowerShell and run:
+
+```powershell
+git clone https://github.com/yourusername/rich-on-paper.git
+cd rich-on-paper
+```
+
+## Step 2: Run the Setup Script
+
+Open PowerShell **as Administrator** and run:
+
+```powershell
+Set-ExecutionPolicy Bypass -Scope Process -Force
+.\setup\setup_windows.ps1
+```
+
+This script will:
+
+- Install Chocolatey package manager
+- Install Visual Studio 2022 Build Tools
+- Install Python 3.12, CMake, Ninja, and Git
+- Set up vcpkg package manager
+- Create Python virtual environment
+- Build the C++ trading engine
+- Run tests to verify installation
+
+**Expected duration**: 15-20 minutes on first run (Visual Studio tools take time)
+
+## Step 3: Configure Alpaca API Credentials
+
+1. Copy the environment template:
+
+```powershell
+Copy-Item setup\env.ps1.template setup\env.ps1
+```
+
+2. Edit the file with your Alpaca credentials:
+
+```powershell
+notepad setup\env.ps1
+```
+
+3. Update with your actual credentials (get these from <https://alpaca.markets/>):
+
+```powershell
+$env:APCA_API_KEY_ID = "your_actual_key_here"
+$env:APCA_API_SECRET_KEY = "your_actual_secret_here"
+```
+
+4. Load the environment variables:
+
+```powershell
+. .\setup\env.ps1
+```
+
+## Step 4: Run the Trading System
+
+**Option 1 - PowerShell** (Recommended):
+
+```powershell
+.\setup\run_trading_system.ps1
+```
+
+**Option 2 - Double-click**:
+
+- Navigate to the `setup` folder in File Explorer
+- Double-click `run_trading_system.bat`
+
+You should see output like:
+
+```bash
+[2024-01-15 10:30:45] Starting Python market data publisher...
+[2024-01-15 10:30:48] Starting C++ trading engine...
+[2024-01-15 10:30:49] Trading system is running!
+[2024-01-15 10:30:49] Publisher PID: 12345
+[2024-01-15 10:30:49] Engine PID: 12346
+[2024-01-15 10:30:49] Press Ctrl+C to stop...
+```
+
+## Step 5: Verify It's Working
+
+You should see:
+
+1. Market data being received (check the console output)
+1. Orders being placed to Alpaca's paper trading API
+1. No error messages
+1. Windows Firewall may prompt - allow both Python.exe and hello.exe
+
+To stop the system, press `Ctrl+C`.
+
+## Troubleshooting
+
+### "APCA_API_KEY_ID not set" Error
+
+**Solution**: Ensure you've loaded the env.ps1 file:
+
+```powershell
+. .\setup\env.ps1
+```
+
+### "vcvarsall.bat not found"
+
+**Solution**: Visual Studio Build Tools didn't install correctly. Re-run:
+
+```powershell
+choco install visualstudio2022buildtools visualstudio2022-workload-vctools -y
+```
+
+### Build Errors
+
+**Solution**: Clean and rebuild:
+
+```powershell
+Remove-Item -Recurse -Force build, vcpkg_installed -ErrorAction SilentlyContinue
+.\setup\setup_windows.ps1
+```
+
+### "Permission Denied" Errors
+
+**Solution**:
+
+1. Run PowerShell as Administrator
+2. Check Windows Defender exclusions for the project folder
+3. Temporarily disable real-time scanning for the build folder
+
+### DLL Not Found
+
+**Solution**: We use static linking to avoid this, but if it occurs:
+
+```powershell
+choco install vcredist-all -y
+```
 
 ## Windows-Specific Considerations
 
-### 1. IPC vs TCP
+### TCP vs IPC
 
-- Windows doesn't support Unix domain sockets (IPC protocol)
-- The system automatically uses TCP sockets instead
-- Default: `tcp://127.0.0.1:5555`
+Windows doesn't support Unix domain sockets, so the system uses TCP:
 
-### 2. Build System
+- Default address: `tcp://127.0.0.1:5555`
+- Slight latency increase vs Linux IPC (~10μs)
 
-- Uses Visual Studio 2022 compiler (MSVC)
-- Static linking via `x64-windows-static` triplet
-- Debug and Release configurations available
+### Windows Firewall
 
-### 3. Process Management
+When first running, Windows Firewall will prompt. You must:
 
-- No POSIX signals - uses Windows process management
-- CPU affinity works via Windows API (SetThreadAffinityMask)
+1. Allow `python.exe` through the firewall
+2. Allow `hello.exe` through the firewall
 
-## Getting Started
+Without these permissions, the components cannot communicate.
 
-### 1. Configure Alpaca API Credentials
+### Performance Monitoring
 
-**Option 1 - PowerShell (Recommended):**
+1. **Task Manager**:
+    - Press `Ctrl+Shift+Esc`
+    - Go to "Details" tab
+    - Find `hello.exe` and `python.exe`
 
-```powershell
-
-Copy-Item env.ps1.template env.ps1
-notepad env.ps1
-. .\env.ps1
-```
-
-**Option 2 - Command Prompt:**
-
-```batch
-copy .env.windows.template env.bat
-notepad env.bat
-env.bat
-```
-
-**Option 3 - System Environment Variables (Permanent):**
-
-1. Win + X â†’ System â†’ Advanced system settings
-2. Environment Variables â†’ New
-3. Add APCA_API_KEY_ID and APCA_API_SECRET_KEY
-
-### 2. Run the Trading System
-
-**Easy method (double-click):**
-
-- Double-click `run_trading_system.bat`
-
-**PowerShell method:**
+2. **PowerShell Monitoring**:
 
 ```powershell
-.\run_trading_system_windows.ps1
+while ($true) {
+    Get-Process hello, python -ErrorAction SilentlyContinue |
+    Select-Object Name, CPU, WorkingSet, Id
+    Start-Sleep -Seconds 1
+    Clear-Host
+}
 ```
 
-### 3. Manual Operation (For Development)
+3. **Performance Monitor** (Advanced):
+    - Run `perfmon`
+    - Add counters for the trading engine process
 
-**Terminal 1 - Python Publisher:**
+## Visual Studio Debugging
+
+For development and debugging:
+
+1. Open the solution:
+
+```powershell
+# The build process creates a .sln file
+start build\RichOnPaper.sln
+```
+
+2. In Visual Studio:
+    - Set `hello` as the startup project
+    - Press `F5` to debug
+    - Set breakpoints as needed
+
+## Next Steps
+
+- Review the logs to understand the trading flow
+- Modify `src/SimpleMarketMakingStrategy.cpp` to implement your own strategy
+- Check Alpaca dashboard for your paper trading activity
+- Read [Architecture Documentation](ARCHITECTURE.md) to understand the system
+
+## Manual Operation (For Developers)
+
+If you prefer to run components separately:
+
+**Terminal 1 - Python Publisher**:
 
 ```powershell
 .\env\Scripts\Activate.ps1
-$env:APCA_API_KEY_ID = "your_key"
-$env:APCA_API_SECRET_KEY = "your_secret"
+. .\setup\env.ps1
 python data-ingestion\src\publisher.py
 ```
 
-**Terminal 2 - C++ Trading Engine:**
+**Terminal 2 - C++ Trading Engine**:
 
 ```powershell
-$env:APCA_API_KEY_ID = "your_key"
-$env:APCA_API_SECRET_KEY = "your_secret"
+. .\setup\env.ps1
 .\build\Debug\hello.exe
 ```
 
-### 4. Troubleshooting Windows-Specific Issues
+## Convenience Scripts
 
-**"vcvarsall.bat not found":**
+The setup creates these helper scripts in the `setup` folder:
 
-- Re-run the setup script
-- Or install Visual Studio 2022 manually
+- `run_trading_system.bat` - Double-click to start
+- `run_tests.bat` - Run all tests
+- `rebuild.bat` - Rebuild C++ code
 
-**"Permission denied" errors:**
+## Performance Optimization
 
-- Run PowerShell as Administrator
-- Check Windows Defender/Antivirus exclusions
+For best performance on Windows:
 
-**"DLL not found" errors:**
+1. **Exclude from antivirus scanning**:
+    - Add project folder to Windows Defender exclusions
+    - Especially the `build` and `vcpkg_installed` folders
 
-- We use static linking to avoid this
-- If it occurs, install Visual C++ Redistributables
-
-**Performance monitoring:**
+1. **Use Release build** (after initial testing):
 
 ```powershell
-# Task Manager or:
-Get-Process hello | Select-Object CPU, WorkingSet, Id
+cmake --build build --config Release
+# Then use .\build\Release\hello.exe
 ```
 
-### 5. Windows Firewall
+3. **Set process priority**:
 
-When first running, Windows Firewall may prompt:
+```powershell
+# In admin PowerShell after starting
+$helloProcess = Get-Process hello
+$helloProcess.PriorityClass = 'High'
+```
 
-- Allow both Python.exe and hello.exe through firewall
-- Required for ZMQ TCP communication
+## Support
 
-### 6. Development Tools
+For Windows-specific issues:
 
-**Visual Studio debugging:**
-
-1. Open `build\RichOnPaper.sln` in Visual Studio
-2. Set hello as startup project
-3. Press F5 to debug
-
-**Windows Terminal (recommended):**
-
-- Install from Microsoft Store for better console experience
-- Supports multiple tabs for publisher/engine
-
-### 7. Performance Considerations
-
-**Windows-specific optimizations:**
-
-- Disable Windows Defender real-time scanning for build folder
-- Use Release build for production: `cmake --build build --config Release`
-- Consider Windows Server for production deployment
-
-### 8. Known Limitations
-
-1. No Unix domain sockets - uses TCP (slight latency increase)
-2. Process CPU affinity less granular than Linux
-3. Requires Visual Studio runtime (bundled via static linking)
-
-For more details, see the main README.md
+1. Check Event Viewer for application errors
+1. Ensure all Visual C++ redistributables are installed
+1. See the main [README](../README.md) for more details

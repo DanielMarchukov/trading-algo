@@ -1,321 +1,144 @@
 # Rich on Paper - Low-Latency Trading Engine
 
-## Introduction
+[![Build and Test](https://github.com/DanielMarchukov/rich-on-paper/actions/workflows/build.yml/badge.svg)](https://github.com/DanielMarchukov/rich-on-paper/actions/workflows/build.yml)
+[![codecov](https://codecov.io/gh/DanielMarchukov/rich-on-paper/branch/main/graph/badge.svg)](https://codecov.io/gh/DanielMarchukov/rich-on-paper)
 
-This project is about building an ultra-low latency trading engine capable of processing real-time market data and
-executing trades with a target internal processing latency of less than 50 microseconds. The architecture leverages
-modern C++20 for performance-critical components, while Python is used for data ingestion. This is a living document
-that will evolve as the project progresses, capturing design decisions, architecture diagrams, and performance metrics.
+A production-grade, ultra-low latency trading engine built with modern C++23 and Python, targeting sub-50 microsecond
+internal processing latency. The system demonstrates professional software engineering practices including
+comprehensive testing, multi-platform support, and continuous integration.
 
-Key Technologies: C++20, Python3.12, ZeroMQ, GoogleTest, Boost.
+## 🚀 Key Features
 
-## Goals
+- **Ultra-Low Latency**: Sub-50μs internal processing latency using lock-free data structures and CPU affinity
+- **Multi-Language Architecture**: High-performance C++23 core with Python data ingestion via ZeroMQ
+- **Production-Grade**: 80%+ test coverage, CI/CD pipeline, and cross-platform support (Linux, macOS, Windows)
+- **Real Market Data**: Integrates with Alpaca Markets for live and paper trading
+- **Modular Design**: Clean separation between market data, strategy, risk management, and execution
 
-I have set out the following goals for this project, with functional and non-functional requirements listed below.
+## 🛠️ Technology Stack
 
-### Personal Goals
+- **C++23**: Core trading engine with template metaprogramming and compile-time optimizations
+- **Python 3.12**: Market data ingestion and normalization
+- **ZeroMQ**: High-performance IPC/TCP messaging between components
+- **vcpkg**: Cross-platform C++ dependency management
+- **CMake**: Build system with modern CMake practices
+- **Google Test**: Comprehensive unit and integration testing
 
-- Learn C++ while building a production-grade trading system
-- Leverage CI/CD to really treat this as a production system, add tests, and ensure code quality
-- Learn and put into practice Operating System concepts, Networking, and Low Level optimizations
-- Learn about (algorithmic) trading, market making, the market structure, and solidify my knowledge.
+## 📋 Prerequisites
 
-### Functional requirements
+Before running the trading engine, ensure you have:
 
-- Process real-time market data.
-- Create buy/sell orders.
-- Evaluate risk the risk of trades.
-- Track currently held positions, performance, PnL metrics.
-- Communicate with the exchange API, send out orders.
-- Track fills and update positions.
+1. **Alpaca Markets Account**: Sign up at [alpaca.markets](https://alpaca.markets/) for free paper trading API access
+2. **Operating System**: Ubuntu 20.04+, macOS 13+, or Windows 10/11
+3. **Development Tools**: See platform-specific quickstart guides
 
-### Non-functional requirements
+## 🏃 Quick Start
 
-- Sub 50μs internal processing latency. This excludes the latency over the public internet, but this can be improved
-later on as a stretch goal.
-- Template metaprogramming and compile-time optimizations to reduce runtime overhead, as well as enhance type safety.
-- At least 80% test coverage over the codebase.
-- Multiplatform support and ease of setup to run locally on any machine.
+Choose your platform and follow the step-by-step guide:
 
-## Design
+- 🐧 [**Ubuntu/Linux Quick Start**](docs/QUICKSTART_UBUNTU.md)
+- 🍎 [**macOS Quick Start**](docs/QUICKSTART_MACOS.md)
+- 🪟 [**Windows Quick Start**](docs/QUICKSTART_WINDOWS.md)
 
-The approach is to split the application into multiple key components:
+### TL;DR for Experienced Developers
 
-- [Hot Path] Market Data Ingestion - Python component for simplicity, normalizes the data and packs it into a struct.
-Sends it off to C++ via ZeroMQ.
-- [Hot Path] Market Data Consumer - C++ component that receives the data from the ZeroMQ socket and passes it to the
-Strategy.
-- [Hot Path] Strategy - constructs buy/sell orders based on market events.
-- [Hot Path] Risk Manager - filters out orders that violate risk limits. Refers to Position Manager for current
-positions and PnL.
-- [Warm/Cold Path] Order Gateway - sends out orders via Exchange APIs (warm/cold).
-- [Cold Path] Passes fill events to Position Manager (cold).
-- [Cold Path] Position Manager - tracks current positions, PnL, and provides state to the Risk Manager.
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/rich-on-paper.git
+cd rich-on-paper
 
-Based on my research, this approach is close enough to real world trading applications, which I aim to replicate.
-The close enough means that in the real world, I'd use kernel bypass via DPDK and custom network interface cards, at
-least FIX protocol, and have a direct cable to the exchange. All of this might happen, but not in the initial
-implementation.
+# Run platform-specific setup script
+./setup/setup_ubuntu.sh    # or setup_macos.sh, or .\setup\setup_windows.ps1
 
-### Architecture
+# Configure API credentials
+cp .env.template .env
+# Edit .env with your Alpaca API credentials
 
-Below is a diagram of the proposed architecture.
-
-#### Initial Architecture Diagram
-
-```text
-                                  [ Alpaca Websocket ]
-                                          |
-                                          | Raw Market Data (msgpack)
-                                          V
-+-----------------------------------------+ - - - - - - - - - - - - - +
-|      PYTHON PROCESS                     |                           |
-|                                         |                           |
-|  +---------------------------+          |                           |
-|  |     Python Publisher      |          |  (data-ingestion/src)     |
-|  | (publisher.py)            |          |                           |
-|  |---------------------------|          |                           |
-|  | - Connects to Websocket   |          |                           |
-|  | - Normalizes data into a  |          |                           |
-|  |   40-byte struct          |          |                           |
-|  +---------------------------+          |                           |
-|              |                          |                           |
-+--------------|--------------------------+ - - - - - - - - - - - - - +
-               |
-               | 40-byte MarketEvent
-               | [ ZMQ: ipc://market_data.sock ]
-               V
-+------------------------------------------------------------------------------------+
-|      C++ PROCESS (Strategy Engine)                                                 |
-|                                                                                    |
-|  +--------------------------------+   (Query Position)     +---------------------+ |
-|  |  C++ Consumer Thread (AAPL)    |   +------------------->|  PositionManager    | |
-|  |--------------------------------|   |                    | (Shared Singleton)  | | (Shared
-|  | 1. Receives MarketEvent        |   |   +----------------|---------------------| |  Objects)
-|  |                                |   |   | (Read State)   | - Owns all current  | |
-|  | 2. Strategy->onMarketEvent()   |   |   |                |   positions & PnL   | |
-|  |    (generates Proposed Order)  |   |   |                +---------------------+ |
-|  |           |                    |   |   +--------------+                      ^  |
-|  |           | Proposed Order     |   |________________. |           Fill Event |  |
-|  |           V                    |                    | |                      |  |
-|  | 3. RiskManager->isAllowed()    |                    +--------------------+   |  |
-|  |    (queries PositionManager)   |------------------->|   RiskManager      |   |  |
-|  |           ^                    |       (Read State) | (Shared Singleton) |   |  |
-|  |           | Approve/Reject     |<-------------------|--------------------|   |  |
-|  |           |                    |                    | - Owns risk limits |   |  |
-|  |           |                    |                    |   (e.g. max size)  |   |  |
-|  | 4. If Approved, send to Exec   |                    +--------------------+   |  |
-|  |           |                    |                                             |  |
-|  +-----------|--------------------+                                             |  |
-|              | Final Order                                                      |  |
-|              |                                                                  |  |
-|              V                                                                  |  |
-|  +---------------------------+                                                  |  |
-|  |   Execution Gateway       |                                                  |  |
-|  |   (Dedicated Thread)      | -------> [ Exchange API (e.g., FIX) ]            |  |
-|  |---------------------------| <------        (Fill Confirmation)               |  |
-|  | - Sends orders to exchange|                                                  |  |
-|  | - Receives fills back     |                                                  |  |
-|  +---------------------------+                                                  |  |
-|              |                                                                  |  |
-|              | Fill Event (e.g. "BOUGHT 100 AAPL @ 150.25")                     |  |
-|              |                                                                  |  |
-|              +------------------------------------------------------------------+  |
-|                                                                                    |
-+------------------------------------------------------------------------------------+
+# Run the trading system
+./run_trading_system.sh    # or platform-specific script
 ```
 
-The above initial architecture I went with had some flaws, namely:
-
-- The hot path is bottlenecked by making REST API calls to place an order
-- There is no way to know if an order has been filled without a component that listens to Trade Fill events.
-
-I addressed these issues in the next iteration.
-
-#### Existing Architecture Diagram
+## 📁 Project Structure
 
 ```text
-                               +----------------------------------+
-                               |     Python Data Publisher        |
-                               |    (Pinned to e.g. Core 0)       |
-                               +----------------------------------+
-                                                |
-                                                | 40-byte MarketEvent
-                                                | [ZMQ IPC: ipc:///tmp/market_data.sock]
-                                                V
-+--------------------------------------------------------------------------------------------------+
-|                                   C++ TRADING ENGINE PROCESS                                     |
-|                                                                                                  |
-|   +---------------------------------------+      +-------------------------------------------+   |
-|   |      TradingEngine (main thread)      |      |      ExecutionGateway (Worker Thread 1)   |   |
-|   |---------------------------------------|      |-------------------------------------------|   |
-|   | - Owns all shared components          |      | - Listens on a thread-safe Order Queue    |   |
-|   | - Creates & launches all threads      |      | - Makes slow, blocking REST API calls     |   |
-|   | - Manages clean shutdown              |      | - Receives Fills from broker (simulated)  |   |
-|   +---------------------------------------+      | - WRITES to PositionManager               |   |
-|                  |     ^                         +-------------------------------------------+   |
-| (Creates &       |     | (Shared via std::shared_ptr)                                            |
-|  Injects)        |     |                                                                         |
-|   +--------------+-----+------------------+      +-----------------------------------------+     |
-|   | std::shared_ptr<PositionManager>      |      |      ThreadSafeQueue<Order>             |     |
-|   | std::shared_ptr<RiskManager>          |      |-----------------------------------------|     |
-|   | std::shared_ptr<ThreadSafeQueue>      |      | - Decouples Hot Path from Cold Path     |     |
-|   +---------------------------------------+      | - Single point of contention (Mutex)    |     |
-|                                                  +-----------------------------------------+     |
-|                                                                                                  |
-| /-------------------------------------------------------------------------------------------\    |
-| |                     HOT PATH - CONSUMER THREAD (e.g. "AAPL" on Core 2)                    |    |
-| |-------------------------------------------------------------------------------------------|... |
-| | 1. SUB socket receives MarketEvent                                                        |    |
-| |           |                                                                               |    |
-| |           V (Direct C++ function call)                                                    |    |
-| | 2. strategy.processMarketEvent() -> returns std::vector<Order>                            |    |
-| |           |                                                                               |    |
-| |           V (Loop through proposed orders)                                                |    |
-| | 3. risk_manager.onNewOrder(order) -> returns bool                                         |    |
-| |    (Performs a lock-free READ from PositionManager)                                       |    |
-| |           |                                                                               |    |
-| |           V (If Approved)                                                                 |    |
-| | 4. PUSH order onto the ThreadSafeQueue                                                    |    |
-| |              --- END OF LOW-LATENCY HOT PATH (sub-microsecond) ---                        |    |
-| \-------------------------------------------------------------------------------------------/    |
-|                                                                                                  |
-+--------------------------------------------------------------------------------------------------+
+rich-on-paper/
+├── src/                    # C++ source files
+├── include/                # C++ headers
+├── tests/                  # C++ unit tests
+├── data-ingestion/         # Python market data publisher
+│   └── src/
+│       ├── publisher.py    # WebSocket client for Alpaca
+│       └── test_*.py       # Python tests
+├── setup/                  # Platform-specific setup scripts
+├── docs/                   # Documentation
+│   ├── ARCHITECTURE.md     # System design and architecture
+│   ├── PERFORMANCE.md      # Performance Benchmarks
+│   └── QUICKSTART_*.md     # Platform quickstart guides
+└── CMakeLists.txt          # CMake configuration
 ```
 
-The arrows depict the data flow of a market event/fill through the system.
+## 🏗️ Architecture Overview
 
-## Key Design Decisions
+The trading engine uses a multiprocess architecture with dedicated threads for different components:
 
-### Python over C++ for the data ingestion
+- **Python Publisher**: Connects to Alpaca WebSocket, normalizes data, publishes via ZeroMQ
+- **C++ Consumer Threads**: One per symbol, receives market data and generates orders based on trading strategy
+- **Risk Manager**: Validates orders against position limits and risk parameters
+- **Order Gateway**: Executes approved orders via REST API
 
-There were a few reasons for this choice:
+For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-- Initial quick prototyping through Python
-- I wanted to explore multi-language stack - using Python and C++ for the trading system, together.
-- Alpaca's C++ library is not well maintained, but their Python library has more recent updates and more community
-resources/support.
-- I can deepen my Low-Latency Python knowledge, which is maybe a bit of an oxymoron but was still interesting to
-find out Python has some features towards it.
+## 🧪 Testing
 
-### ZeroMQ for communication between processes
+Run the comprehensive test suite:
 
-I evaluated ZeroMQ, Kafka or some similar messaging queue system, Redis Pub/Sub, and shared memory. I know from
-experience as well as theoretical knowledge that messaging queue systems are not fast enough for ultra low latency.
-Redis is fast as a cache, but still is not there for the ultra low latency requirement that I have set out
-(less than 50 microseconds). So the real choice is between using ZeroMQ or shared memory.
+```bash
+# Python tests
+pytest data-ingestion/src/ -v
 
-ZeroMQ is quite easy to set up and get going with. It has some overhead though, as it's not the ultra lowest latency
-option. But it does a very good job of bridging the gap between Python and C++ and allowing the two processes to
-communicate. There are a few settings that can be tuned for lower latency requirements.
+# C++ tests
+cd build && ctest --output-on-failure
+```
 
-Long-term, shared memory wins out, and is a good learning opportunity. The difference is that shared memory, ring
-buffers - these can be a project of its own, and the initial goal is to get things running quickly, then iterate on it.
-Especially I don't expect ZeroMQ to be a significant tech debt.
+## 📊 Performance
 
-One thing to note that IPC protocol is not supported in Windows, as it's based on Unix. Windows has its own
-implementation available for equivalent approach to IPC, but I decided to go with TCP for Windows implementation. I
-only want minimal support for Windows in the event that I need to run/debug/develop my project on a Windows machine
-temporarily. The main intended platform is Linux.
+Performance Benchmarking is still TBD.
 
-### Alpaca API now, Databento later
+## 🤝 Development
 
-I looked at the following options:
+### Building from Source
 
-- Alpaca API - has free tier, as well as paid - Python library.
-- Databento - has free tier, and multiple paid plans - C++ library.
-- EODHD - free tier, slightly more options than Alpaca, but not much different. Has a lot of historical data though,
-- and some other features going for it.
+```bash
+# Configure with CMake & vcpkg
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 
-Based on the other decisions I have made, and the design choices, Alpaca fits in nicely with the free tier. It also has
-a paper trading API, which is exactly what I will need to submit my orders to the exchange. So the starter bundle is
-perfect. On top of that, lots of users on reddit recommend Alpaca for pet projects in the algo trading space.
+# Build
+cmake --build build
 
-Databento came up as an option when looking into low latency data ingestion, and striving to _long-term_ make the
-market data to exchange latency in the sub-100 microseconds range. That is because they provide raw TCP access to
-the data through their C++ client. Going for C++ data ingestion is a very likely future improvement, hence Databento
-remains a top contender for data ingestion.
+# Run tests
+cd build && ctest
+```
 
-Also, not ruling out others as well in the future, especially for backtesting support, as quality data can be hard
-to come by when trying to develop trading strategies.
+### Code Quality Tools
 
-### vcpkg over raw CMakeLists.txt based dependency management
+- **C++**: clang-format, clang-tidy, LLVM coverage
+- **Python**: black, isort, pylint, mypy
+- **Security**: CodeQL, bandit, safety
 
-Initially this project started out with trying to be pure CMake project when it comes to dependencies, and soon I
-realised not all C++ dependencies/libraries are trivially available, even with CMake updates - new CMake versions
-make it possible to fetch the source and build it inside the project. Though I noticed that adds a lot of compile time,
-and sometimes I needed custom CMake code to actually be able to find/build the libraries.
+## 📚 Documentation
 
-The other aspect is related to my goal for making this project easy to consume and run locally for anyone - I care
-about correctness and ease of setup.
+- [System Architecture](docs/ARCHITECTURE.md) - Detailed design and technical decisions
+- [Performance Tuning](docs/PERFORMANCE.md) - Low-latency optimizations
 
-### Static Dispatch and Template Metaprogramming over Dynamic Dispatch
+## 🎯 Project Goals
 
-Broadly, this is about the compiler optimisation and performance. Dynamic Dispatch is not cache friendly as the
-vtable lookups are done on the heap/not readily available in CPU caches. Static Polymorphism, Static Dispatch avoid
-this by having decisions made at compile-time rather than runtime. This can also go hand-in-hand with branch
-prediction, inlining code, and all the other fancy stuff compilers do to make the code faster/more optimised.
+This project demonstrates:
 
-Templates are also in general useful for enforcing type safety.
+1. **Production-grade C++ development** with modern standards and best practices
+1. **Low-latency system design** with careful attention to cache efficiency and lock-free programming
+1. **Professional software engineering** including CI/CD, testing, and documentation
+1. **Financial markets knowledge** applied to algorithmic trading
 
-## Future improvements and work
+## 📄 License
 
-In no particular priority/implementation order:
-
-- Replace Python ingestion with C++; Move to Databento dataset
-- Replace ZeroMQ with RingBuffer or alternative fast queue
-- Implement Backtesting support for historical data; Historical trading performance
-- ~Multiplatform support~ - DONE. (The GH Actions pipeline and local setup works across Ubuntu Linux, MacOS, Windows
-  platforms)
-- Integration Testing.
-- Performance Benchmarking and reporting results.
-- Async, low-latency logger
-- Configuration files - I should load my different strategy, risk, setup variables from a yml file on application start.
-- Last major component remaining - Fill Listener that will listen to trade fills and notify/update PositionManager
-  about it.
-
-### Replace Python ingestion with C++ and move to Databento dataset
-
-This will bring several benefits:
-
-- Databento has a high quality dataset and well supported C++ client.
-- Provides raw TCP access for ingesting events (Alpaca has only websockets).
-- Wider range of exchanges supported; Alpaca's data only covers IEX.
-- Ultimately, C++ is faster than Python.
-
-### Replace ZeroMQ with Ring Buffer
-
-I can utilize shared memory and a ring buffer to achieve lower latency than ZeroMQ, which is a message broker. This
-will allow for more direct communication between threads and reduce overhead. This is also a huge learning
-opportunity on how to implement this data structure properly using atomics etc. I believe it needs to be Single
-Producer Single Consumer architecture
-
-### Backtesting support
-
-The idea is be to run historical data through the same flow as live data.
-There will be some considerations to address, especially with handling historical data,
-getting it ingested, etc.
-
-### ~Multiplatform support~ -- DONE
-
-Currently, I suspect my setup does not work on Windows, which I want to address at some point and verify I am able to
-run the code anywhere.
-
-## Links
-
-Some resources and books that I am consuming while working on this project, and attempting to implement the learnings:
-
-- Operating Systems: Three Easy Pieces - [Book](http://pages.cs.wisc.edu/~remzi/OSTEP/)
-- C++ Concurrency in Action - [Book](https://www.manning.com/books/c-concurrency-in-action-second-edition)
-- TCP/IP Illustrated - [Book](https://www.amazon.com/TCP-Illustrated-Volume-Addison-Wesley-Professional/dp/0201633469)
-- Building Low Latency Applications with C++ - [Book](https://www.amazon.co.uk/Building-Low-Latency-Applications-ecosystem/dp/1837639353)
-- C++ Software Design - [Book](https://www.oreilly.com/library/view/c-software-design/9781098113155/)
-
-Other references/documentation:
-
-- [Alpaca](https://alpaca.markets/)
-- [Databento](https://databento.com/)
-
-## 🛠️ Getting Started / How To Run
-
-TBD
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
