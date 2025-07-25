@@ -271,6 +271,8 @@ In no particular priority/implementation order:
 - Performance Benchmarking and reporting results.
 - Async, low-latency logger
 - Configuration files - I should load my different strategy, risk, setup variables from a yml file on application start.
+- Last major component remaining - Fill Listener that will listen to trade fills and notify/update PositionManager
+  about it.
 
 ### Replace Python ingestion with C++ and move to Databento dataset
 
