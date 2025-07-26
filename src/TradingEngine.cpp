@@ -91,8 +91,8 @@ void TradingEngine::setup_signal_handler() {
 
 void TradingEngine::launch_gateway() {
   order_gateway_thread_ = std::thread(&OrderGateway::run, order_gateway_.get());
-  std::cout << "Pinned OrderGateway thread to CPU Core 0" << std::endl;
-  pin_thread_to_core(order_gateway_thread_, 0);
+  std::cout << "Pinned OrderGateway thread to CPU Core 1" << std::endl;
+  pin_thread_to_core(order_gateway_thread_, 1);
 }
 
 void TradingEngine::launch_consumers() {
@@ -112,8 +112,8 @@ void TradingEngine::launch_consumers() {
                      consumer.get()),
          std::move(consumer)});
 
-    pin_thread_to_core(consumer_threads_.back().thread, i + 1);
-    std::cout << "Pinned thread for " << symbol << " to CPU Core " << (i + 1)
+    pin_thread_to_core(consumer_threads_.back().thread, i + 2);
+    std::cout << "Pinned thread for " << symbol << " to CPU Core " << (i + 2)
               << std::endl;
   }
 }

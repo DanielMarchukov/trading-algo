@@ -3,6 +3,8 @@ import os
 import struct
 import sys
 import time
+import tempfile
+from pathlib import Path
 
 import msgpack
 import websockets
@@ -62,10 +64,21 @@ def get_zmq_address():
     """Get the appropriate ZMQ address based on the platform.
 
     Windows doesn't support IPC (Unix domain sockets), so use TCP.
+    For Unix systems, use the same temp directory logic as C++.
     """
     if sys.platform == "win32":
         return "tcp://127.0.0.1:5555"
-    return "ipc://tmp/market_data.sock"
+
+    temp_dir = Path(tempfile.gettempdir())
+    socket_path = temp_dir / "market_data.sock"
+    socket_path.parent.mkdir(parents=True, exist_ok=True)
+    if socket_path.exists():
+        try:
+            socket_path.unlink()
+        except OSError as e:
+            print(f"Warning: Could not remove existing socket {socket_path}: {e}")
+
+    return f"ipc://{socket_path}"
 
 
 async def handle_market_data(message, zmq_socket):

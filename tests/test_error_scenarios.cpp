@@ -78,7 +78,7 @@ TEST(PositionManagerConcurrencyTest, HandlesMultiThreadedUpdates) {
 
   for (int i = 0; i < num_threads; ++i) {
     constexpr int fills_per_thread = 1000;
-    threads.emplace_back([&pm, i, fills_per_thread]() {
+    threads.emplace_back([&pm, i]() {
       Fill fill{};
       strncpy(fill.symbol, "AAPL", sizeof(fill.symbol));
       fill.side = (i % 2 == 0) ? OrderSide::Buy : OrderSide::Sell;

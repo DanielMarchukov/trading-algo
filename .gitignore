@@ -47,12 +47,14 @@ paper_money
 *.app
 
 # Setup files
-/setup/env.bat.template
-/setup/env.ps1.template
 /setup/rebuild.bat
 /setup/run_tests.bat
 /setup/run_trading_system.bat
 /setup/run_trading_system.ps1
+/setup/rebuild.sh
+/setup/test.sh
+/setup/run_trading_system.sh
+.requirements.hash
 .idea/
 htmlcov/
 .coverage
@@ -64,4 +66,7 @@ LastCoverageResults.log
 .env
 env.ps1
 env.bat
-!*.template
+/setup/.env.template
+/setup/.env
+/setup/env.bat.template
+/setup/env.ps1.template

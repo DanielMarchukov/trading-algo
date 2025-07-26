@@ -321,10 +321,28 @@ class TestPublisher(unittest.TestCase):
             self.assertEqual(publisher.get_zmq_address(), "tcp://127.0.0.1:5555")
 
             sys.platform = "linux"
-            self.assertEqual(publisher.get_zmq_address(), "ipc://tmp/market_data.sock")
+            address = publisher.get_zmq_address()
+            self.assertTrue(address.startswith("ipc://"))
+            self.assertTrue(address.endswith("market_data.sock"))
 
             sys.platform = "darwin"
-            self.assertEqual(publisher.get_zmq_address(), "ipc://tmp/market_data.sock")
+            address = publisher.get_zmq_address()
+            self.assertTrue(address.startswith("ipc://"))
+            self.assertTrue(address.endswith("market_data.sock"))
+        finally:
+            sys.platform = original_platform
+
+    @patch("tempfile.gettempdir")
+    def test_get_zmq_address_unix_path_construction(self, mock_gettempdir):
+        """Test that Unix paths are constructed correctly."""
+        original_platform = sys.platform
+        try:
+            sys.platform = "linux"
+            mock_gettempdir.return_value = "/tmp"
+
+            address = publisher.get_zmq_address()
+            expected = "ipc:///tmp/market_data.sock"
+            self.assertEqual(address, expected)
         finally:
             sys.platform = original_platform
 
@@ -484,7 +502,7 @@ class TestPublisher(unittest.TestCase):
         self, mock_get_address, mock_zmq_context, mock_websockets, mock_cpu_affinity
     ):
         """Test the main function with successful execution."""
-        mock_get_address.return_value = "ipc://test"
+        mock_get_address.return_value = "ipc:///tmp/test"
 
         mock_context = Mock()
         mock_socket = Mock()
@@ -501,7 +519,7 @@ class TestPublisher(unittest.TestCase):
 
             mock_get_address.assert_called_once()
             mock_context.socket.assert_called_once()
-            mock_socket.bind.assert_called_once_with("ipc://test")
+            mock_socket.bind.assert_called_once_with("ipc:///tmp/test")
             mock_run_loop.assert_called_once()
             mock_socket.close.assert_called_once()
             mock_context.term.assert_called_once()
@@ -540,7 +558,7 @@ class TestPublisher(unittest.TestCase):
         self, mock_get_address, mock_zmq_context, mock_websockets, mock_cpu_affinity
     ):
         """Test the main function with KeyboardInterrupt."""
-        mock_get_address.return_value = "ipc://test"
+        mock_get_address.return_value = "ipc:///tmp/test"
 
         mock_context = Mock()
         mock_socket = Mock()
@@ -561,7 +579,7 @@ class TestPublisher(unittest.TestCase):
         self, mock_get_address, mock_zmq_context, mock_websockets, mock_cpu_affinity
     ):
         """Test the main function with general exception."""
-        mock_get_address.return_value = "ipc://test"
+        mock_get_address.return_value = "ipc:///tmp/test"
 
         mock_context = Mock()
         mock_socket = Mock()
@@ -570,6 +588,29 @@ class TestPublisher(unittest.TestCase):
 
         mock_websockets.side_effect = Exception("Connection failed")
         asyncio.run(publisher.main())
+
+        mock_socket.close.assert_called_once()
+        mock_context.term.assert_called_once()
+
+    @patch("publisher.set_cpu_affinity")
+    @patch("websockets.connect")
+    @patch("zmq.asyncio.Context")
+    @patch("zmq.ZMQError")
+    def test_main_function_zmq_bind_error(
+        self, mock_zmq_error, mock_zmq_context, mock_websockets, mock_cpu_affinity
+    ):
+        """Test the main function with ZMQ bind error."""
+        mock_context = Mock()
+        mock_socket = Mock()
+        mock_context.socket.return_value = mock_socket
+        mock_zmq_context.return_value = mock_context
+
+        import zmq
+
+        mock_socket.bind.side_effect = zmq.ZMQError(1)
+
+        with patch("publisher.get_zmq_address", return_value="ipc:///tmp/test"):
+            asyncio.run(publisher.main())
 
         mock_socket.close.assert_called_once()
         mock_context.term.assert_called_once()
