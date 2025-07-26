@@ -321,28 +321,10 @@ class TestPublisher(unittest.TestCase):
             self.assertEqual(publisher.get_zmq_address(), "tcp://127.0.0.1:5555")
 
             sys.platform = "linux"
-            address = publisher.get_zmq_address()
-            self.assertTrue(address.startswith("ipc://"))
-            self.assertTrue(address.endswith("market_data.sock"))
+            self.assertEqual(publisher.get_zmq_address(), "ipc:///tmp/market_data.sock")
 
             sys.platform = "darwin"
-            address = publisher.get_zmq_address()
-            self.assertTrue(address.startswith("ipc://"))
-            self.assertTrue(address.endswith("market_data.sock"))
-        finally:
-            sys.platform = original_platform
-
-    @patch("tempfile.gettempdir")
-    def test_get_zmq_address_unix_path_construction(self, mock_gettempdir):
-        """Test that Unix paths are constructed correctly."""
-        original_platform = sys.platform
-        try:
-            sys.platform = "linux"
-            mock_gettempdir.return_value = "/tmp"  # nosec
-
-            address = publisher.get_zmq_address()
-            expected = "ipc:///tmp/market_data.sock"
-            self.assertEqual(address, expected)
+            self.assertEqual(publisher.get_zmq_address(), "ipc:///tmp/market_data.sock")
         finally:
             sys.platform = original_platform
 
