@@ -145,11 +145,12 @@ brew link --force boost
 ## Performance Monitoring
 
 1. **Using Activity Monitor**:
-    - Open Activity Monitor
-    - Search for "paper_money" process
-    - Monitor CPU and memory usage
 
-2. **Using Command Line**:
+   - Open Activity Monitor
+   - Search for "paper_money" process
+   - Monitor CPU and memory usage
+
+1. **Using Command Line**:
 
 ```bash
 # Monitor the trading engine
@@ -166,9 +167,9 @@ open /Applications/Xcode.app/Contents/Applications/Instruments.app
 ## macOS-Specific Notes
 
 1. **Firewall**: macOS will prompt to allow network connections for both Python and the trading engine. Click "Allow"
-for both
-1. **CPU Affinity**: macOS handles thread affinity differently than Linux. The engine will still attempt to pin
-threads but with macOS-specific APIs.
+   for both
+1. **CPU Affinity**: macOS handles thread affinity differently than Linux. The engine will still attempt to pin threads
+   but with macOS-specific APIs.
 1. **IPC Sockets**: The engine uses Unix domain sockets at `/tmp/market_data.sock`. This is allowed by default on macOS.
 
 ## Next Steps
@@ -220,5 +221,5 @@ After running the setup script, you'll have these aliases available (restart ter
 For issues specific to this quickstart:
 
 1. Check the setup script output for warnings
-2. Review Console.app for system logs
-3. See the main [README](../README.md) for more details
+1. Review Console.app for system logs
+1. See the main [README](../README.md) for more details

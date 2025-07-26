@@ -133,8 +133,8 @@ Remove-Item -Recurse -Force build, vcpkg_installed -ErrorAction SilentlyContinue
 **Solution**:
 
 1. Run PowerShell as Administrator
-2. Check Windows Defender exclusions for the project folder
-3. Temporarily disable real-time scanning for the build folder
+1. Check Windows Defender exclusions for the project folder
+1. Temporarily disable real-time scanning for the build folder
 
 ### DLL Not Found
 
@@ -158,18 +158,19 @@ Windows doesn't support Unix domain sockets, so the system uses TCP:
 When first running, Windows Firewall will prompt. You must:
 
 1. Allow `python.exe` through the firewall
-2. Allow `paper_money.exe` through the firewall
+1. Allow `paper_money.exe` through the firewall
 
 Without these permissions, the components cannot communicate.
 
 ### Performance Monitoring
 
 1. **Task Manager**:
-    - Press `Ctrl+Shift+Esc`
-    - Go to "Details" tab
-    - Find `paper_money.exe` and `python.exe`
 
-2. **PowerShell Monitoring**:
+   - Press `Ctrl+Shift+Esc`
+   - Go to "Details" tab
+   - Find `paper_money.exe` and `python.exe`
+
+1. **PowerShell Monitoring**:
 
 ```powershell
 while ($true) {
@@ -181,8 +182,8 @@ while ($true) {
 ```
 
 3. **Performance Monitor** (Advanced):
-    - Run `perfmon`
-    - Add counters for the trading engine process
+   - Run `perfmon`
+   - Add counters for the trading engine process
 
 ## Visual Studio Debugging
 
@@ -196,9 +197,9 @@ start build\RichOnPaper.sln
 ```
 
 2. In Visual Studio:
-    - Set `paper_money` as the startup project
-    - Press `F5` to debug
-    - Set breakpoints as needed
+   - Set `paper_money` as the startup project
+   - Press `F5` to debug
+   - Set breakpoints as needed
 
 ## Next Steps
 
@@ -239,8 +240,9 @@ The setup creates these helper scripts in the `setup` folder:
 For best performance on Windows:
 
 1. **Exclude from antivirus scanning**:
-    - Add project folder to Windows Defender exclusions
-    - Especially the `build` and `vcpkg_installed` folders
+
+   - Add project folder to Windows Defender exclusions
+   - Especially the `build` and `vcpkg_installed` folders
 
 1. **Use Release build** (after initial testing):
 

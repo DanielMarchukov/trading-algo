@@ -7,7 +7,7 @@ repos:
       - id: check-yaml
       - id: check-json
       - id: check-added-large-files
-        args: ['--maxkb=10000']
+        args: ["--maxkb=10000"]
       - id: check-merge-conflict
       - id: check-toml
       - id: mixed-line-ending
@@ -48,11 +48,11 @@ repos:
         files: CMakeLists\.txt|\.cmake$
         additional_dependencies: ["pyyaml"]
 
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.39.0
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.17
     hooks:
-      - id: markdownlint
-        args: ["--config", ".markdownlint.json", "--fix"]
+      - id: mdformat
+        args: ["--wrap", "120"]
         files: \.(md|markdown)$
 
 ci:
@@ -61,8 +61,8 @@ ci:
 
     for more information, see https://pre-commit.ci
   autofix_prs: true
-  autoupdate_branch: ''
-  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_branch: ""
+  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
   autoupdate_schedule: weekly
   skip: []
   submodules: false

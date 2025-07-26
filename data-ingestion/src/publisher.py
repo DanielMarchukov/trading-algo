@@ -2,8 +2,8 @@ import asyncio
 import os
 import struct
 import sys
-import time
 import tempfile
+import time
 from pathlib import Path
 
 import msgpack

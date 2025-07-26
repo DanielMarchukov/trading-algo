@@ -428,14 +428,14 @@ cleanup() {
     if [ ! -z "$PUBLISHER_PID" ] && kill -0 $PUBLISHER_PID 2>/dev/null; then
         print_status "Stopping Python publisher (PID: $PUBLISHER_PID)..."
         kill -TERM $PUBLISHER_PID 2>/dev/null || true
-        
+
         # Wait for graceful shutdown (up to 5 seconds)
         local count=0
         while [ $count -lt 25 ] && kill -0 $PUBLISHER_PID 2>/dev/null; do
             sleep 0.2
             count=$((count + 1))
         done
-        
+
         # Force kill if still running
         if kill -0 $PUBLISHER_PID 2>/dev/null; then
             print_warning "Force killing Python publisher after timeout..."
@@ -443,18 +443,18 @@ cleanup() {
         fi
     fi
 
-    # Stop C++ engine if running  
+    # Stop C++ engine if running
     if [ ! -z "$ENGINE_PID" ] && kill -0 $ENGINE_PID 2>/dev/null; then
         print_status "Stopping C++ trading engine (PID: $ENGINE_PID)..."
         kill -TERM $ENGINE_PID 2>/dev/null || true
-        
+
         # Wait for graceful shutdown (up to 10 seconds)
         local count=0
         while [ $count -lt 50 ] && kill -0 $ENGINE_PID 2>/dev/null; do
             sleep 0.2
             count=$((count + 1))
         done
-        
+
         # Force kill if still running
         if kill -0 $ENGINE_PID 2>/dev/null; then
             print_warning "Force killing C++ trading engine after timeout..."

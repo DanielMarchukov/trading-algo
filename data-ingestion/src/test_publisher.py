@@ -338,7 +338,7 @@ class TestPublisher(unittest.TestCase):
         original_platform = sys.platform
         try:
             sys.platform = "linux"
-            mock_gettempdir.return_value = "/tmp"
+            mock_gettempdir.return_value = "/tmp"  # nosec
 
             address = publisher.get_zmq_address()
             expected = "ipc:///tmp/market_data.sock"

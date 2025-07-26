@@ -17,15 +17,17 @@ low-latency trading engine.
 The trading engine is designed as a multiprocess system with clear separation of concerns:
 
 1. **Hot Path Components** (latency-critical):
-    - Market Data Ingestion and normalization (Python)
-    - Market Data Consumer (C++)
-    - Trading Strategy execution
-    - Risk Management checks
 
-2. **Warm/Cold Path Components**:
-    - Order Gateway (REST API calls)
-    - Position Manager updates
-    - Fill processing
+   - Market Data Ingestion and normalization (Python)
+   - Market Data Consumer (C++)
+   - Trading Strategy execution
+   - Risk Management checks
+
+1. **Warm/Cold Path Components**:
+
+   - Order Gateway (REST API calls)
+   - Position Manager updates
+   - Fill processing
 
 ## Architecture Diagrams
 
@@ -277,36 +279,42 @@ class MarketEventConsumer {
 ### Performance Enhancements
 
 1. **Replace ZeroMQ with Shared Memory Ring Buffer**
-    - Implement SPSC lock-free queue
-    - Use memory-mapped files for persistence
-    - Target: <2μs IPC latency
 
-2. **C++ Market Data Ingestion**
-    - Migrate to Databento C++ client
-    - Direct TCP connection to exchange
-    - Remove Python serialization overhead
+   - Implement SPSC lock-free queue
+   - Use memory-mapped files for persistence
+   - Target: \<2μs IPC latency
 
-3. **Custom Memory Allocators**
-    - Pool allocators for fixed-size objects
-    - NUMA-aware allocation
-    - Reduce allocation jitter
+1. **C++ Market Data Ingestion**
+
+   - Migrate to Databento C++ client
+   - Direct TCP connection to exchange
+   - Remove Python serialization overhead
+
+1. **Custom Memory Allocators**
+
+   - Pool allocators for fixed-size objects
+   - NUMA-aware allocation
+   - Reduce allocation jitter
 
 ### Feature Additions
 
 1. **Backtesting Engine**
-    - Historical data replay through same pipeline
-    - Performance metrics and analysis
-    - Strategy parameter optimization
 
-2. **Advanced Risk Management**
-    - Portfolio-level risk limits
-    - Greeks calculation for options
-    - Real-time P&L tracking
+   - Historical data replay through same pipeline
+   - Performance metrics and analysis
+   - Strategy parameter optimization
 
-3. **Strategy Framework**
-    - Plugin architecture for strategies
-    - Hot-reloading of strategies
-    - A/B testing framework
+1. **Advanced Risk Management**
+
+   - Portfolio-level risk limits
+   - Greeks calculation for options
+   - Real-time P&L tracking
+
+1. **Strategy Framework**
+
+   - Plugin architecture for strategies
+   - Hot-reloading of strategies
+   - A/B testing framework
 
 ## Performance Targets
 
@@ -316,7 +324,7 @@ This isn't benchmarked oficially yet; TBD.
 
 ### Target Performance
 
-- Market Data to Strategy: <15μs
-- Strategy Processing: <15μs
-- Risk Validation: <15μs
-- Total Hot Path: <50μs
+- Market Data to Strategy: \<15μs
+- Strategy Processing: \<15μs
+- Risk Validation: \<15μs
+- Total Hot Path: \<50μs

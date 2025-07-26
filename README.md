@@ -4,8 +4,8 @@
 [![codecov](https://codecov.io/gh/DanielMarchukov/rich-on-paper/branch/main/graph/badge.svg)](https://codecov.io/gh/DanielMarchukov/rich-on-paper)
 
 A production-grade, ultra-low latency trading engine built with modern C++23 and Python, targeting sub-50 microsecond
-internal processing latency. The system demonstrates professional software engineering practices including
-comprehensive testing, multi-platform support, and continuous integration.
+internal processing latency. The system demonstrates professional software engineering practices including comprehensive
+testing, multi-platform support, and continuous integration.
 
 ## 🚀 Key Features
 
@@ -29,8 +29,8 @@ comprehensive testing, multi-platform support, and continuous integration.
 Before running the trading engine, ensure you have:
 
 1. **Alpaca Markets Account**: Sign up at [alpaca.markets](https://alpaca.markets/) for free paper trading API access
-2. **Operating System**: Ubuntu 20.04+, macOS 13+, or Windows 10/11
-3. **Development Tools**: See platform-specific quickstart guides
+1. **Operating System**: Ubuntu 20.04+, macOS 13+, or Windows 10/11
+1. **Development Tools**: See platform-specific quickstart guides
 
 ## 🏃 Quick Start
 
