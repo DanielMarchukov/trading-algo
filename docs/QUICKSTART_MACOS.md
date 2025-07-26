@@ -99,7 +99,7 @@ To stop the system, press `Ctrl+C`.
 **Solution**: Go to System Settings → Privacy & Security and click "Allow Anyway" for the blocked app. Alternatively:
 
 ```bash
-xattr -cr ./build/hello
+xattr -cr ./build/paper_money
 ```
 
 ### "APCA_API_KEY_ID not set" Error
@@ -146,14 +146,14 @@ brew link --force boost
 
 1. **Using Activity Monitor**:
     - Open Activity Monitor
-    - Search for "hello" process
+    - Search for "paper_money" process
     - Monitor CPU and memory usage
 
 2. **Using Command Line**:
 
 ```bash
 # Monitor the trading engine
-top -pid $(pgrep hello)
+top -pid $(pgrep paper_money)
 ```
 
 3. **Using Instruments** (Advanced):
@@ -194,7 +194,7 @@ python data-ingestion/src/publisher.py
 
 ```bash
 source .env
-./build/hello
+./build/paper_money
 ```
 
 ## Debugging with LLDB
@@ -202,7 +202,7 @@ source .env
 For debugging the C++ engine:
 
 ```bash
-lldb ./build/hello
+lldb ./build/paper_money
 (lldb) run
 (lldb) bt  # backtrace if it crashes
 ```

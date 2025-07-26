@@ -280,9 +280,9 @@ jobs:
         with:
           name: trading-engine-${{ matrix.os }}-${{ matrix.cpp_compiler || 'msvc' }}-${{ matrix.build_type }}
           path: |
-            build/hello
-            build/Release/hello.exe
-            build/Debug/hello.exe
+            build/paper_money
+            build/Release/paper_money.exe
+            build/Debug/paper_money.exe
           if-no-files-found: ignore
 
   security-scan:

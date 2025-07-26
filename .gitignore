@@ -11,7 +11,7 @@ data-ingestion/src/__pycache__/
 vcpkg_installed/
 
 # Application
-hello
+paper_money
 
 # Prerequisites
 *.d

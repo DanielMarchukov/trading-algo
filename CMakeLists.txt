@@ -41,13 +41,14 @@ list(FILTER SOURCES EXCLUDE REGEX "main.cpp")
 
 include_directories(include)
 
-add_executable(hello src/main.cpp ${SOURCES})
-target_link_libraries(hello PRIVATE Boost::lockfree libzmq cppzmq nlohmann_json::nlohmann_json
-                                    cpr::cpr unofficial::uwebsockets::uwebsockets)
+add_executable(paper_money src/main.cpp ${SOURCES})
+target_link_libraries(
+    paper_money PRIVATE Boost::lockfree libzmq cppzmq nlohmann_json::nlohmann_json cpr::cpr
+                        unofficial::uwebsockets::uwebsockets)
 
 if(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-    target_compile_definitions(hello PRIVATE _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(paper_money PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
 # ===================================================================

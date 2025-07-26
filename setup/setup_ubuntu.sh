@@ -310,7 +310,7 @@ if [ ! -d "env" ]; then
 fi
 
 # Check if build directory exists
-if [ ! -d "build" ] || [ ! -f "build/hello" ]; then
+if [ ! -d "build" ] || [ ! -f "build/paper_money" ]; then
     print_error "C++ binary not found. Run setup_ubuntu_dev.sh first."
     exit 1
 fi
@@ -376,7 +376,7 @@ fi
 
 # Start C++ trading engine
 print_status "Starting C++ trading engine..."
-./build/hello &
+./build/paper_money &
 ENGINE_PID=$!
 
 # Wait a moment to check if engine started successfully

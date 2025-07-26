@@ -284,7 +284,7 @@ if (!(Test-Path "env")) {
     exit 1
 }
 
-if (!(Test-Path "build\Debug\hello.exe") -and !(Test-Path "build\Release\hello.exe")) {
+if (!(Test-Path "build\Debug\paper_money.exe") -and !(Test-Path "build\Release\paper_money.exe")) {
     Write-Error-Message "C++ binary not found. Run setup\setup_windows.ps1 first."
     Pop-Location
     exit 1
@@ -351,10 +351,10 @@ try {
 
     # Start C++ trading engine
     Write-Status "Starting C++ trading engine..."
-    $enginePath = if (Test-Path "build\Debug\hello.exe") {
-        "build\Debug\hello.exe"
+    $enginePath = if (Test-Path "build\Debug\paper_money.exe") {
+        "build\Debug\paper_money.exe"
     } else {
-        "build\Release\hello.exe"
+        "build\Release\paper_money.exe"
     }
 
     $engineStartInfo = New-Object System.Diagnostics.ProcessStartInfo

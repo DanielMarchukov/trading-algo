@@ -9,7 +9,7 @@ comprehensive testing, multi-platform support, and continuous integration.
 
 ## 🚀 Key Features
 
-- **Ultra-Low Latency**: Sub-50μs internal processing latency using lock-free data structures and CPU affinity
+- **Ultra-Low Latency**: Target sub-50μs internal processing latency using lock-free data structures and CPU affinity
 - **Multi-Language Architecture**: High-performance C++23 core with Python data ingestion via ZeroMQ
 - **Production-Grade**: 80%+ test coverage, CI/CD pipeline, and cross-platform support (Linux, macOS, Windows)
 - **Real Market Data**: Integrates with Alpaca Markets for live and paper trading

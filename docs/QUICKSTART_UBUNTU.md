@@ -152,7 +152,7 @@ sudo nice -n -20 ./run_trading_system.sh
 ```bash
 # In another terminal
 htop
-# Press F4 to filter by process name: hello
+# Press F4 to filter by process name: paper_money
 ```
 
 ## Next Steps
@@ -178,7 +178,7 @@ python data-ingestion/src/publisher.py
 
 ```bash
 source .env
-./build/hello
+./build/paper_money
 ```
 
 ## Support

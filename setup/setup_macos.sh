@@ -198,7 +198,7 @@ if [ ! -d "env" ]; then
 fi
 
 # Check if build directory exists
-if [ ! -d "build" ] || [ ! -f "build/hello" ]; then
+if [ ! -d "build" ] || [ ! -f "build/paper_money" ]; then
     print_error "C++ binary not found. Run setup_macos_dev.sh first."
     exit 1
 fi
@@ -264,7 +264,7 @@ fi
 
 # Start C++ trading engine
 print_status "Starting C++ trading engine..."
-./build/hello &
+./build/paper_money &
 ENGINE_PID=$!
 
 # Wait a moment to check if engine started successfully
@@ -379,7 +379,7 @@ python data-ingestion/src/publisher.py
 ```bash
 export APCA_API_KEY_ID='your_key'
 export APCA_API_SECRET_KEY='your_secret'
-./build/hello
+./build/paper_money
 ```
 
 ### 4. Troubleshooting macOS-Specific Issues
@@ -400,18 +400,18 @@ rm -f /tmp/market_data.sock
 **Performance monitoring:**
 ```bash
 # Use macOS Activity Monitor or:
-top -pid $(pgrep hello)
+top -pid $(pgrep paper_money)
 ```
 
 **Firewall warnings:**
 - macOS may ask to allow network connections
-- Click "Allow" for both Python and hello binary
+- Click "Allow" for both Python and paper_money binary
 
 ### 5. Development Tools
 
 **Debugging with LLDB:**
 ```bash
-lldb ./build/hello
+lldb ./build/paper_money
 (lldb) run
 ```
 
@@ -427,7 +427,7 @@ open /Applications/Xcode.app/Contents/Applications/Instruments.app
 If you encounter "Developer cannot be verified" errors:
 1. Go to System Settings → Privacy & Security
 2. Click "Allow Anyway" for the blocked app
-3. Or remove quarantine: `xattr -cr ./build/hello`
+3. Or remove quarantine: `xattr -cr ./build/paper_money`
 
 For more details, see the main README.md
 EOF
@@ -459,7 +459,7 @@ echo "   Or use the convenient alias (after restarting terminal):"
 echo "   trading-start"
 echo ""
 echo "3. macOS-specific notes:"
-echo "   - If prompted, allow network connections for Python and hello"
+echo "   - If prompted, allow network connections for Python and paper_money"
 echo "   - Check Activity Monitor for CPU/memory usage"
 echo "   - Logs are in standard output (no syslog integration)"
 echo ""

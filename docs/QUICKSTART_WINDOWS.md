@@ -97,7 +97,7 @@ You should see:
 1. Market data being received (check the console output)
 1. Orders being placed to Alpaca's paper trading API
 1. No error messages
-1. Windows Firewall may prompt - allow both Python.exe and hello.exe
+1. Windows Firewall may prompt - allow both Python.exe and paper_money.exe
 
 To stop the system, press `Ctrl+C`.
 
@@ -158,7 +158,7 @@ Windows doesn't support Unix domain sockets, so the system uses TCP:
 When first running, Windows Firewall will prompt. You must:
 
 1. Allow `python.exe` through the firewall
-2. Allow `hello.exe` through the firewall
+2. Allow `paper_money.exe` through the firewall
 
 Without these permissions, the components cannot communicate.
 
@@ -167,13 +167,13 @@ Without these permissions, the components cannot communicate.
 1. **Task Manager**:
     - Press `Ctrl+Shift+Esc`
     - Go to "Details" tab
-    - Find `hello.exe` and `python.exe`
+    - Find `paper_money.exe` and `python.exe`
 
 2. **PowerShell Monitoring**:
 
 ```powershell
 while ($true) {
-    Get-Process hello, python -ErrorAction SilentlyContinue |
+    Get-Process paper_money, python -ErrorAction SilentlyContinue |
     Select-Object Name, CPU, WorkingSet, Id
     Start-Sleep -Seconds 1
     Clear-Host
@@ -196,7 +196,7 @@ start build\RichOnPaper.sln
 ```
 
 2. In Visual Studio:
-    - Set `hello` as the startup project
+    - Set `paper_money` as the startup project
     - Press `F5` to debug
     - Set breakpoints as needed
 
@@ -223,7 +223,7 @@ python data-ingestion\src\publisher.py
 
 ```powershell
 . .\setup\env.ps1
-.\build\Debug\hello.exe
+.\build\Debug\paper_money.exe
 ```
 
 ## Convenience Scripts
@@ -246,15 +246,15 @@ For best performance on Windows:
 
 ```powershell
 cmake --build build --config Release
-# Then use .\build\Release\hello.exe
+# Then use .\build\Release\paper_money.exe
 ```
 
 3. **Set process priority**:
 
 ```powershell
 # In admin PowerShell after starting
-$helloProcess = Get-Process hello
-$helloProcess.PriorityClass = 'High'
+$paper_moneyProcess = Get-Process paper_money
+$paper_moneyProcess.PriorityClass = 'High'
 ```
 
 ## Support
