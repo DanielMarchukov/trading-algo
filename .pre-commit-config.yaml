@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -13,21 +13,21 @@ repos:
       - id: mixed-line-ending
 
   - repo: https://github.com/psf/black
-    rev: 24.1.1
+    rev: 25.1.0
     hooks:
       - id: black
         language_version: python3.12
         files: ^data-ingestion/
 
   - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
+    rev: 6.0.1
     hooks:
       - id: isort
         files: ^data-ingestion/
         args: ["--profile", "black"]
 
   - repo: https://github.com/pycqa/bandit
-    rev: 1.7.5
+    rev: 1.8.6
     hooks:
       - id: bandit
         files: ^data-ingestion/
@@ -35,7 +35,7 @@ repos:
         additional_dependencies: ["toml"]
 
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v17.0.6
+    rev: v20.1.8
     hooks:
       - id: clang-format
         files: \.(cpp|hpp|h|c|cc|cxx)$
@@ -49,7 +49,7 @@ repos:
         additional_dependencies: ["pyyaml"]
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.17
+    rev: 0.7.22
     hooks:
       - id: mdformat
         args: ["--wrap", "120"]
