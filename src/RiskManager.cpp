@@ -1,4 +1,5 @@
 #include "RiskManager.hpp"
+#include <cstdlib>
 
 RiskManager::RiskManager(
     const std::shared_ptr<PositionManager> &position_manager)
