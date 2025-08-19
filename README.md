@@ -7,7 +7,7 @@ A production-grade, ultra-low latency trading engine built with modern C++23 and
 internal processing latency. The system demonstrates professional software engineering practices including comprehensive
 testing, multi-platform support, and continuous integration.
 
-## 🚀 Key Features
+## Key Features
 
 - **Ultra-Low Latency**: Target sub-50μs internal processing latency using lock-free data structures and CPU affinity
 - **Multi-Language Architecture**: High-performance C++23 core with Python data ingestion via ZeroMQ
@@ -15,7 +15,7 @@ testing, multi-platform support, and continuous integration.
 - **Real Market Data**: Integrates with Alpaca Markets for live and paper trading
 - **Modular Design**: Clean separation between market data, strategy, risk management, and execution
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 - **C++23**: Core trading engine with template metaprogramming and compile-time optimizations
 - **Python 3.12**: Market data ingestion and normalization
@@ -24,7 +24,7 @@ testing, multi-platform support, and continuous integration.
 - **CMake**: Build system with modern CMake practices
 - **Google Test**: Comprehensive unit and integration testing
 
-## 📋 Prerequisites
+## Prerequisites
 
 Before running the trading engine, ensure you have:
 
@@ -32,13 +32,13 @@ Before running the trading engine, ensure you have:
 1. **Operating System**: Ubuntu 20.04+, macOS 13+, or Windows 10/11
 1. **Development Tools**: See platform-specific quickstart guides
 
-## 🏃 Quick Start
+## Quick Start
 
 Choose your platform and follow the step-by-step guide:
 
-- 🐧 [**Ubuntu/Linux Quick Start**](docs/QUICKSTART_UBUNTU.md)
-- 🍎 [**macOS Quick Start**](docs/QUICKSTART_MACOS.md)
-- 🪟 [**Windows Quick Start**](docs/QUICKSTART_WINDOWS.md)
+- [**Ubuntu/Linux Quick Start**](docs/QUICKSTART_UBUNTU.md)
+- [**macOS Quick Start**](docs/QUICKSTART_MACOS.md)
+- [**Windows Quick Start**](docs/QUICKSTART_WINDOWS.md)
 
 ### TL;DR for Experienced Developers
 
@@ -58,7 +58,7 @@ cp .env.template .env
 ./run_trading_system.sh    # or platform-specific script
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 rich-on-paper/
@@ -77,7 +77,7 @@ rich-on-paper/
 └── CMakeLists.txt          # CMake configuration
 ```
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 The trading engine uses a multiprocess architecture with dedicated threads for different components:
 
@@ -88,7 +88,7 @@ The trading engine uses a multiprocess architecture with dedicated threads for d
 
 For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## 🧪 Testing
+## Testing
 
 Run the comprehensive test suite:
 
@@ -100,11 +100,11 @@ pytest data-ingestion/src/ -v
 cd build && ctest --output-on-failure
 ```
 
-## 📊 Performance
+## Performance
 
 Performance Benchmarking is still TBD.
 
-## 🤝 Development
+## Development
 
 ### Building from Source
 
@@ -125,12 +125,12 @@ cd build && ctest
 - **Python**: black, isort, pylint, mypy
 - **Security**: CodeQL, bandit, safety
 
-## 📚 Documentation
+## Documentation
 
 - [System Architecture](docs/ARCHITECTURE.md) - Detailed design and technical decisions
 - [Performance Tuning](docs/PERFORMANCE.md) - Low-latency optimizations
 
-## 🎯 Project Goals
+## Project Goals
 
 This project demonstrates:
 
@@ -139,6 +139,6 @@ This project demonstrates:
 1. **Professional software engineering** including CI/CD, testing, and documentation
 1. **Financial markets knowledge** applied to algorithmic trading
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
