@@ -1,11 +1,10 @@
 #pragma once
 
 #include "Fill.hpp"
-#include <atomic>
 #include <cstring>
-#include <shared_mutex>
+#include <functional>
 #include <string_view>
-#include <unordered_map>
+#include <tbb/concurrent_hash_map.h>
 
 struct SymbolKey {
   char value[8] = {};
@@ -15,10 +14,14 @@ struct SymbolKey {
   }
 };
 
-struct SymbolKeyHash {
-  std::size_t operator()(const SymbolKey &k) const {
-    return std::hash<std::string_view>()(
+struct SymbolKeyHashCompare {
+  static std::size_t hash(const SymbolKey &k) {
+    return std::hash<std::string_view>{}(
         std::string_view(k.value, sizeof(k.value)));
+  }
+
+  static bool equal(const SymbolKey &lhs, const SymbolKey &rhs) {
+    return std::memcmp(lhs.value, rhs.value, sizeof(lhs.value)) == 0;
   }
 };
 
@@ -26,10 +29,16 @@ class PositionManager {
 public:
   PositionManager() = default;
 
+  void registerSymbol(std::string_view symbol);
   void onFill(const Fill &fill);
   [[nodiscard]] int getPosition(std::string_view symbol) const;
 
 private:
-  std::unordered_map<SymbolKey, std::atomic<int>, SymbolKeyHash> positions_;
-  std::shared_mutex mutex_;
+  using PositionMap =
+      tbb::concurrent_hash_map<SymbolKey, int, SymbolKeyHashCompare>;
+
+  static SymbolKey makeKey(std::string_view symbol);
+  static SymbolKey makeKeyFromBuffer(const char *symbol_buffer);
+
+  mutable PositionMap positions_;
 };

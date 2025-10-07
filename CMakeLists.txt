@@ -35,6 +35,7 @@ find_package(cpr CONFIG REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(GTest REQUIRED)
 find_package(unofficial-uwebsockets CONFIG REQUIRED)
+find_package(TBB CONFIG REQUIRED)
 
 file(GLOB_RECURSE SOURCES src/*.cpp)
 file(GLOB_RECURSE HEADERS include/*.hpp)
@@ -45,8 +46,14 @@ include_directories(include)
 
 add_executable(paper_money src/main.cpp ${SOURCES})
 target_link_libraries(
-    paper_money PRIVATE Boost::lockfree libzmq cppzmq nlohmann_json::nlohmann_json cpr::cpr
-                        unofficial::uwebsockets::uwebsockets)
+    paper_money
+    PRIVATE Boost::lockfree
+            libzmq
+            cppzmq
+            nlohmann_json::nlohmann_json
+            cpr::cpr
+            unofficial::uwebsockets::uwebsockets
+            TBB::tbb)
 
 if(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
@@ -60,8 +67,15 @@ enable_testing()
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 
 add_executable(rich_on_tests ${SOURCES} ${TESTS})
-target_link_libraries(rich_on_tests PUBLIC Boost::lockfree cppzmq libzmq cpr::cpr
-                                           nlohmann_json::nlohmann_json GTest::gtest_main)
+target_link_libraries(
+    rich_on_tests
+    PUBLIC Boost::lockfree
+           cppzmq
+           libzmq
+           cpr::cpr
+           nlohmann_json::nlohmann_json
+           GTest::gtest_main
+           TBB::tbb)
 
 if(ENABLE_COVERAGE)
     message(STATUS "Code coverage enabled")
