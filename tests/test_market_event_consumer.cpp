@@ -3,7 +3,9 @@
 #include "Order.hpp"
 #include "Strategy.hpp"
 #include "ThreadGuard.hpp"
+#include <atomic>
 #include <chrono>
+#include <cstring>
 #include <filesystem>
 #include <future>
 #include <gtest/gtest.h>
@@ -69,6 +71,18 @@ public:
     return {};
   }
 };
+
+class CountingStrategy : public Strategy {
+public:
+  static std::atomic<int> invocation_count;
+
+  static std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) {
+    invocation_count.fetch_add(1, std::memory_order_relaxed);
+    return {};
+  }
+};
+
+std::atomic<int> CountingStrategy::invocation_count{0};
 
 TEST_F(MarketEventConsumerTest, HandlesStrategyReturningNoOrders) {
   zmq::context_t context(1);
@@ -160,4 +174,37 @@ TEST_F(MarketEventConsumerTest, CallsStrategyAndReceivesOrders) {
   EXPECT_EQ(received_order.id, 1);
   EXPECT_EQ(received_order.side, OrderSide::Buy);
   EXPECT_EQ(received_order.quantity, 100);
+}
+
+TEST_F(MarketEventConsumerTest, SkipsMismatchedPayloadSize) {
+  zmq::context_t context(1);
+  zmq::socket_t publisher(context, zmq::socket_type::pub);
+  publisher.bind(ipc_address);
+
+  CountingStrategy::invocation_count.store(0, std::memory_order_relaxed);
+
+  std::atomic is_running(true);
+  auto callback = [](const Order &) {};
+
+  MarketEventConsumer<CountingStrategy> consumer(
+      context, ipc_address, "TEST", is_running, callback, risk_manager_);
+
+  ThreadGuard consumer_thread_guard{
+      std::thread(&MarketEventConsumer<CountingStrategy>::run, &consumer)};
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  zmq::message_t topic("TEST", 4);
+  zmq::message_t malformed_payload(sizeof(MarketEvent) + 4);
+  std::memset(malformed_payload.data(), 0, malformed_payload.size());
+
+  publisher.send(topic, zmq::send_flags::sndmore);
+  publisher.send(malformed_payload, zmq::send_flags::none);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  is_running.store(false);
+
+  EXPECT_EQ(CountingStrategy::invocation_count.load(std::memory_order_relaxed),
+            0);
 }

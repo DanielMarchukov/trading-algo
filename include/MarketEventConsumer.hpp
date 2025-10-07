@@ -49,6 +49,10 @@ public:
         continue;
       }
 
+      if (payload.size() != sizeof(MarketEvent)) [[unlikely]] {
+        continue;
+      }
+
       auto event = static_cast<const MarketEvent *>(payload.data());
       for (auto orders = strategy_->onMarketEvent(*event);
            const auto &order : orders) {
