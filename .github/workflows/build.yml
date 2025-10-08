@@ -72,8 +72,6 @@ jobs:
           verbose: true
 
   build-cpp:
-    env:
-      VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
     strategy:
       fail-fast: false
       matrix:
