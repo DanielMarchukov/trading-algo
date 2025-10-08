@@ -3,6 +3,7 @@
 #include "MarketEvent.hpp"
 #include "RiskManager.hpp"
 #include <atomic>
+#include <exception>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -54,11 +55,19 @@ public:
       }
 
       auto event = static_cast<const MarketEvent *>(payload.data());
-      for (auto orders = strategy_->onMarketEvent(*event);
-           const auto &order : orders) {
-        if (risk_manager_->onNewOrder(order)) {
-          order_callback_(order);
+      try {
+        auto orders = strategy_->onMarketEvent(*event);
+        for (const auto &order : orders) {
+          if (risk_manager_->onNewOrder(order)) {
+            order_callback_(order);
+          }
         }
+      } catch (const std::exception &e) {
+        std::cerr << "MarketEventConsumer for " << symbol_
+                  << " strategy error: " << e.what() << std::endl;
+      } catch (...) {
+        std::cerr << "MarketEventConsumer for " << symbol_
+                  << " strategy error: unknown exception" << std::endl;
       }
     }
     std::cout << "MarketEventConsumer for " << symbol_ << " stopped."

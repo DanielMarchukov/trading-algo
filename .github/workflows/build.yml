@@ -129,6 +129,8 @@ jobs:
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: '**/vcpkg.json'
 
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux'
@@ -175,6 +177,22 @@ jobs:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
         shell: bash
+
+      - name: Dump vcpkg zeromq logs on failure
+        if: failure() && runner.os == 'macOS'
+        run: |
+          echo "Listing zeromq build logs:"
+          find "${{ env.VCPKG_ROOT }}/buildtrees/zeromq" -maxdepth 1 -type f -print || true
+          echo "--- config-arm64-osx-dbg-CMakeCache.txt.log ---"
+          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-dbg-CMakeCache.txt.log" || true
+          echo "--- config-arm64-osx-rel-CMakeCache.txt.log ---"
+          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-rel-CMakeCache.txt.log" || true
+          echo "--- config-arm64-osx-dbg-CMakeConfigureLog.yaml.log ---"
+          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-dbg-CMakeConfigureLog.yaml.log" || true
+          echo "--- config-arm64-osx-rel-CMakeConfigureLog.yaml.log ---"
+          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-rel-CMakeConfigureLog.yaml.log" || true
+          echo "--- config-arm64-osx-out.log ---"
+          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-out.log" || true
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
