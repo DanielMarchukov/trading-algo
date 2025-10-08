@@ -176,6 +176,7 @@ jobs:
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
+          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION=3.25"
         shell: bash
 
       - name: Dump vcpkg zeromq logs on failure
