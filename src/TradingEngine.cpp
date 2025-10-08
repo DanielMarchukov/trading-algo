@@ -83,6 +83,7 @@ TradingEngine::~TradingEngine() {
     stop();
   }
   shutdown();
+  g_is_running_ptr = nullptr;
   std::cout << "TradingEngine destructor: Shutdown complete." << std::endl;
 }
 
