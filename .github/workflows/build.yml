@@ -133,6 +133,7 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: '**/vcpkg.json'
+          overlayPorts: ${{ github.workspace }}/ports
 
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux'
