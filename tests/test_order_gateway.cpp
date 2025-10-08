@@ -42,3 +42,25 @@ TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
 
   is_running.store(false);
 }
+
+TEST(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
+  std::atomic is_running(true);
+  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
+  std::promise<void> promise;
+  auto future = promise.get_future();
+
+  auto mock_client = std::make_unique<MockRestClient>(&promise);
+  OrderGateway gateway(is_running, order_queue, std::move(mock_client));
+
+  ThreadGuard gateway_thread_guard{std::thread(&OrderGateway::run, &gateway)};
+
+  Order test_order{};
+  test_order.id = 1234;
+  order_queue->push(test_order);
+
+  // Stop immediately; order should still be processed during shutdown drain.
+  is_running.store(false);
+
+  const auto status = future.wait_for(std::chrono::seconds(2));
+  ASSERT_EQ(status, std::future_status::ready);
+}

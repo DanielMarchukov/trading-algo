@@ -12,8 +12,5 @@
     "gtest",
     "tbb"
   ],
-  "overrides": [
-    { "name": "zeromq", "version": "4.3.4" }
-  ],
   "builtin-baseline": "043abf2fa419c288d594a6b96b98a811457bd9b5"
 }

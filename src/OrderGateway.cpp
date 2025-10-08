@@ -26,4 +26,17 @@ void OrderGateway::run() const {
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
+
+  Order remaining_order{};
+  while (order_queue_->try_pop(remaining_order)) {
+    try {
+      rest_client_->placeOrder(remaining_order);
+    } catch (const std::exception &e) {
+      std::cerr << "OrderGateway: Error placing order during shutdown: "
+                << e.what() << std::endl;
+    } catch (...) {
+      std::cerr << "OrderGateway: Unknown error placing order during shutdown"
+                << std::endl;
+    }
+  }
 }

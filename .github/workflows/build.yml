@@ -72,6 +72,8 @@ jobs:
           verbose: true
 
   build-cpp:
+    env:
+      VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/ports
     strategy:
       fail-fast: false
       matrix:
