@@ -2,6 +2,7 @@
 #include "OrderGateway.hpp"
 #include "RiskManager.hpp"
 #include "Strategy.hpp"
+#include <cstring>
 #include <gtest/gtest.h>
 #include <thread>
 
@@ -80,7 +81,8 @@ TEST(PositionManagerConcurrencyTest, HandlesMultiThreadedUpdates) {
     constexpr int fills_per_thread = 1000;
     threads.emplace_back([&pm, i]() {
       Fill fill{};
-      strncpy(fill.symbol, "AAPL", sizeof(fill.symbol));
+      std::memset(fill.symbol, 0, sizeof(fill.symbol));
+      std::memcpy(fill.symbol, "AAPL", 4);
       fill.side = (i % 2 == 0) ? OrderSide::Buy : OrderSide::Sell;
       fill.quantity = 10;
 

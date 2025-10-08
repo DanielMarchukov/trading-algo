@@ -31,11 +31,11 @@ public:
 
   void registerSymbol(std::string_view symbol);
   void onFill(const Fill &fill);
-  [[nodiscard]] int getPosition(std::string_view symbol) const;
+  [[nodiscard]] int64_t getPosition(std::string_view symbol) const;
 
 private:
   using PositionMap =
-      tbb::concurrent_hash_map<SymbolKey, int, SymbolKeyHashCompare>;
+      tbb::concurrent_hash_map<SymbolKey, int64_t, SymbolKeyHashCompare>;
 
   static SymbolKey makeKey(std::string_view symbol);
   static SymbolKey makeKeyFromBuffer(const char *symbol_buffer);

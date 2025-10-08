@@ -40,7 +40,7 @@ void PositionManager::onFill(const Fill &fill) {
     accessor->second = 0;
   }
 
-  int &position = accessor->second;
+  int64_t &position = accessor->second;
   if (fill.side == OrderSide::Buy) {
     position += fill.quantity;
   } else {
@@ -48,7 +48,7 @@ void PositionManager::onFill(const Fill &fill) {
   }
 }
 
-int PositionManager::getPosition(const std::string_view symbol) const {
+int64_t PositionManager::getPosition(const std::string_view symbol) const {
   const SymbolKey key = makeKey(symbol);
   PositionMap::const_accessor accessor;
   if (!positions_.find(accessor, key)) {

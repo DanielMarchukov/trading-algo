@@ -39,11 +39,11 @@ The trading engine is designed as a multiprocess system with clear separation of
                                |         (Core 0)                 |
                                |----------------------------------|
                                | • Alpaca WebSocket Client        |
-                               | • Normalizes to 40-byte struct   |
+                               | • Normalizes to 64-byte struct   |
                                | • ZMQ PUB Socket                 |
                                +----------------------------------+
                                               |
-                                              | 40-byte MarketEvent
+                                              | 64-byte MarketEvent
                                               | [ZMQ IPC: ipc:///tmp/market_data.sock]
                                               | [Windows: tcp://127.0.0.1:5555]
                                               ↓
@@ -77,7 +77,7 @@ The trading engine is designed as a multiprocess system with clear separation of
 ║  ║                                                                                   ║ ║
 ║  ║  Per-Symbol Thread (e.g., "AAPL" on Core 1):                                      ║ ║
 ║  ║  ┌────────────────────────────────────────────────────────────────────────────┐   ║ ║
-║  ║  │ 1. ZMQ SUB socket receives MarketEvent (40 bytes)                          │   ║ ║
+║  ║  │ 1. ZMQ SUB socket receives MarketEvent (64 bytes)                          │   ║ ║
 ║  ║  │    └─> Zero-copy cast to struct                                            │   ║ ║
 ║  ║  │                                                                            │   ║ ║
 ║  ║  │ 2. SimpleMarketMakingStrategy::onMarketEvent(event)                        │   ║ ║
@@ -114,7 +114,7 @@ Legend:
 
 - **Purpose**: Connect to Alpaca WebSocket API and normalize market data
 - **Design**: Single-threaded with asyncio for WebSocket handling
-- **Output**: 40-byte packed struct via ZeroMQ PUB socket
+- **Output**: 64-byte packed struct via ZeroMQ PUB socket
 - **CPU Affinity**: Pinned to Core 0
 
 ### Market Event Consumer (C++)
@@ -126,15 +126,16 @@ Legend:
 
 ```c++
 struct MarketEvent {
-    uint8_t eventType;    // 1=Quote, 2=Trade
-    char symbol[7];       // Null-padded symbol
-    uint64_t timestamp;   // Exchange timestamp
-    uint32_t p1;          // Bid/Trade price (scaled by 10000)
-    uint32_t s1;          // Bid/Trade size
-    uint32_t p2;          // Ask price (scaled by 10000)
-    uint32_t s2;          // Ask size
-    uint64_t arrivedAt;   // Local arrival timestamp
-}
+    uint64_t eventType;   // 1=Quote, 2=Trade
+    char     symbol[8];   // Null-padded symbol
+    uint64_t timestamp;   // Exchange timestamp (ns)
+    uint64_t p1;          // Bid/Trade price (scaled by 10000)
+    uint64_t s1;          // Bid/Trade size
+    uint64_t p2;          // Ask price (scaled by 10000)
+    uint64_t s2;          // Ask size
+    uint64_t arrivedAt;   // Local arrival timestamp (ns)
+};
+static_assert(sizeof(MarketEvent) == 64);
 ```
 
 ### Strategy Engine
@@ -161,9 +162,9 @@ struct MarketEvent {
 
 ### Position Manager
 
-- **Thread-safe** using shared_mutex for reads, unique_lock for writes
-- **Atomic counters** for position tracking
-- **Symbol-based hashmap** with custom hash function
+- **Thread-safe** via oneTBB `concurrent_hash_map`
+- **64-bit position counters** to track large exposures
+- **Fixed-width 8-byte symbols** with custom hash comparator
 
 ## Key Design Decisions
 
@@ -250,7 +251,7 @@ class MarketEventConsumer {
 ### Memory Layout
 
 - **Cache-line aligned structures** for hot path data
-- **Compact 40-byte market events** fit in single cache line
+- **Compact 64-byte market events** remain cache friendly
 - **Pre-allocated vectors** to avoid dynamic allocation
 - **Custom allocators** (planned) for deterministic performance
 

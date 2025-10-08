@@ -11,17 +11,17 @@ import websockets
 import zmq
 import zmq.asyncio
 
-# Format
-# B: 1-byte uint (EventType: 1=Quote, 2=Trade)
-# 7s: 7-byte symbol
-# Q: 8-byte ulonglong (Timestamp)
-# d: 8-byte double (Price1)
-# I: 4-byte uint (Size1)
-# d: 8-byte double (Price2)
-# I: 4-byte uint (Size2)
-# Q: 8-byte ulonglong (arrived_at nanos ts)
-MARKET_EVENT = struct.Struct("<B7sQIIIIQ")
-assert MARKET_EVENT.size == 40, "Struct size mismatch"
+# Format (little-endian)
+# Q: 8-byte unsigned long long (EventType: 1=Quote, 2=Trade)
+# 8s: 8-byte symbol (null padded)
+# Q: timestamp
+# Q: price1 (scaled by SCALING_FACTOR)
+# Q: size1
+# Q: price2 (scaled)
+# Q: size2
+# Q: arrived_at timestamp (ns)
+MARKET_EVENT = struct.Struct("<Q8sQQQQQQ")
+assert MARKET_EVENT.size == 64, "Struct size mismatch"
 
 SCALING_FACTOR = 10000
 
@@ -103,7 +103,7 @@ async def handle_market_data(message, zmq_socket):
                 timestamp = int(raw_timestamp)
 
             topic = symbol.encode("utf-8")
-            symbol_bytes = symbol.ljust(7, "\0").encode("utf-8")[:7]
+            symbol_bytes = symbol.ljust(8, "\0").encode("utf-8")[:8]
             packed_data = None
             if msg_type == "q":
                 event_type = 1
@@ -113,14 +113,14 @@ async def handle_market_data(message, zmq_socket):
                 ask_size = item.get("as", 0)
 
                 packed_data = MARKET_EVENT.pack(
-                    event_type,
+                    int(event_type),
                     symbol_bytes,
-                    timestamp,
-                    bid_price,
-                    bid_size,
-                    ask_price,
-                    ask_size,
-                    arrived_at,
+                    int(timestamp),
+                    int(bid_price),
+                    int(bid_size),
+                    int(ask_price),
+                    int(ask_size),
+                    int(arrived_at),
                 )
 
             elif msg_type == "t":
@@ -129,14 +129,14 @@ async def handle_market_data(message, zmq_socket):
                 trade_size = item.get("s", 0)
 
                 packed_data = MARKET_EVENT.pack(
-                    event_type,
+                    int(event_type),
                     symbol_bytes,
-                    timestamp,
-                    trade_price,
-                    trade_size,
+                    int(timestamp),
+                    int(trade_price),
+                    int(trade_size),
                     0,
                     0,
-                    arrived_at,
+                    int(arrived_at),
                 )
 
             if packed_data:

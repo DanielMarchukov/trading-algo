@@ -2,6 +2,7 @@
 #include "Order.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
 #include <gtest/gtest.h>
+#include <limits>
 #include <vector>
 
 class SimpleMarketMakingStrategyTest : public ::testing::Test {
@@ -66,6 +67,24 @@ TEST_F(SimpleMarketMakingStrategyTest, HandlesZeroPrice) {
   MarketEvent trade_event{};
   trade_event.eventType = 2;
   trade_event.p1 = 0;
+
+  const auto orders = strategy.onMarketEvent(trade_event);
+  EXPECT_TRUE(orders.empty());
+}
+
+TEST_F(SimpleMarketMakingStrategyTest, SkipsOrdersWhenBuyPriceUnderflows) {
+  MarketEvent trade_event{};
+  trade_event.eventType = 2;
+  trade_event.p1 = 50; // less than offset_ticks
+
+  const auto orders = strategy.onMarketEvent(trade_event);
+  EXPECT_TRUE(orders.empty());
+}
+
+TEST_F(SimpleMarketMakingStrategyTest, SkipsOrdersWhenSellPriceOverflows) {
+  MarketEvent trade_event{};
+  trade_event.eventType = 2;
+  trade_event.p1 = std::numeric_limits<uint64_t>::max() - 50;
 
   const auto orders = strategy.onMarketEvent(trade_event);
   EXPECT_TRUE(orders.empty());

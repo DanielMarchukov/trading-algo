@@ -2,17 +2,15 @@
 
 #include <cstdint>
 
-#pragma pack(push, 1)
 struct MarketEvent {
-  uint8_t eventType;
-  char symbol[7];
+  uint64_t eventType;
+  char symbol[8];
   uint64_t timestamp;
-  uint32_t p1; // Bid or Trade price
-  uint32_t s1; // Bid or Trade size
-  uint32_t p2; // Ask price
-  uint32_t s2; // Ask size
+  uint64_t p1; // Bid or Trade price (scaled by SCALING_FACTOR)
+  uint64_t s1; // Bid or Trade size
+  uint64_t p2; // Ask price (scaled)
+  uint64_t s2; // Ask size
   uint64_t arrivedAt;
 };
-#pragma pack(pop)
 
-static_assert(sizeof(MarketEvent) == 40, "Struct size mismatch");
+static_assert(sizeof(MarketEvent) == 64, "Struct size mismatch");

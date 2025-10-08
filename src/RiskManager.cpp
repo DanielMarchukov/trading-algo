@@ -12,21 +12,27 @@ bool RiskManager::onNewOrder(const Order &order) const {
     return false;
   }
 
-  const int current_position = position_manager_->getPosition(order.symbol);
-  int32_t new_position = current_position;
+  const int64_t current_position = position_manager_->getPosition(order.symbol);
+  int64_t new_position = current_position;
   if (order.side == OrderSide::Buy) {
     new_position += order.quantity;
   } else {
     new_position -= order.quantity;
   }
 
-  if (std::abs(new_position) > max_position_per_symbol_) {
+  if (std::llabs(new_position) > max_position_per_symbol_) {
     return false;
   }
 
-  if (order.price > 0 &&
-      (order.price * order.quantity) > max_order_value_ * SCALING_FACTOR) {
-    return false;
+  if (order.price > 0 && order.quantity != 0) {
+    const long double notional =
+        static_cast<long double>(order.price) *
+        static_cast<long double>(std::llabs(order.quantity));
+    const long double limit = static_cast<long double>(max_order_value_) *
+                              static_cast<long double>(SCALING_FACTOR);
+    if (notional > limit) {
+      return false;
+    }
   }
   return true;
 }
