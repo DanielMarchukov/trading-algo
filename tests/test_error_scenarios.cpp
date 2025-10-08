@@ -96,6 +96,6 @@ TEST(PositionManagerConcurrencyTest, HandlesMultiThreadedUpdates) {
     t.join();
   }
 
-  const int final_position = pm.getPosition("AAPL");
+  const int64_t final_position = pm.getPosition("AAPL");
   EXPECT_EQ(final_position, 0);
 }

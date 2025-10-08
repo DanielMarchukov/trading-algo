@@ -21,9 +21,9 @@ public:
         return orders;
       }
 
+      const uint64_t max_price = (std::numeric_limits<uint64_t>::max)();
       if (last_trade_price_ < offset_ticks ||
-          last_trade_price_ >
-              std::numeric_limits<uint64_t>::max() - offset_ticks) {
+          last_trade_price_ > max_price - offset_ticks) {
         return orders;
       }
 
