@@ -122,7 +122,7 @@ jobs:
       - name: Set up CMake 3.28.3
         uses: jwlawson/actions-setup-cmake@v1
         with:
-          cmake-version: '3.28.3'
+          cmake-version: "3.28.3"
 
       - name: Cache vcpkg dependencies
         uses: actions/cache@v4
@@ -134,8 +134,10 @@ jobs:
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
+        env:
+          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
         with:
-          vcpkgJsonGlob: '**/vcpkg.json'
+          vcpkgJsonGlob: "**/vcpkg.json"
 
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux'
@@ -164,7 +166,7 @@ jobs:
           echo "CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
 
       - name: Check C++ formatting (clang-format)
-        if: runner.os == 'Linux' && matrix.c_compiler == 'clang'  # Only run once
+        if: runner.os == 'Linux' && matrix.c_compiler == 'clang' # Only run once
         run: |
           find src/ include/ tests/ -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | \
             xargs clang-format -style=file --dry-run --Werror
@@ -181,24 +183,7 @@ jobs:
         env:
           CC: ${{ matrix.c_compiler }}
           CXX: ${{ matrix.cpp_compiler }}
-          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION=3.25"
         shell: bash
-
-      - name: Dump vcpkg zeromq logs on failure
-        if: failure() && runner.os == 'macOS'
-        run: |
-          echo "Listing zeromq build logs:"
-          find "${{ env.VCPKG_ROOT }}/buildtrees/zeromq" -maxdepth 1 -type f -print || true
-          echo "--- config-arm64-osx-dbg-CMakeCache.txt.log ---"
-          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-dbg-CMakeCache.txt.log" || true
-          echo "--- config-arm64-osx-rel-CMakeCache.txt.log ---"
-          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-rel-CMakeCache.txt.log" || true
-          echo "--- config-arm64-osx-dbg-CMakeConfigureLog.yaml.log ---"
-          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-dbg-CMakeConfigureLog.yaml.log" || true
-          echo "--- config-arm64-osx-rel-CMakeConfigureLog.yaml.log ---"
-          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-rel-CMakeConfigureLog.yaml.log" || true
-          echo "--- config-arm64-osx-out.log ---"
-          cat "${{ env.VCPKG_ROOT }}/buildtrees/zeromq/config-arm64-osx-out.log" || true
 
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
@@ -209,6 +194,7 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\scripts\buildsystems\vcpkg.cmake"
           -DENABLE_COVERAGE=ON
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         shell: pwsh
 
       - name: Build
@@ -324,7 +310,7 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install Python security tools
         run: |
@@ -379,7 +365,7 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install pip-audit
         run: pip install pip-audit
@@ -430,14 +416,14 @@ jobs:
 
   quality-gates:
     runs-on: ubuntu-latest
-    needs: [ build-python, build-cpp ]
+    needs: [build-python, build-cpp]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install quality tools
         run: |
@@ -479,7 +465,7 @@ jobs:
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: "3.12"
 
       - name: Install pre-commit
         run: pip install pre-commit
