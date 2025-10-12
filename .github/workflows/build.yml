@@ -133,7 +133,14 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: '**/vcpkg.json'
-          overlayPorts: ${{ github.workspace }}/ports
+
+      - name: Verify zeromq overlay applied (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "Checking zeromq sources under $VCPKG_ROOT/buildtrees/zeromq"
+          find "$VCPKG_ROOT/buildtrees/zeromq" -maxdepth 2 -type f -name CMakeLists.txt
+          echo "First lines of zeromq CMakeLists:"
+          head -n 10 "$VCPKG_ROOT/buildtrees/zeromq/src/v4.3.5-37c87b6b8c.clean/CMakeLists.txt"
 
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux'
