@@ -152,6 +152,12 @@ jobs:
           brew install autoconf automake libtool pkg-config autoconf-archive clang-format
           echo "$(brew --prefix)/bin" >> $GITHUB_PATH
 
+      - name: Configure macOS compiler
+        if: runner.os == 'macOS'
+        run: |
+          echo "CC=/usr/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/usr/bin/clang++" >> $GITHUB_ENV
+
       - name: Install OpenCppCoverage (Windows)
         if: runner.os == 'Windows'
         run: |
