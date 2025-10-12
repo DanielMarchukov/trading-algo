@@ -138,23 +138,23 @@ jobs:
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS'
         run: |
-          brew install autoconf automake libtool pkg-config autoconf-archive clang-format llvm
+          brew install autoconf automake libtool pkg-config autoconf-archive clang-format lcov
           echo "$(brew --prefix)/bin" >> $GITHUB_PATH
-          echo "$(brew --prefix llvm)/bin" >> $GITHUB_PATH
 
-      - name: Configure macOS to use Homebrew LLVM
+      - name: Configure macOS compilers
         if: runner.os == 'macOS'
         run: |
-          echo "CC=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
-          echo "CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
+          # Use Apple Clang (compatible with system and vcpkg libraries)
+          echo "CC=/usr/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/usr/bin/clang++" >> $GITHUB_ENV
 
       - name: Cache vcpkg dependencies
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/vcpkg_installed
-          key: ${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/vcpkg.json') }}
+          key: ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.build_type }}-${{ hashFiles('**/vcpkg.json') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.build_type }}-
+            ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.build_type }}-
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -186,8 +186,8 @@ jobs:
           -DENABLE_COVERAGE=ON
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
         env:
-          CC: ${{ matrix.c_compiler }}
-          CXX: ${{ matrix.cpp_compiler }}
+          CC: ${{ env.CC || matrix.c_compiler }}
+          CXX: ${{ env.CXX || matrix.cpp_compiler }}
         shell: bash
 
       - name: Configure CMake (Windows)
@@ -232,12 +232,20 @@ jobs:
           lcov --list coverage.info
 
       - name: Collect coverage (Clang on Linux)
-        if: (runner.os == 'Linux' || runner.os == 'macOS') && matrix.cpp_compiler == 'clang++'
+        if: runner.os == 'Linux' && matrix.cpp_compiler == 'clang++'
         run: |
           cd build
           llvm-profdata merge -sparse default.profraw -o default.profdata
           llvm-cov export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
           lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
+
+      - name: Collect coverage (Clang on macOS)
+        if: runner.os == 'macOS' && matrix.cpp_compiler == 'clang++'
+        run: |
+          cd build
+          xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
+          xcrun llvm-cov export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' '/Applications/*' --output-file coverage.info --ignore-errors unused
 
       # Coverage collection for macOS with GCC (if using GCC)
       - name: Collect coverage (GCC on macOS)
@@ -288,7 +296,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./build/coverage.info
+          files: ./build/coverage.info,./build/coverage.xml
           flags: cpp
           name: cpp-${{ matrix.os }}-${{ matrix.cpp_compiler || 'default' }}
           fail_ci_if_error: true
