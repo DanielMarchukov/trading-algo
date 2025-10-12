@@ -159,12 +159,6 @@ jobs:
           Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
           Update-SessionEnvironment
 
-      - name: Set Compilers for macOS
-        if: runner.os == 'macOS'
-        run: |
-          echo "CC=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
-          echo "CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
-
       - name: Check C++ formatting (clang-format)
         if: runner.os == 'Linux' && matrix.c_compiler == 'clang' # Only run once
         run: |
