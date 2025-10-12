@@ -128,21 +128,6 @@ jobs:
         with:
           cmake-version: "3.28.3"
 
-      - name: Cache vcpkg dependencies
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/vcpkg_installed
-          key: ${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/vcpkg.json') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.build_type }}-
-
-      - name: Setup vcpkg
-        uses: lukka/run-vcpkg@v11
-        env:
-          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
-        with:
-          vcpkgJsonGlob: "**/vcpkg.json"
-
       - name: Install build prerequisites (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -162,6 +147,21 @@ jobs:
         run: |
           echo "CC=$(brew --prefix llvm)/bin/clang" >> $GITHUB_ENV
           echo "CXX=$(brew --prefix llvm)/bin/clang++" >> $GITHUB_ENV
+
+      - name: Cache vcpkg dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/vcpkg_installed
+          key: ${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.build_type }}-
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        env:
+          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        with:
+          vcpkgJsonGlob: "**/vcpkg.json"
 
       - name: Install OpenCppCoverage (Windows)
         if: runner.os == 'Windows'
