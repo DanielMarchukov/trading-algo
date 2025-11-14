@@ -7,20 +7,20 @@ RiskManager::RiskManager(
   // TODO: Load parameters from some config.
 }
 
-bool RiskManager::onNewOrder(const Order &order) const {
+bool RiskManager::onNewOrder(const Order &order) {
   if (!position_manager_) {
     return false;
   }
 
-  const int64_t current_position = position_manager_->getPosition(order.symbol);
-  int64_t new_position = current_position;
+  const int64_t total_exposure = position_manager_->getTotalExposure(order.symbol);
+  int64_t new_exposure = total_exposure;
   if (order.side == OrderSide::Buy) {
-    new_position += order.quantity;
+    new_exposure += order.quantity;
   } else {
-    new_position -= order.quantity;
+    new_exposure -= order.quantity;
   }
 
-  if (std::llabs(new_position) > max_position_per_symbol_) {
+  if (std::llabs(new_exposure) > max_position_per_symbol_) {
     return false;
   }
 
@@ -34,5 +34,7 @@ bool RiskManager::onNewOrder(const Order &order) const {
       return false;
     }
   }
+
+  position_manager_->onOrderSent(order);
   return true;
 }

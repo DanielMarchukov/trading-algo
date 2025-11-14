@@ -62,16 +62,9 @@ public:
             order_callback_(order);
           }
         }
-      } catch (const std::exception &e) {
-        std::cerr << "MarketEventConsumer for " << symbol_
-                  << " strategy error: " << e.what() << std::endl;
       } catch (...) {
-        std::cerr << "MarketEventConsumer for " << symbol_
-                  << " strategy error: unknown exception" << std::endl;
       }
     }
-    std::cout << "MarketEventConsumer for " << symbol_ << " stopped."
-              << std::endl;
   }
 
 private:

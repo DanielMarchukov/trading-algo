@@ -58,17 +58,16 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client)
     : is_running_(true), symbols_(symbols) {
   setup_signal_handler();
-  auto position_manager = std::make_shared<PositionManager>();
+  position_manager_ = std::make_shared<PositionManager>();
   for (const auto &symbol : symbols_) {
-    position_manager->registerSymbol(symbol);
+    position_manager_->registerSymbol(symbol);
   }
-  risk_manager_ = std::make_shared<RiskManager>(position_manager);
+  risk_manager_ = std::make_shared<RiskManager>(position_manager_);
   order_queue_ = std::make_shared<ThreadSafeQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(is_running_, order_queue_,
                                                   std::move(rest_client));
 
 #ifdef _WIN32
-  // Windows doesn't support IPC, so production must use TCP.
   ipc_address_ = "tcp://127.0.0.1:5555";
 #else
   std::filesystem::path temp_dir = std::filesystem::temp_directory_path();

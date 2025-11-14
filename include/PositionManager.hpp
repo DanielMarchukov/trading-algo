@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Fill.hpp"
+#include "Order.hpp"
 #include <cstring>
 #include <functional>
 #include <string_view>
@@ -25,17 +26,27 @@ struct SymbolKeyHashCompare {
   }
 };
 
+struct PositionState {
+  int64_t filled = 0;
+  int64_t pending = 0;
+};
+
 class PositionManager {
 public:
   PositionManager() = default;
 
   void registerSymbol(std::string_view symbol);
   void onFill(const Fill &fill);
-  [[nodiscard]] int64_t getPosition(std::string_view symbol) const;
+  void onOrderSent(const Order &order);
+  void onOrderCancelled(const Order &order);
+
+  [[nodiscard]] int64_t getFilledPosition(std::string_view symbol) const;
+  [[nodiscard]] int64_t getPendingPosition(std::string_view symbol) const;
+  [[nodiscard]] int64_t getTotalExposure(std::string_view symbol) const;
 
 private:
   using PositionMap =
-      tbb::concurrent_hash_map<SymbolKey, int64_t, SymbolKeyHashCompare>;
+      tbb::concurrent_hash_map<SymbolKey, PositionState, SymbolKeyHashCompare>;
 
   static SymbolKey makeKey(std::string_view symbol);
   static SymbolKey makeKeyFromBuffer(const char *symbol_buffer);

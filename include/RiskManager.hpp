@@ -9,7 +9,7 @@ public:
   explicit RiskManager(
       const std::shared_ptr<PositionManager> &position_manager);
 
-  [[nodiscard]] bool onNewOrder(const Order &order) const;
+  [[nodiscard]] bool onNewOrder(const Order &order);
 
 private:
   std::shared_ptr<PositionManager> position_manager_;

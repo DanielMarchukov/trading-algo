@@ -8,7 +8,7 @@ namespace {
 
 constexpr std::size_t kSymbolCapacity = sizeof(SymbolKey{}.value);
 
-} // namespace
+}
 
 SymbolKey PositionManager::makeKey(std::string_view symbol) {
   SymbolKey key{};
@@ -28,7 +28,7 @@ void PositionManager::registerSymbol(std::string_view symbol) {
   PositionMap::accessor accessor;
   const bool inserted = positions_.insert(accessor, key);
   if (inserted) {
-    accessor->second = 0;
+    accessor->second = {0, 0};
   }
 }
 
@@ -37,23 +37,69 @@ void PositionManager::onFill(const Fill &fill) {
   PositionMap::accessor accessor;
   const bool inserted = positions_.insert(accessor, key);
   if (inserted) {
-    accessor->second = 0;
+    accessor->second = {0, 0};
   }
 
-  int64_t &position = accessor->second;
-  if (fill.side == OrderSide::Buy) {
-    position += fill.quantity;
-  } else {
-    position -= fill.quantity;
+  int64_t delta = fill.quantity;
+  if (fill.side == OrderSide::Sell) {
+    delta = -delta;
+  }
+
+  accessor->second.filled += delta;
+  accessor->second.pending -= delta;
+}
+
+void PositionManager::onOrderSent(const Order &order) {
+  const SymbolKey key = makeKeyFromBuffer(order.symbol);
+  PositionMap::accessor accessor;
+  const bool inserted = positions_.insert(accessor, key);
+  if (inserted) {
+    accessor->second = {0, 0};
+  }
+
+  int64_t delta = order.quantity;
+  if (order.side == OrderSide::Sell) {
+    delta = -delta;
+  }
+
+  accessor->second.pending += delta;
+}
+
+void PositionManager::onOrderCancelled(const Order &order) {
+  const SymbolKey key = makeKeyFromBuffer(order.symbol);
+  PositionMap::accessor accessor;
+  if (positions_.find(accessor, key)) {
+    int64_t delta = order.quantity;
+    if (order.side == OrderSide::Sell) {
+      delta = -delta;
+    }
+    accessor->second.pending -= delta;
   }
 }
 
-int64_t PositionManager::getPosition(const std::string_view symbol) const {
+int64_t PositionManager::getFilledPosition(std::string_view symbol) const {
   const SymbolKey key = makeKey(symbol);
   PositionMap::const_accessor accessor;
   if (!positions_.find(accessor, key)) {
     return 0;
   }
+  return accessor->second.filled;
+}
 
-  return accessor->second;
+int64_t PositionManager::getPendingPosition(std::string_view symbol) const {
+  const SymbolKey key = makeKey(symbol);
+  PositionMap::const_accessor accessor;
+  if (!positions_.find(accessor, key)) {
+    return 0;
+  }
+  return accessor->second.pending;
+}
+
+int64_t PositionManager::getTotalExposure(std::string_view symbol) const {
+  const SymbolKey key = makeKey(symbol);
+  PositionMap::const_accessor accessor;
+  if (!positions_.find(accessor, key)) {
+    return 0;
+  }
+  return accessor->second.filled + accessor->second.pending;
 }
