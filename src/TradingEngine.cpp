@@ -58,11 +58,11 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client)
     : is_running_(true), symbols_(symbols) {
   setup_signal_handler();
-  position_manager_ = std::make_shared<PositionManager>();
+  auto position_manager = std::make_shared<PositionManager>();
   for (const auto &symbol : symbols_) {
-    position_manager_->registerSymbol(symbol);
+    position_manager->registerSymbol(symbol);
   }
-  risk_manager_ = std::make_shared<RiskManager>(position_manager_);
+  risk_manager_ = std::make_shared<RiskManager>(position_manager);
   order_queue_ = std::make_shared<ThreadSafeQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(is_running_, order_queue_,
                                                   std::move(rest_client));

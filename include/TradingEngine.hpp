@@ -38,7 +38,6 @@ private:
   std::atomic<bool> is_running_;
   std::string ipc_address_;
   std::vector<std::string> symbols_;
-  std::shared_ptr<PositionManager> position_manager_;
   std::shared_ptr<RiskManager> risk_manager_;
   zmq::context_t context_{1};
   std::shared_ptr<ThreadSafeQueue<Order>> order_queue_;
