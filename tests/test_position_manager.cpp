@@ -31,6 +31,9 @@ TEST_F(PositionManagerTest, NewPositionIsZero) {
 }
 
 TEST_F(PositionManagerTest, ProcessBuyFill) {
+  const Order buy_order = createOrder("AAPL", OrderSide::Buy, 100, 1000);
+  pm.onOrderSent(buy_order);
+
   Fill buy_fill{};
   std::memset(buy_fill.symbol, 0, sizeof(buy_fill.symbol));
   std::memcpy(buy_fill.symbol, "AAPL", 4);
@@ -44,6 +47,9 @@ TEST_F(PositionManagerTest, ProcessBuyFill) {
 }
 
 TEST_F(PositionManagerTest, ProcessSellFill) {
+  const Order sell_order = createOrder("AAPL", OrderSide::Sell, 75, 1000);
+  pm.onOrderSent(sell_order);
+
   Fill sell_fill{};
   std::memset(sell_fill.symbol, 0, sizeof(sell_fill.symbol));
   std::memcpy(sell_fill.symbol, "AAPL", 4);
