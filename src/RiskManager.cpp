@@ -12,7 +12,8 @@ bool RiskManager::onNewOrder(const Order &order) {
     return false;
   }
 
-  const int64_t total_exposure = position_manager_->getTotalExposure(order.symbol);
+  const int64_t total_exposure =
+      position_manager_->getTotalExposure(order.symbol);
   int64_t new_exposure = total_exposure;
   if (order.side == OrderSide::Buy) {
     new_exposure += order.quantity;
