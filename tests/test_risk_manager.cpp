@@ -74,7 +74,7 @@ TEST_F(RiskManagerTest, RejectsOrderExceedingMaxValue) {
 }
 
 TEST_F(RiskManagerTest, RejectsOrderWithNullPositionManager) {
-  const RiskManager risk_manager_no_pos(nullptr);
+  RiskManager risk_manager_no_pos(nullptr);
   const Order order = createOrder("AAPL", OrderSide::Buy, 100, 1000);
 
   EXPECT_FALSE(risk_manager_no_pos.onNewOrder(order));

@@ -1,6 +1,7 @@
 #include "LockFreeMPSCQueue.hpp"
 #include <algorithm>
 #include <atomic>
+#include <cstring>
 #include <gtest/gtest.h>
 #include <set>
 #include <thread>
