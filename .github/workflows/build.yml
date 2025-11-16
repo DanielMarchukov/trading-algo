@@ -327,13 +327,15 @@ jobs:
 
       - name: Install Python security tools
         run: |
-          pip install bandit[toml] safety
+          pip install safety
 
-      - name: Run Bandit security scanner
-        run: |
-          bandit -r data-ingestion/ -f json -o bandit-report.json || true
-          bandit -r data-ingestion/ --severity-level medium
-        continue-on-error: true
+      # Bandit disabled until it supports Python 3.14
+      # See: https://github.com/PyCQA/bandit/issues/1219
+      # - name: Run Bandit security scanner
+      #   run: |
+      #     bandit -r data-ingestion/ -f json -o bandit-report.json || true
+      #     bandit -r data-ingestion/ --severity-level medium
+      #   continue-on-error: true
 
       - name: Run Safety dependency scanner
         run: |
@@ -367,7 +369,6 @@ jobs:
         with:
           name: security-reports
           path: |
-            bandit-report.json
             safety-report.json
 
   dependency-scan:
