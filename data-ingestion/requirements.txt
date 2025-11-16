@@ -62,7 +62,7 @@ coverage==7.9.1
 pyright==1.1.407
 
 # Code quality and security tools
-black==24.3.0
+black==25.11.0
 isort==5.13.2
 pylint==3.0.0
 bandit[toml]==1.7.5
