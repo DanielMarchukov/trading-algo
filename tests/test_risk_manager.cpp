@@ -39,6 +39,10 @@ TEST_F(RiskManagerTest, ApprovesValidOrder) {
 }
 
 TEST_F(RiskManagerTest, RejectsOrderExceedingMaxPosition) {
+  const Order existing_order =
+      createOrder("AAPL", OrderSide::Buy, 950, 100 * SCALING_FACTOR);
+  pos_manager_->onOrderSent(existing_order);
+
   Fill existing_position_fill{};
   std::memset(existing_position_fill.symbol, 0,
               sizeof(existing_position_fill.symbol));
@@ -74,7 +78,7 @@ TEST_F(RiskManagerTest, RejectsOrderExceedingMaxValue) {
 }
 
 TEST_F(RiskManagerTest, RejectsOrderWithNullPositionManager) {
-  const RiskManager risk_manager_no_pos(nullptr);
+  RiskManager risk_manager_no_pos(nullptr);
   const Order order = createOrder("AAPL", OrderSide::Buy, 100, 1000);
 
   EXPECT_FALSE(risk_manager_no_pos.onNewOrder(order));
@@ -87,6 +91,10 @@ TEST_F(RiskManagerTest, HandlesZeroPriceOrder) {
 }
 
 TEST_F(RiskManagerTest, HandlesMaximumAllowedPosition) {
+  const Order existing_order =
+      createOrder("AAPL", OrderSide::Buy, 999, 100 * SCALING_FACTOR);
+  pos_manager_->onOrderSent(existing_order);
+
   Fill existing_fill{};
   std::memset(existing_fill.symbol, 0, sizeof(existing_fill.symbol));
   std::memcpy(existing_fill.symbol, "AAPL", 4);
@@ -106,6 +114,10 @@ TEST_F(RiskManagerTest, HandlesMaximumAllowedPosition) {
 }
 
 TEST_F(RiskManagerTest, HandlesNegativePositionLimits) {
+  const Order existing_order =
+      createOrder("AAPL", OrderSide::Sell, 999, 100 * SCALING_FACTOR);
+  pos_manager_->onOrderSent(existing_order);
+
   Fill short_fill{};
   std::memset(short_fill.symbol, 0, sizeof(short_fill.symbol));
   std::memcpy(short_fill.symbol, "AAPL", 4);

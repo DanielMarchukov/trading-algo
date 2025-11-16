@@ -32,11 +32,10 @@ pluggy==1.6.0
 prompt_toolkit==3.0.51
 ptyprocess==0.7.0
 pure_eval==0.2.3
-pyarrow==20.0.0
+pyarrow==22.0.0
 pycparser==2.22
 pyczmq==0.0.4
-pydantic==2.11.5
-pydantic_core==2.33.2
+pydantic==2.12.1
 Pygments==2.19.1
 pyparsing==3.2.3
 python-dateutil==2.9.0.post0
@@ -48,8 +47,8 @@ six==1.17.0
 sseclient-py==1.8.0
 stack-data==0.6.3
 traitlets==5.14.3
-typing-inspection==0.4.1
-typing_extensions==4.13.2
+typing-inspection==0.4.2
+typing_extensions==4.14.1
 tzdata==2025.2
 urllib3==2.5.0
 wcwidth==0.2.13
@@ -60,10 +59,10 @@ websockets==15.0.1
 pytest==8.4.0
 pytest-cov==6.2.1
 coverage==7.9.1
-pyright==1.1.402
+pyright==1.1.407
 
 # Code quality and security tools
-black==24.3.0
+black==25.11.0
 isort==5.13.2
 pylint==3.0.0
 bandit[toml]==1.7.5
@@ -76,4 +75,4 @@ PyYAML==6.0.1
 pip-audit==2.6.1
 
 # Platform-specific dependencies
-pywin32==306; sys_platform == 'win32'
+pywin32==311; sys_platform == 'win32'

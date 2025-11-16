@@ -68,7 +68,6 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                                                   std::move(rest_client));
 
 #ifdef _WIN32
-  // Windows doesn't support IPC, so production must use TCP.
   ipc_address_ = "tcp://127.0.0.1:5555";
 #else
   std::filesystem::path temp_dir = std::filesystem::temp_directory_path();

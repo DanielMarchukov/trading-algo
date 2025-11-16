@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.12"]
+        python-version: ["3.14"]
 
     runs-on: ${{ matrix.os }}
 
@@ -320,20 +320,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install Python security tools
         run: |
-          pip install bandit[toml] safety
+          pip install safety
 
-      - name: Run Bandit security scanner
-        run: |
-          bandit -r data-ingestion/ -f json -o bandit-report.json || true
-          bandit -r data-ingestion/ --severity-level medium
-        continue-on-error: true
+      # Bandit disabled until it supports Python 3.14
+      # See: https://github.com/PyCQA/bandit/issues/1219
+      # - name: Run Bandit security scanner
+      #   run: |
+      #     bandit -r data-ingestion/ -f json -o bandit-report.json || true
+      #     bandit -r data-ingestion/ --severity-level medium
+      #   continue-on-error: true
 
       - name: Run Safety dependency scanner
         run: |
@@ -367,7 +369,6 @@ jobs:
         with:
           name: security-reports
           path: |
-            bandit-report.json
             safety-report.json
 
   dependency-scan:
@@ -375,10 +376,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install pip-audit
         run: pip install pip-audit
@@ -433,10 +434,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install quality tools
         run: |
@@ -475,10 +476,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
+      - name: Set up Python 3.14
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install pre-commit
         run: pip install pre-commit

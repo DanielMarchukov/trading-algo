@@ -7,10 +7,10 @@
     {
       "root": "data-ingestion",
       "extraPaths": ["src"],
-      "pythonVersion": "3.12"
+      "pythonVersion": "3.14"
     }
   ],
-  "pythonVersion": "3.12",
+  "pythonVersion": "3.14",
   "reportMissingImports": true,
   "reportUnusedImport": true,
   "reportMissingModuleSource": "warning",

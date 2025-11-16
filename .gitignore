@@ -70,3 +70,4 @@ env.bat
 /setup/.env
 /setup/env.bat.template
 /setup/env.ps1.template
+.claude/settings.local.json

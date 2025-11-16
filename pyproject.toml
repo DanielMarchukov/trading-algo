@@ -33,7 +33,7 @@ write_to = "data-ingestion/src/_version.py"
 
 [tool.black]
 line-length = 88
-target-version = ['py312']
+target-version = ['py314']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -136,7 +136,7 @@ directory = "htmlcov"
 output = "coverage.xml"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false  # Gradually enable
