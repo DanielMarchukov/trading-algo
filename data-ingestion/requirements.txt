@@ -76,4 +76,4 @@ PyYAML==6.0.1
 pip-audit==2.6.1
 
 # Platform-specific dependencies
-pywin32==306; sys_platform == 'win32'
+pywin32==311; sys_platform == 'win32'

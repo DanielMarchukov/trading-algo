@@ -81,7 +81,7 @@ TEST(OrderGatewayErrorTest, HandlesRestClientException) {
 }
 
 TEST(RiskManagerErrorTest, HandlesNullPositionManager) {
-  const RiskManager risk_manager(nullptr);
+  RiskManager risk_manager(nullptr);
 
   Order test_order{};
   test_order.quantity = 100;
