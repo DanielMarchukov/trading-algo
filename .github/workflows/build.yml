@@ -124,7 +124,7 @@ jobs:
         run: brew install ninja pkg-config
 
       - name: Set up CMake 3.28.3
-        uses: jwlawson/actions-setup-cmake@v1
+        uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: "3.28.3"
 
@@ -344,7 +344,7 @@ jobs:
         continue-on-error: true
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: cpp, python
           queries: security-and-quality
@@ -362,7 +362,7 @@ jobs:
           cmake --build build
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           output: sarif-results
           upload: failure-only
@@ -377,7 +377,7 @@ jobs:
           output: sarif-results/cpp.sarif
 
       - name: Upload filtered SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: sarif-results/
 
