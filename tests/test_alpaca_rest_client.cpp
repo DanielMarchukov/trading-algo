@@ -127,8 +127,7 @@ public:
 #ifdef _WIN32
     DWORD timeout_ms = 5000;
     setsockopt(client, SOL_SOCKET, SO_RCVTIMEO,
-               reinterpret_cast<const char *>(&timeout_ms),
-               sizeof(timeout_ms));
+               reinterpret_cast<const char *>(&timeout_ms), sizeof(timeout_ms));
 #else
     timeval tv{};
     tv.tv_sec = 5;
@@ -157,10 +156,10 @@ public:
     }
 
     std::string raw(buf, total);
-    std::string response = "HTTP/1.1 " + std::to_string(status_code_) +
-                           " \r\nContent-Length: " +
-                           std::to_string(response_body_.size()) +
-                           "\r\n\r\n" + response_body_;
+    std::string response =
+        "HTTP/1.1 " + std::to_string(status_code_) +
+        " \r\nContent-Length: " + std::to_string(response_body_.size()) +
+        "\r\n\r\n" + response_body_;
     send(client, response.c_str(), static_cast<int>(response.size()), 0);
     close_socket(client);
 
@@ -262,8 +261,7 @@ TEST_F(AlpacaRestClientPlaceOrderTest, MarketSellOrderPayload) {
   StubHttpServer server(200);
   point_client_to(server.port());
   AlpacaRestClient client;
-  Order order =
-      make_order("TSLA", OrderSide::Sell, OrderType::Market, 50, 0);
+  Order order = make_order("TSLA", OrderSide::Sell, OrderType::Market, 50, 0);
 
   CapturedRequest req;
   std::thread t([&]() { req = server.serve_one(); });
@@ -319,8 +317,7 @@ TEST_F(AlpacaRestClientPlaceOrderTest, ErrorResponsePrintsToStderr) {
   StubHttpServer server(422, R"({"message":"insufficient qty"})");
   point_client_to(server.port());
   AlpacaRestClient client;
-  Order order =
-      make_order("AAPL", OrderSide::Buy, OrderType::Market, 100, 0);
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 100, 0);
 
   std::stringstream captured;
   auto *original = std::cerr.rdbuf(captured.rdbuf());
@@ -339,8 +336,7 @@ TEST_F(AlpacaRestClientPlaceOrderTest, SuccessResponsePrintsToStdout) {
   StubHttpServer server(200, R"({"id":"ord-abc-123"})");
   point_client_to(server.port());
   AlpacaRestClient client;
-  Order order =
-      make_order("AAPL", OrderSide::Buy, OrderType::Market, 100, 0);
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 100, 0);
 
   std::stringstream captured;
   auto *original = std::cout.rdbuf(captured.rdbuf());

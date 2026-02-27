@@ -69,8 +69,7 @@ namespace {
 
 class ThrowingRestClient final : public IRestClient {
 public:
-  explicit ThrowingRestClient(std::promise<void> *p = nullptr)
-      : promise_(p) {}
+  explicit ThrowingRestClient(std::promise<void> *p = nullptr) : promise_(p) {}
 
   void placeOrder(const Order & /*unused*/) override {
     if (promise_)
@@ -126,8 +125,7 @@ TEST(OrderGatewayTest, CatchesStdExceptionInMainLoop) {
 
   EXPECT_TRUE(captured.str().find("OrderGateway: Error placing order:") !=
               std::string::npos);
-  EXPECT_TRUE(captured.str().find("simulated rest error") !=
-              std::string::npos);
+  EXPECT_TRUE(captured.str().find("simulated rest error") != std::string::npos);
 }
 
 TEST(OrderGatewayTest, CatchesUnknownExceptionInMainLoop) {
@@ -178,11 +176,10 @@ TEST(OrderGatewayTest, CatchesStdExceptionDuringShutdownDrain) {
 
   std::cerr.rdbuf(original);
 
-  EXPECT_TRUE(
-      captured.str().find("OrderGateway: Error placing order during shutdown:") !=
-      std::string::npos);
-  EXPECT_TRUE(captured.str().find("simulated rest error") !=
+  EXPECT_TRUE(captured.str().find(
+                  "OrderGateway: Error placing order during shutdown:") !=
               std::string::npos);
+  EXPECT_TRUE(captured.str().find("simulated rest error") != std::string::npos);
 }
 
 TEST(OrderGatewayTest, CatchesUnknownExceptionDuringShutdownDrain) {
@@ -203,7 +200,8 @@ TEST(OrderGatewayTest, CatchesUnknownExceptionDuringShutdownDrain) {
 
   std::cerr.rdbuf(original);
 
-  EXPECT_TRUE(captured.str().find(
-                  "OrderGateway: Unknown error placing order during shutdown") !=
-              std::string::npos);
+  EXPECT_TRUE(
+      captured.str().find(
+          "OrderGateway: Unknown error placing order during shutdown") !=
+      std::string::npos);
 }
