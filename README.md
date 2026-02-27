@@ -1,7 +1,7 @@
 # Rich on Paper - Low-Latency Trading Engine
 
 [![Build and Test](https://github.com/DanielMarchukov/rich-on-paper/actions/workflows/build.yml/badge.svg)](https://github.com/DanielMarchukov/rich-on-paper/actions/workflows/build.yml)
-[![codecov](https://codecov.io/gh/DanielMarchukov/rich-on-paper/branch/main/graph/badge.svg)](https://codecov.io/gh/DanielMarchukov/rich-on-paper)
+[![codecov](https://codecov.io/gh/DanielMarchukov/rich-on-paper/branch/mainline/graph/badge.svg)](https://codecov.io/gh/DanielMarchukov/rich-on-paper)
 
 A production-grade, ultra-low latency trading engine built with modern C++23 and Python, targeting sub-50 microsecond
 internal processing latency. The system demonstrates professional software engineering practices including comprehensive
