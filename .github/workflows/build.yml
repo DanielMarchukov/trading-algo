@@ -303,7 +303,7 @@ jobs:
           verbose: true
 
       - name: Upload C++ Executable Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trading-engine-${{ matrix.os }}-${{ matrix.cpp_compiler || 'msvc' }}-${{ matrix.build_type }}
           path: |
@@ -382,7 +382,7 @@ jobs:
           sarif_file: sarif-results/
 
       - name: Upload security scan results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: security-reports
           path: |
@@ -438,7 +438,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload dependency reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dependency-reports
           path: |
@@ -482,7 +482,7 @@ jobs:
           APCA_API_SECRET_KEY: "DUMMY_SECRET_FOR_TESTING"
 
       - name: Upload quality reports
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-reports
           path: |
