@@ -27,7 +27,7 @@ packaging==25.0
 pandas==2.2.3
 parso==0.8.4
 pexpect==4.9.0
-pillow==11.3.0
+pillow==12.1.1
 pluggy==1.6.0
 prompt_toolkit==3.0.51
 ptyprocess==0.7.0
@@ -50,7 +50,7 @@ traitlets==5.14.3
 typing-inspection==0.4.2
 typing_extensions==4.14.1
 tzdata==2025.2
-urllib3==2.5.0
+urllib3==2.6.3
 wcwidth==0.2.13
 websocket-client==1.8.0
 websockets==15.0.1
