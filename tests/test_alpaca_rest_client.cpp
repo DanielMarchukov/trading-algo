@@ -185,7 +185,7 @@ Order make_order(const char *symbol, OrderSide side, OrderType type,
                  int64_t qty, uint64_t price) {
   Order order{};
   std::memset(order.symbol, 0, sizeof(order.symbol));
-  auto len = std::min(std::strlen(symbol), sizeof(order.symbol));
+  auto len = (std::min)(std::strlen(symbol), sizeof(order.symbol));
   std::memcpy(order.symbol, symbol, len);
   order.side = side;
   order.type = type;
