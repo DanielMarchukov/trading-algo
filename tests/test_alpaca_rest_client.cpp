@@ -22,38 +22,48 @@ using SocketType = int;
 #include <sstream>
 #include <thread>
 
-class AlpacaRestClientTest : public ::testing::Test {
+class AlpacaRestClientTestBase : public ::testing::Test {
 protected:
   void SetUp() override {
     const char *key = std::getenv("APCA_API_KEY_ID");
     const char *secret = std::getenv("APCA_API_SECRET_KEY");
+    const char *url = std::getenv("APCA_API_BASE_URL");
     if (key)
       original_key_ = key;
     if (secret)
       original_secret_ = secret;
+    if (url)
+      original_url_ = url;
 
     setenv("APCA_API_KEY_ID", "test_key", 1);
     setenv("APCA_API_SECRET_KEY", "test_secret", 1);
   }
 
   void TearDown() override {
-    if (!original_key_.empty()) {
-      setenv("APCA_API_KEY_ID", original_key_.c_str(), 1);
-    } else {
-      unsetenv("APCA_API_KEY_ID");
-    }
+    restore("APCA_API_KEY_ID", original_key_);
+    restore("APCA_API_SECRET_KEY", original_secret_);
+    restore("APCA_API_BASE_URL", original_url_);
+  }
 
-    if (!original_secret_.empty()) {
-      setenv("APCA_API_SECRET_KEY", original_secret_.c_str(), 1);
-    } else {
-      unsetenv("APCA_API_SECRET_KEY");
-    }
+  void point_client_to(int port) {
+    std::string url = "http://127.0.0.1:" + std::to_string(port);
+    setenv("APCA_API_BASE_URL", url.c_str(), 1);
+  }
+
+  static void restore(const char *name, const std::string &val) {
+    if (!val.empty())
+      setenv(name, val.c_str(), 1);
+    else
+      unsetenv(name);
   }
 
 private:
   std::string original_key_;
   std::string original_secret_;
+  std::string original_url_;
 };
+
+class AlpacaRestClientTest : public AlpacaRestClientTestBase {};
 
 TEST_F(AlpacaRestClientTest, ThrowsWhenApiKeyMissing) {
   unsetenv("APCA_API_KEY_ID");
@@ -196,51 +206,25 @@ Order make_order(const char *symbol, OrderSide side, OrderType type,
 
 } // namespace
 
-class AlpacaRestClientPlaceOrderTest : public ::testing::Test {
-protected:
-  void SetUp() override {
-    const char *key = std::getenv("APCA_API_KEY_ID");
-    const char *secret = std::getenv("APCA_API_SECRET_KEY");
-    const char *url = std::getenv("APCA_API_BASE_URL");
-    if (key)
-      original_key_ = key;
-    if (secret)
-      original_secret_ = secret;
-    if (url)
-      original_url_ = url;
-    setenv("APCA_API_KEY_ID", "test_key", 1);
-    setenv("APCA_API_SECRET_KEY", "test_secret", 1);
-  }
+class AlpacaRestClientPlaceOrderTest : public AlpacaRestClientTestBase {};
 
-  void TearDown() override {
-    restore("APCA_API_KEY_ID", original_key_);
-    restore("APCA_API_SECRET_KEY", original_secret_);
-    restore("APCA_API_BASE_URL", original_url_);
-  }
-
-  void point_client_to(int port) {
-    std::string url = "http://127.0.0.1:" + std::to_string(port);
-    setenv("APCA_API_BASE_URL", url.c_str(), 1);
-  }
-
-  static void restore(const char *name, const std::string &val) {
-    if (!val.empty())
-      setenv(name, val.c_str(), 1);
-    else
-      unsetenv(name);
-  }
-
-private:
-  std::string original_key_;
-  std::string original_secret_;
-  std::string original_url_;
+struct MarketOrderParam {
+  const char *symbol;
+  OrderSide side;
+  int64_t qty;
+  const char *expected_side;
 };
 
-TEST_F(AlpacaRestClientPlaceOrderTest, MarketBuyOrderPayload) {
+class AlpacaMarketOrderTest
+    : public AlpacaRestClientTestBase,
+      public ::testing::WithParamInterface<MarketOrderParam> {};
+
+TEST_P(AlpacaMarketOrderTest, PayloadIsCorrect) {
+  const auto &[symbol, side, qty, expected_side] = GetParam();
   StubHttpServer server(200);
   point_client_to(server.port());
   AlpacaRestClient client;
-  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 100, 0);
+  Order order = make_order(symbol, side, OrderType::Market, qty, 0);
 
   CapturedRequest req;
   std::thread t([&]() { req = server.serve_one(); });
@@ -249,19 +233,39 @@ TEST_F(AlpacaRestClientPlaceOrderTest, MarketBuyOrderPayload) {
 
   EXPECT_EQ(req.path, "/v2/orders");
   auto json = nlohmann::json::parse(req.body);
-  EXPECT_EQ(json["symbol"], "AAPL");
-  EXPECT_EQ(json["qty"], "100");
-  EXPECT_EQ(json["side"], "buy");
+  EXPECT_EQ(json["symbol"], symbol);
+  EXPECT_EQ(json["qty"], std::to_string(qty));
+  EXPECT_EQ(json["side"], expected_side);
   EXPECT_EQ(json["type"], "market");
   EXPECT_EQ(json["time_in_force"], "day");
   EXPECT_FALSE(json.contains("limit_price"));
 }
 
-TEST_F(AlpacaRestClientPlaceOrderTest, MarketSellOrderPayload) {
+INSTANTIATE_TEST_SUITE_P(
+    BuySell, AlpacaMarketOrderTest,
+    ::testing::Values(MarketOrderParam{"AAPL", OrderSide::Buy, 100, "buy"},
+                      MarketOrderParam{"TSLA", OrderSide::Sell, 50, "sell"}));
+
+struct LimitOrderParam {
+  const char *symbol;
+  OrderSide side;
+  int64_t qty;
+  uint64_t price;
+  const char *expected_side;
+  double expected_limit_price;
+};
+
+class AlpacaLimitOrderTest
+    : public AlpacaRestClientTestBase,
+      public ::testing::WithParamInterface<LimitOrderParam> {};
+
+TEST_P(AlpacaLimitOrderTest, PayloadIsCorrect) {
+  const auto &[symbol, side, qty, price, expected_side, expected_limit_price] =
+      GetParam();
   StubHttpServer server(200);
   point_client_to(server.port());
   AlpacaRestClient client;
-  Order order = make_order("TSLA", OrderSide::Sell, OrderType::Market, 50, 0);
+  Order order = make_order(symbol, side, OrderType::Limit, qty, price);
 
   CapturedRequest req;
   std::thread t([&]() { req = server.serve_one(); });
@@ -269,49 +273,18 @@ TEST_F(AlpacaRestClientPlaceOrderTest, MarketSellOrderPayload) {
   t.join();
 
   auto json = nlohmann::json::parse(req.body);
-  EXPECT_EQ(json["side"], "sell");
-  EXPECT_EQ(json["type"], "market");
-  EXPECT_FALSE(json.contains("limit_price"));
-}
-
-TEST_F(AlpacaRestClientPlaceOrderTest, LimitBuyOrderIncludesScaledPrice) {
-  StubHttpServer server(200);
-  point_client_to(server.port());
-  AlpacaRestClient client;
-  Order order =
-      make_order("MSFT", OrderSide::Buy, OrderType::Limit, 10, 4500000);
-
-  CapturedRequest req;
-  std::thread t([&]() { req = server.serve_one(); });
-  client.placeOrder(order);
-  t.join();
-
-  auto json = nlohmann::json::parse(req.body);
+  EXPECT_EQ(json["side"], expected_side);
   EXPECT_EQ(json["type"], "limit");
   EXPECT_TRUE(json.contains("limit_price"));
   double limit_price = std::stod(json["limit_price"].get<std::string>());
-  EXPECT_DOUBLE_EQ(limit_price, 450.0);
+  EXPECT_DOUBLE_EQ(limit_price, expected_limit_price);
 }
 
-TEST_F(AlpacaRestClientPlaceOrderTest, LimitSellOrderPayload) {
-  StubHttpServer server(200);
-  point_client_to(server.port());
-  AlpacaRestClient client;
-  Order order =
-      make_order("GOOG", OrderSide::Sell, OrderType::Limit, 5, 1750000);
-
-  CapturedRequest req;
-  std::thread t([&]() { req = server.serve_one(); });
-  client.placeOrder(order);
-  t.join();
-
-  auto json = nlohmann::json::parse(req.body);
-  EXPECT_EQ(json["side"], "sell");
-  EXPECT_EQ(json["type"], "limit");
-  EXPECT_TRUE(json.contains("limit_price"));
-  double limit_price = std::stod(json["limit_price"].get<std::string>());
-  EXPECT_DOUBLE_EQ(limit_price, 175.0);
-}
+INSTANTIATE_TEST_SUITE_P(
+    BuySell, AlpacaLimitOrderTest,
+    ::testing::Values(
+        LimitOrderParam{"MSFT", OrderSide::Buy, 10, 4500000, "buy", 450.0},
+        LimitOrderParam{"GOOG", OrderSide::Sell, 5, 1750000, "sell", 175.0}));
 
 TEST_F(AlpacaRestClientPlaceOrderTest, ErrorResponsePrintsToStderr) {
   StubHttpServer server(422, R"({"message":"insufficient qty"})");

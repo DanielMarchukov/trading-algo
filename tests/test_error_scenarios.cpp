@@ -80,41 +80,5 @@ TEST(OrderGatewayErrorTest, HandlesRestClientException) {
   SUCCEED();
 }
 
-TEST(RiskManagerErrorTest, HandlesNullPositionManager) {
-  RiskManager risk_manager(nullptr);
-
-  Order test_order{};
-  test_order.quantity = 100;
-  test_order.price = 1000;
-
-  EXPECT_FALSE(risk_manager.onNewOrder(test_order));
-}
-
-TEST(PositionManagerConcurrencyTest, HandlesMultiThreadedUpdates) {
-  PositionManager pm;
-  constexpr int num_threads = 4;
-
-  std::vector<std::thread> threads;
-
-  for (int i = 0; i < num_threads; ++i) {
-    constexpr int fills_per_thread = 1000;
-    threads.emplace_back([&pm, i]() {
-      Fill fill{};
-      std::memset(fill.symbol, 0, sizeof(fill.symbol));
-      std::memcpy(fill.symbol, "AAPL", 4);
-      fill.side = (i % 2 == 0) ? OrderSide::Buy : OrderSide::Sell;
-      fill.quantity = 10;
-
-      for (int j = 0; j < fills_per_thread; ++j) {
-        pm.onFill(fill);
-      }
-    });
-  }
-
-  for (auto &t : threads) {
-    t.join();
-  }
-
-  const int64_t final_position = pm.getFilledPosition("AAPL");
-  EXPECT_EQ(final_position, 0);
-}
+// HandlesNullPositionManager: covered by test_risk_manager.cpp
+// HandlesMultiThreadedUpdates: covered by test_position_manager.cpp
