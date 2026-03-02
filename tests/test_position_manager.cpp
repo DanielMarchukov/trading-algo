@@ -211,6 +211,70 @@ TEST_F(PositionManagerTest, ConcurrentFillsForSameSymbol) {
   EXPECT_EQ(pm.getFilledPosition("AAPL"), 1000);
 }
 
+TEST_F(PositionManagerTest, RegisterSymbolStartsAtZero) {
+  pm.registerSymbol("AAPL");
+
+  EXPECT_EQ(pm.getFilledPosition("AAPL"), 0);
+  EXPECT_EQ(pm.getPendingPosition("AAPL"), 0);
+  EXPECT_EQ(pm.getTotalExposure("AAPL"), 0);
+}
+
+TEST_F(PositionManagerTest, DoubleRegisterDoesNotResetState) {
+  pm.registerSymbol("AAPL");
+
+  const Order filled_order = createOrder("AAPL", OrderSide::Buy, 200, 1000);
+  pm.onOrderSent(filled_order);
+  pm.onFill(createFill("AAPL", OrderSide::Buy, 200));
+
+  pm.onOrderSent(createOrder("AAPL", OrderSide::Buy, 50, 1000));
+
+  EXPECT_EQ(pm.getFilledPosition("AAPL"), 200);
+  EXPECT_EQ(pm.getPendingPosition("AAPL"), 50);
+
+  pm.registerSymbol("AAPL");
+
+  EXPECT_EQ(pm.getFilledPosition("AAPL"), 200);
+  EXPECT_EQ(pm.getPendingPosition("AAPL"), 50);
+  EXPECT_EQ(pm.getTotalExposure("AAPL"), 250);
+}
+
+TEST_F(PositionManagerTest, ConcurrentOrderSentAndFill) {
+  constexpr int orders_per_thread = 500;
+  constexpr int num_sender_threads = 4;
+
+  std::atomic<bool> start{false};
+  std::vector<std::thread> threads;
+
+  for (int t = 0; t < num_sender_threads; ++t) {
+    threads.emplace_back([&]() {
+      while (!start.load(std::memory_order_acquire)) {
+      }
+      for (int i = 0; i < orders_per_thread; ++i) {
+        pm.onOrderSent(createOrder("AAPL", OrderSide::Buy, 1, 1000));
+      }
+    });
+  }
+
+  threads.emplace_back([&]() {
+    while (!start.load(std::memory_order_acquire)) {
+    }
+    for (int i = 0; i < num_sender_threads * orders_per_thread; ++i) {
+      pm.onFill(createFill("AAPL", OrderSide::Buy, 1));
+    }
+  });
+
+  start.store(true, std::memory_order_release);
+
+  for (auto &t : threads) {
+    t.join();
+  }
+
+  const int64_t total_sent = num_sender_threads * orders_per_thread;
+  EXPECT_EQ(pm.getFilledPosition("AAPL"), total_sent);
+  EXPECT_EQ(pm.getPendingPosition("AAPL"), 0);
+  EXPECT_EQ(pm.getTotalExposure("AAPL"), total_sent);
+}
+
 TEST_F(PositionManagerTest, SequentialOrderFillCancelFlow) {
   const Order order1 = createOrder("AAPL", OrderSide::Buy, 100, 1000);
   pm.onOrderSent(order1);

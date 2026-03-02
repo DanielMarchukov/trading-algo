@@ -137,6 +137,39 @@ TEST_F(RiskManagerTest, RejectsOrderWhenNotionalCalculationWouldOverflow32Bit) {
   EXPECT_FALSE(risk_manager_->onNewOrder(extreme_order));
 }
 
+TEST_F(RiskManagerTest, ConcurrentOnNewOrderFromMultipleThreads) {
+  constexpr int num_threads = 4;
+  constexpr int orders_per_thread = 250;
+
+  std::atomic<bool> start{false};
+  std::atomic<int> approved{0};
+  std::vector<std::thread> threads;
+
+  for (int t = 0; t < num_threads; ++t) {
+    threads.emplace_back([&]() {
+      while (!start.load(std::memory_order_acquire)) {
+      }
+      for (int i = 0; i < orders_per_thread; ++i) {
+        const Order order =
+            createOrder("AAPL", OrderSide::Buy, 1, 100 * SCALING_FACTOR);
+        if (risk_manager_->onNewOrder(order)) {
+          approved.fetch_add(1, std::memory_order_relaxed);
+        }
+      }
+    });
+  }
+
+  start.store(true, std::memory_order_release);
+
+  for (auto &t : threads) {
+    t.join();
+  }
+
+  const int64_t total_exposure = pos_manager_->getTotalExposure("AAPL");
+  EXPECT_EQ(total_exposure, approved.load(std::memory_order_relaxed));
+  EXPECT_GE(total_exposure, 1);
+}
+
 TEST_F(RiskManagerTest, ApprovesOrderAtLimitWithLargeInputs) {
   constexpr int64_t qty = 10;
   const uint64_t price = static_cast<uint64_t>((10000.0 * SCALING_FACTOR) /
