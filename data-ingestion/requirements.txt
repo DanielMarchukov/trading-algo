@@ -16,7 +16,7 @@ ipython==9.10.0
 ipython_pygments_lexers==1.1.1
 jedi==0.19.2
 kiwisolver==1.4.9
-markdown-it-py==3.0.0
+markdown-it-py==4.0.0
 matplotlib==3.10.8
 matplotlib-inline==0.2.1
 mdurl==0.1.2
