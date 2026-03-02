@@ -1,6 +1,8 @@
 #include "Order.hpp"
 #include "ThreadSafeQueue.hpp"
+#include <atomic>
 #include <gtest/gtest.h>
+#include <set>
 #include <thread>
 #include <vector>
 
@@ -55,6 +57,53 @@ TEST_F(ThreadSafeQueueTest, MultiThreadedProducerConsumer) {
   consumer_thread.join();
 
   EXPECT_EQ(produced_orders.size(), num_items);
+}
+
+TEST_F(ThreadSafeQueueTest, MultiProducerSingleConsumer) {
+  constexpr int num_producers = 4;
+  constexpr int items_per_producer = 1000;
+  constexpr int total_items = num_producers * items_per_producer;
+
+  std::vector<std::thread> producers;
+  std::atomic<bool> start{false};
+
+  for (int p = 0; p < num_producers; ++p) {
+    producers.emplace_back([&, p]() {
+      while (!start.load(std::memory_order_acquire)) {
+      }
+      for (int i = 0; i < items_per_producer; ++i) {
+        Order order{};
+        order.id = p * items_per_producer + i;
+        queue.push(order);
+      }
+    });
+  }
+
+  start.store(true, std::memory_order_release);
+
+  std::set<uint64_t> received;
+  int consumed = 0;
+
+  while (consumed < total_items) {
+    Order order{};
+    if (queue.try_pop(order)) {
+      received.insert(order.id);
+      ++consumed;
+    }
+  }
+
+  for (auto &t : producers) {
+    t.join();
+  }
+
+  EXPECT_EQ(received.size(), total_items);
+  for (int i = 0; i < total_items; ++i) {
+    EXPECT_TRUE(received.count(static_cast<uint64_t>(i)) > 0)
+        << "Missing order id " << i;
+  }
+
+  Order leftover{};
+  EXPECT_FALSE(queue.try_pop(leftover));
 }
 
 TEST_F(ThreadSafeQueueTest, WaitAndPopWithTimeout) {
