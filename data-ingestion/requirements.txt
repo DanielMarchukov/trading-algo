@@ -33,7 +33,7 @@ prompt_toolkit==3.0.52
 ptyprocess==0.7.0
 pure_eval==0.2.3
 pyarrow==23.0.1
-pycparser==2.22
+pycparser==3.0
 pyczmq==0.0.4
 pydantic==2.12.5
 Pygments==2.19.2
