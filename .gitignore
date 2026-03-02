@@ -9,6 +9,7 @@ env/
 data-ingestion/__pycache__/
 data-ingestion/src/__pycache__/
 vcpkg_installed/
+vcpkg/
 
 # Application
 paper_money
