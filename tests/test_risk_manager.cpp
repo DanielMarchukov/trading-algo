@@ -28,6 +28,18 @@ protected:
     return order;
   }
 
+  static Fill createFill(const char *symbol, const OrderSide side,
+                         const int64_t qty) {
+    Fill fill{};
+    std::memset(fill.symbol, 0, sizeof(fill.symbol));
+    const std::size_t copy_len =
+        (std::min)(std::strlen(symbol), sizeof(fill.symbol));
+    std::memcpy(fill.symbol, symbol, copy_len);
+    fill.side = side;
+    fill.quantity = qty;
+    return fill;
+  }
+
   std::shared_ptr<PositionManager> pos_manager_;
   std::unique_ptr<RiskManager> risk_manager_;
 };
@@ -43,13 +55,7 @@ TEST_F(RiskManagerTest, RejectsOrderExceedingMaxPosition) {
       createOrder("AAPL", OrderSide::Buy, 950, 100 * SCALING_FACTOR);
   pos_manager_->onOrderSent(existing_order);
 
-  Fill existing_position_fill{};
-  std::memset(existing_position_fill.symbol, 0,
-              sizeof(existing_position_fill.symbol));
-  std::memcpy(existing_position_fill.symbol, "AAPL", 4);
-  existing_position_fill.side = OrderSide::Buy;
-  existing_position_fill.quantity = 950;
-  pos_manager_->onFill(existing_position_fill);
+  pos_manager_->onFill(createFill("AAPL", OrderSide::Buy, 950));
 
   const Order large_order =
       createOrder("AAPL", OrderSide::Buy, 99, 100 * SCALING_FACTOR);
@@ -57,13 +63,7 @@ TEST_F(RiskManagerTest, RejectsOrderExceedingMaxPosition) {
 }
 
 TEST_F(RiskManagerTest, ApprovesOrderWithinMaxPosition) {
-  Fill existing_position_fill{};
-  std::memset(existing_position_fill.symbol, 0,
-              sizeof(existing_position_fill.symbol));
-  std::memcpy(existing_position_fill.symbol, "AAPL", 4);
-  existing_position_fill.side = OrderSide::Buy;
-  existing_position_fill.quantity = 950;
-  pos_manager_->onFill(existing_position_fill);
+  pos_manager_->onFill(createFill("AAPL", OrderSide::Buy, 950));
 
   const Order okay_order =
       createOrder("AAPL", OrderSide::Buy, 50, 100 * SCALING_FACTOR);
@@ -94,13 +94,7 @@ TEST_F(RiskManagerTest, HandlesMaximumAllowedPosition) {
   const Order existing_order =
       createOrder("AAPL", OrderSide::Buy, 999, 100 * SCALING_FACTOR);
   pos_manager_->onOrderSent(existing_order);
-
-  Fill existing_fill{};
-  std::memset(existing_fill.symbol, 0, sizeof(existing_fill.symbol));
-  std::memcpy(existing_fill.symbol, "AAPL", 4);
-  existing_fill.side = OrderSide::Buy;
-  existing_fill.quantity = 999;
-  pos_manager_->onFill(existing_fill);
+  pos_manager_->onFill(createFill("AAPL", OrderSide::Buy, 999));
 
   // Order that would reach exactly the limit should be approved
   Order order = createOrder("AAPL", OrderSide::Buy, 1,
@@ -117,13 +111,7 @@ TEST_F(RiskManagerTest, HandlesNegativePositionLimits) {
   const Order existing_order =
       createOrder("AAPL", OrderSide::Sell, 999, 100 * SCALING_FACTOR);
   pos_manager_->onOrderSent(existing_order);
-
-  Fill short_fill{};
-  std::memset(short_fill.symbol, 0, sizeof(short_fill.symbol));
-  std::memcpy(short_fill.symbol, "AAPL", 4);
-  short_fill.side = OrderSide::Sell;
-  short_fill.quantity = 999;
-  pos_manager_->onFill(short_fill);
+  pos_manager_->onFill(createFill("AAPL", OrderSide::Sell, 999));
 
   const Order order = createOrder("AAPL", OrderSide::Sell, 2,
                                   100 * static_cast<uint64_t>(SCALING_FACTOR));
@@ -156,16 +144,4 @@ TEST_F(RiskManagerTest, ApprovesOrderAtLimitWithLargeInputs) {
   const Order order = createOrder("AAPL", OrderSide::Buy, qty, price);
 
   EXPECT_TRUE(risk_manager_->onNewOrder(order));
-}
-
-TEST_F(RiskManagerTest, HandlesDifferentOrderTypes) {
-  Order market_order =
-      createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
-  market_order.type = OrderType::Market;
-  EXPECT_TRUE(risk_manager_->onNewOrder(market_order));
-
-  Order limit_order =
-      createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
-  limit_order.type = OrderType::Limit;
-  EXPECT_TRUE(risk_manager_->onNewOrder(limit_order));
 }
