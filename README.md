@@ -2,6 +2,7 @@
 
 [![Build and Test](https://github.com/DanielMarchukov/rich-on-paper/actions/workflows/build.yml/badge.svg)](https://github.com/DanielMarchukov/rich-on-paper/actions/workflows/build.yml)
 [![codecov](https://codecov.io/gh/DanielMarchukov/rich-on-paper/branch/mainline/graph/badge.svg)](https://codecov.io/gh/DanielMarchukov/rich-on-paper)
+![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/DanielMarchukov/rich-on-paper?utm_source=oss&utm_medium=github&utm_campaign=DanielMarchukov%2Frich-on-paper&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 A production-grade, ultra-low latency trading engine built with modern C++23 and Python, targeting sub-50 microsecond
 internal processing latency. The system demonstrates professional software engineering practices including comprehensive
