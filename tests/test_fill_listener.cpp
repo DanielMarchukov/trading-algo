@@ -1,5 +1,6 @@
 #include "AlpacaFillListener.hpp"
 #include "PositionManager.hpp"
+#include <cstring>
 #include <gtest/gtest.h>
 #include <memory>
 #include <nlohmann/json.hpp>

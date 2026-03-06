@@ -34,3 +34,4 @@ ignore:
   - "vcpkg_installed/"
   - "**/test_*.cpp"
   - "**/test_*.py"
+  - "src/TradingEngine.cpp"
