@@ -27,6 +27,9 @@ public:
     T dummy;
     while (try_pop(dummy)) {
     }
+    if (tail_ != &stub_) {
+      delete tail_;
+    }
   }
 
   LockFreeMPSCQueue(const LockFreeMPSCQueue &) = delete;
