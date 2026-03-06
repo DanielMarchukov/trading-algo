@@ -312,6 +312,59 @@ jobs:
             build/Debug/paper_money.exe
           if-no-files-found: ignore
 
+  sanitizer-asan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up CMake 3.28.3
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "3.28.3"
+
+      - name: Install build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config
+
+      - name: Cache vcpkg dependencies
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/vcpkg_installed
+          key: ${{ runner.os }}-asan-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-asan-
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        env:
+          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        with:
+          vcpkgJsonGlob: "**/vcpkg.json"
+
+      - name: Configure CMake (ASAN + UBSAN)
+        run: >
+          cmake -B build -S .
+          -DCMAKE_BUILD_TYPE=Debug
+          -DVCPKG_TARGET_TRIPLET=x64-linux
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+          -DSANITIZE_ADDRESS=ON
+          -DSANITIZE_UNDEFINED=ON
+          -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      - name: Run tests under ASAN + UBSAN
+        working-directory: ./build
+        run: ctest --output-on-failure
+        env:
+          ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
+          UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+
   security-scan:
     runs-on: ubuntu-latest
     permissions:

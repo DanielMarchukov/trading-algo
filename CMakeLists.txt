@@ -11,13 +11,54 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
-include(CheckIPOSupported)
-check_ipo_supported(RESULT LTO_SUPPORTED)
-if(LTO_SUPPORTED)
-    message(STATUS "LTO is supported")
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+option(SANITIZE_ADDRESS "Enable AddressSanitizer (ASAN)" OFF)
+option(SANITIZE_THREAD "Enable ThreadSanitizer (TSAN)" OFF)
+option(SANITIZE_UNDEFINED "Enable UndefinedBehaviorSanitizer (UBSAN)" OFF)
+
+if(SANITIZE_ADDRESS AND SANITIZE_THREAD)
+    message(FATAL_ERROR "ASAN and TSAN are incompatible — use separate builds.")
+endif()
+
+if(MSVC
+   AND (SANITIZE_ADDRESS
+        OR SANITIZE_THREAD
+        OR SANITIZE_UNDEFINED))
+    message(
+        FATAL_ERROR "Sanitizers are not supported under MSVC in this project. Use GCC or Clang.")
+endif()
+
+set(SANITIZER_FLAGS "")
+set(SANITIZER_ACTIVE OFF)
+
+if(SANITIZE_ADDRESS)
+    list(APPEND SANITIZER_FLAGS "-fsanitize=address")
+    set(SANITIZER_ACTIVE ON)
+endif()
+if(SANITIZE_THREAD)
+    list(APPEND SANITIZER_FLAGS "-fsanitize=thread")
+    set(SANITIZER_ACTIVE ON)
+endif()
+if(SANITIZE_UNDEFINED)
+    list(APPEND SANITIZER_FLAGS "-fsanitize=undefined")
+    set(SANITIZER_ACTIVE ON)
+endif()
+
+if(SANITIZER_ACTIVE)
+    list(APPEND SANITIZER_FLAGS "-fno-omit-frame-pointer" "-g" "-O1")
+    message(STATUS "Sanitizers enabled: ${SANITIZER_FLAGS}")
+endif()
+
+if(NOT SANITIZER_ACTIVE)
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT LTO_SUPPORTED)
+    if(LTO_SUPPORTED)
+        message(STATUS "LTO is supported")
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    else()
+        message(WARNING "LTO is not supported")
+    endif()
 else()
-    message(WARNING "LTO is not supported")
+    message(STATUS "LTO disabled (incompatible with sanitizers)")
 endif()
 
 if(MSVC)
@@ -26,7 +67,10 @@ if(MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 else()
     set(CMAKE_CXX_FLAGS_RELEASE "-O3")
-    add_compile_options("-Wall" "-Wextra" "-Wpedantic" "-march=native")
+    add_compile_options("-Wall" "-Wextra" "-Wpedantic")
+    if(NOT SANITIZER_ACTIVE)
+        add_compile_options("-march=native")
+    endif()
 endif()
 
 find_package(Boost CONFIG REQUIRED COMPONENTS lockfree)
@@ -60,9 +104,11 @@ if(MSVC)
     target_compile_definitions(paper_money PRIVATE _CRT_SECURE_NO_WARNINGS)
 endif()
 
-# ===================================================================
-# Testing Configuration
-# ===================================================================
+if(SANITIZER_ACTIVE AND NOT MSVC)
+    target_compile_options(paper_money PRIVATE ${SANITIZER_FLAGS})
+    target_link_options(paper_money PRIVATE ${SANITIZER_FLAGS})
+endif()
+
 enable_testing()
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 
@@ -76,6 +122,11 @@ target_link_libraries(
            nlohmann_json::nlohmann_json
            GTest::gtest_main
            TBB::tbb)
+
+if(SANITIZER_ACTIVE AND NOT MSVC)
+    target_compile_options(rich_on_tests PRIVATE ${SANITIZER_FLAGS})
+    target_link_options(rich_on_tests PRIVATE ${SANITIZER_FLAGS})
+endif()
 
 if(ENABLE_COVERAGE)
     message(STATUS "Code coverage enabled")
@@ -99,4 +150,8 @@ if(ENABLE_COVERAGE)
 endif()
 
 include(GoogleTest)
-gtest_discover_tests(rich_on_tests)
+if(SANITIZER_ACTIVE)
+    gtest_discover_tests(rich_on_tests DISCOVERY_MODE PRE_TEST)
+else()
+    gtest_discover_tests(rich_on_tests)
+endif()
