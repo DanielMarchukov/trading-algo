@@ -11,6 +11,8 @@
 #include <thread>
 #include <vector>
 
+class IFillListener;
+
 void pin_thread_to_core(std::thread &t, size_t core_id);
 
 class TradingEngine {
@@ -44,4 +46,5 @@ private:
   std::unique_ptr<OrderGateway> order_gateway_;
   std::thread order_gateway_thread_;
   std::vector<ConsumerThread> consumer_threads_;
+  std::unique_ptr<IFillListener> fill_listener_;
 };
