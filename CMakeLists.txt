@@ -19,6 +19,14 @@ if(SANITIZE_ADDRESS AND SANITIZE_THREAD)
     message(FATAL_ERROR "ASAN and TSAN are incompatible — use separate builds.")
 endif()
 
+if(MSVC
+   AND (SANITIZE_ADDRESS
+        OR SANITIZE_THREAD
+        OR SANITIZE_UNDEFINED))
+    message(
+        FATAL_ERROR "Sanitizers are not supported under MSVC in this project. Use GCC or Clang.")
+endif()
+
 set(SANITIZER_FLAGS "")
 set(SANITIZER_ACTIVE OFF)
 

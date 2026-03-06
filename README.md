@@ -131,14 +131,14 @@ cmake -B build-asan -S . -DCMAKE_BUILD_TYPE=Debug \
   -DSANITIZE_ADDRESS=ON -DSANITIZE_UNDEFINED=ON \
   -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 cmake --build build-asan
-cd build-asan && ctest --output-on-failure
+(cd build-asan && ctest --output-on-failure)
 
 # TSAN (data races) — separate build, incompatible with ASAN
 cmake -B build-tsan -S . -DCMAKE_BUILD_TYPE=Debug \
   -DSANITIZE_THREAD=ON \
   -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
 cmake --build build-tsan
-cd build-tsan && ctest --output-on-failure
+(cd build-tsan && ctest --output-on-failure)
 ```
 
 ASAN+UBSAN runs on every push in CI. TSAN runs nightly.
