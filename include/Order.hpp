@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
 
 enum class OrderSide : uint8_t { Buy, Sell };
 
@@ -18,3 +19,6 @@ struct Order {
 };
 
 static_assert(sizeof(Order) == 40, "Expected size is 40 bytes");
+static_assert(alignof(Order) == 8, "Order must be 8-byte aligned");
+static_assert(std::is_trivially_copyable_v<Order>,
+              "Order must be trivially copyable for lock-free queues");
