@@ -2,6 +2,7 @@
 #include "PositionManager.hpp"
 #include <gtest/gtest.h>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <string>
 
 class FillListenerTest : public ::testing::Test {
@@ -12,11 +13,15 @@ protected:
     position_manager_->registerSymbol("GOOGL");
   }
 
+  static TradeUpdate parse(const std::string &json_str) {
+    return parseTradingUpdate(nlohmann::json::parse(json_str));
+  }
+
   std::shared_ptr<PositionManager> position_manager_;
 };
 
 TEST_F(FillListenerTest, ParsesFillEvent) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "fill",
@@ -27,20 +32,21 @@ TEST_F(FillListenerTest, ParsesFillEvent) {
         "side": "buy"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
 
   const auto &fill = std::get<FillEvent>(update);
-  EXPECT_EQ(std::string_view(fill.symbol, 4), "AAPL");
+  EXPECT_EQ(
+      std::string_view(fill.symbol, strnlen(fill.symbol, sizeof(fill.symbol))),
+      "AAPL");
   EXPECT_EQ(fill.side, OrderSide::Buy);
   EXPECT_EQ(fill.quantity, 100);
   EXPECT_DOUBLE_EQ(fill.price, 150.25);
 }
 
 TEST_F(FillListenerTest, ParsesPartialFillEvent) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "partial_fill",
@@ -51,9 +57,8 @@ TEST_F(FillListenerTest, ParsesPartialFillEvent) {
         "side": "sell"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
 
   const auto &fill = std::get<FillEvent>(update);
@@ -63,63 +68,83 @@ TEST_F(FillListenerTest, ParsesPartialFillEvent) {
 }
 
 TEST_F(FillListenerTest, ParsesCanceledEvent) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "canceled",
       "order": {
         "symbol": "AAPL",
         "side": "buy",
-        "qty": "100"
+        "qty": "100",
+        "filled_qty": "0"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
 
   const auto &cancel = std::get<CancelEvent>(update);
-  EXPECT_EQ(std::string_view(cancel.symbol, 4), "AAPL");
+  EXPECT_EQ(std::string_view(cancel.symbol,
+                             strnlen(cancel.symbol, sizeof(cancel.symbol))),
+            "AAPL");
   EXPECT_EQ(cancel.side, OrderSide::Buy);
   EXPECT_EQ(cancel.quantity, 100);
 }
 
+TEST_F(FillListenerTest, CancelAfterPartialFillUsesRemainingQty) {
+  const auto update = parse(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "canceled",
+      "order": {
+        "symbol": "AAPL",
+        "side": "buy",
+        "qty": "100",
+        "filled_qty": "60"
+      }
+    }
+  })");
+
+  ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
+  EXPECT_EQ(std::get<CancelEvent>(update).quantity, 40);
+}
+
 TEST_F(FillListenerTest, ParsesExpiredEvent) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "expired",
       "order": {
         "symbol": "AAPL",
         "side": "sell",
-        "qty": "200"
+        "qty": "200",
+        "filled_qty": "0"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
 }
 
 TEST_F(FillListenerTest, ParsesRejectedEvent) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "rejected",
       "order": {
         "symbol": "AAPL",
         "side": "buy",
-        "qty": "50"
+        "qty": "50",
+        "filled_qty": "0"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
 }
 
 TEST_F(FillListenerTest, IgnoresNewEvent) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "new",
@@ -129,41 +154,39 @@ TEST_F(FillListenerTest, IgnoresNewEvent) {
         "qty": "100"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
 }
 
 TEST_F(FillListenerTest, IgnoresAuthorizationMessage) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "authorization",
     "data": {
       "status": "authorized"
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
 }
 
 TEST_F(FillListenerTest, HandlesMalformedJson) {
-  const TradeUpdate update = parseTradingUpdate("not valid json{{{");
+  nlohmann::json broken = {{"not", "trade_updates"}};
+  const TradeUpdate update = parseTradingUpdate(broken);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
 }
 
 TEST_F(FillListenerTest, HandlesMissingFields) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {}
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
 }
 
 TEST_F(FillListenerTest, HandlesMissingQtyOnFill) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "fill",
@@ -173,27 +196,46 @@ TEST_F(FillListenerTest, HandlesMissingQtyOnFill) {
         "side": "buy"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
 }
 
-TEST_F(FillListenerTest, FillUpdatesPositionManager) {
-  const std::string json = R"({
+TEST_F(FillListenerTest, RejectsUnknownSide) {
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "fill",
       "qty": "100",
-      "price": "150.25",
+      "price": "150.00",
+      "order": {
+        "symbol": "AAPL",
+        "side": "unknown"
+      }
+    }
+  })");
+
+  EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
+}
+
+TEST_F(FillListenerTest, RejectsInvalidQtyString) {
+  const auto update = parse(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "fill",
+      "qty": "not_a_number",
+      "price": "150.00",
       "order": {
         "symbol": "AAPL",
         "side": "buy"
       }
     }
-  })";
+  })");
 
-  // Simulate pending order first
+  EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
+}
+
+TEST_F(FillListenerTest, FillUpdatesPositionManager) {
   Order pending{};
   pending.id = 1;
   std::memcpy(pending.symbol, "AAPL\0\0\0\0", 8);
@@ -206,7 +248,19 @@ TEST_F(FillListenerTest, FillUpdatesPositionManager) {
   EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
   EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 0);
 
-  const TradeUpdate update = parseTradingUpdate(json);
+  const auto update = parse(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "fill",
+      "qty": "100",
+      "price": "150.25",
+      "order": {
+        "symbol": "AAPL",
+        "side": "buy"
+      }
+    }
+  })");
+
   ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
 
   const auto &fill_event = std::get<FillEvent>(update);
@@ -235,19 +289,19 @@ TEST_F(FillListenerTest, CancelUpdatesPositionManager) {
 
   EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
 
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "canceled",
       "order": {
         "symbol": "AAPL",
         "side": "buy",
-        "qty": "100"
+        "qty": "100",
+        "filled_qty": "0"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
 
   const auto &cancel_event = std::get<CancelEvent>(update);
@@ -264,7 +318,7 @@ TEST_F(FillListenerTest, CancelUpdatesPositionManager) {
 }
 
 TEST_F(FillListenerTest, ParsesNumericQtyAndPrice) {
-  const std::string json = R"({
+  const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
       "event": "fill",
@@ -275,9 +329,8 @@ TEST_F(FillListenerTest, ParsesNumericQtyAndPrice) {
         "side": "buy"
       }
     }
-  })";
+  })");
 
-  const TradeUpdate update = parseTradingUpdate(json);
   ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
 
   const auto &fill = std::get<FillEvent>(update);

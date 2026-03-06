@@ -5,6 +5,7 @@
 #include <atomic>
 #include <ixwebsocket/IXWebSocket.h>
 #include <memory>
+#include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <variant>
 
@@ -23,13 +24,15 @@ struct CancelEvent {
 
 using TradeUpdate = std::variant<std::monostate, FillEvent, CancelEvent>;
 
-[[nodiscard]] TradeUpdate parseTradingUpdate(const std::string &json);
+[[nodiscard]] TradeUpdate parseTradingUpdate(const nlohmann::json &parsed);
 
 class AlpacaFillListener : public IFillListener {
 public:
   AlpacaFillListener(std::shared_ptr<PositionManager> position_manager,
                      std::atomic<bool> &is_running, const std::string &api_key,
                      const std::string &api_secret);
+
+  ~AlpacaFillListener() override;
 
   void start() override;
   void stop() override;

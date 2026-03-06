@@ -3,6 +3,7 @@
 #include <cstring>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <optional>
 
 namespace {
 
@@ -19,23 +20,45 @@ void copySymbol(char (&dest)[8], const std::string &src) {
   }
 }
 
-OrderSide parseSide(const std::string &side_str) {
+[[nodiscard]] std::optional<OrderSide> parseSide(const std::string &side_str) {
+  if (side_str == "buy") {
+    return OrderSide::Buy;
+  }
   if (side_str == "sell") {
     return OrderSide::Sell;
   }
-  return OrderSide::Buy;
+  return std::nullopt;
+}
+
+[[nodiscard]] std::optional<int64_t> parseQty(const nlohmann::json &val) {
+  try {
+    if (val.is_string()) {
+      return std::stoll(val.get<std::string>());
+    }
+    if (val.is_number_integer()) {
+      return val.get<int64_t>();
+    }
+  } catch (const std::exception &) {
+  }
+  return std::nullopt;
+}
+
+[[nodiscard]] std::optional<double> parsePrice(const nlohmann::json &val) {
+  try {
+    if (val.is_string()) {
+      return std::stod(val.get<std::string>());
+    }
+    if (val.is_number()) {
+      return val.get<double>();
+    }
+  } catch (const std::exception &) {
+  }
+  return std::nullopt;
 }
 
 } // namespace
 
-TradeUpdate parseTradingUpdate(const std::string &json) {
-  nlohmann::json parsed;
-  try {
-    parsed = nlohmann::json::parse(json);
-  } catch (const nlohmann::json::parse_error &) {
-    return std::monostate{};
-  }
-
+TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
   if (!parsed.contains("stream") || parsed["stream"] != "trade_updates") {
     return std::monostate{};
   }
@@ -56,56 +79,58 @@ TradeUpdate parseTradingUpdate(const std::string &json) {
   }
 
   const auto &order = data["order"];
-  if (!order.contains("symbol") || !order.contains("side")) {
+  if (!order.contains("symbol") || !order["symbol"].is_string() ||
+      !order.contains("side") || !order["side"].is_string()) {
     return std::monostate{};
   }
 
   const std::string symbol = order["symbol"];
-  const std::string side_str = order["side"];
-  const OrderSide side = parseSide(side_str);
+  const auto side = parseSide(order["side"].get<std::string>());
+  if (!side.has_value()) {
+    return std::monostate{};
+  }
 
   if (event == "fill" || event == "partial_fill") {
     if (!data.contains("qty") || !data.contains("price")) {
       return std::monostate{};
     }
 
+    const auto qty = parseQty(data["qty"]);
+    const auto price = parsePrice(data["price"]);
+    if (!qty.has_value() || !price.has_value()) {
+      return std::monostate{};
+    }
+
     FillEvent fill{};
     copySymbol(fill.symbol, symbol);
-    fill.side = side;
-
-    const auto &qty_val = data["qty"];
-    if (qty_val.is_string()) {
-      fill.quantity = std::stoll(qty_val.get<std::string>());
-    } else {
-      fill.quantity = qty_val.get<int64_t>();
-    }
-
-    const auto &price_val = data["price"];
-    if (price_val.is_string()) {
-      fill.price = std::stod(price_val.get<std::string>());
-    } else {
-      fill.price = price_val.get<double>();
-    }
-
+    fill.side = *side;
+    fill.quantity = *qty;
+    fill.price = *price;
     return fill;
   }
 
   if (event == "canceled" || event == "expired" || event == "rejected") {
     CancelEvent cancel{};
     copySymbol(cancel.symbol, symbol);
-    cancel.side = side;
+    cancel.side = *side;
+
+    int64_t total_qty = 0;
+    int64_t filled_qty = 0;
 
     if (order.contains("qty")) {
-      const auto &qty_val = order["qty"];
-      if (qty_val.is_string()) {
-        cancel.quantity = std::stoll(qty_val.get<std::string>());
-      } else {
-        cancel.quantity = qty_val.get<int64_t>();
+      const auto q = parseQty(order["qty"]);
+      if (q.has_value()) {
+        total_qty = *q;
       }
-    } else {
-      cancel.quantity = 0;
+    }
+    if (order.contains("filled_qty")) {
+      const auto fq = parseQty(order["filled_qty"]);
+      if (fq.has_value()) {
+        filled_qty = *fq;
+      }
     }
 
+    cancel.quantity = (std::max)(int64_t{0}, total_qty - filled_qty);
     return cancel;
   }
 
@@ -118,6 +143,8 @@ AlpacaFillListener::AlpacaFillListener(
     const std::string &api_secret)
     : position_manager_(std::move(position_manager)), is_running_(is_running),
       api_key_(api_key), api_secret_(api_secret) {}
+
+AlpacaFillListener::~AlpacaFillListener() { stop(); }
 
 void AlpacaFillListener::start() {
   ws_.setUrl(kStreamUrl);
@@ -195,11 +222,29 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
   }
 
   if (parsed.contains("stream") && parsed["stream"] == "listening") {
-    std::cout << "FillListener: Subscribed to trade_updates" << std::endl;
+    if (parsed.contains("data") && parsed["data"].contains("streams") &&
+        parsed["data"]["streams"].is_array()) {
+      const auto &streams = parsed["data"]["streams"];
+      bool found = false;
+      for (const auto &s : streams) {
+        if (s.is_string() && s.get<std::string>() == "trade_updates") {
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        std::cout << "FillListener: Subscribed to trade_updates" << std::endl;
+      } else {
+        std::cerr << "FillListener: trade_updates not in streams list"
+                  << std::endl;
+      }
+    } else {
+      std::cerr << "FillListener: Malformed listening response" << std::endl;
+    }
     return;
   }
 
-  const TradeUpdate update = parseTradingUpdate(json);
+  const TradeUpdate update = parseTradingUpdate(parsed);
 
   if (std::holds_alternative<FillEvent>(update)) {
     const auto &fill_event = std::get<FillEvent>(update);
@@ -212,7 +257,8 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     fill.price = fill_event.price;
     position_manager_->onFill(fill);
     std::cout << "FillListener: Fill processed ("
-              << std::string_view(fill_event.symbol, kSymbolCapacity)
+              << std::string_view(fill_event.symbol,
+                                  strnlen(fill_event.symbol, kSymbolCapacity))
               << " qty=" << fill_event.quantity << ")" << std::endl;
   } else if (std::holds_alternative<CancelEvent>(update)) {
     const auto &cancel_event = std::get<CancelEvent>(update);
@@ -225,7 +271,8 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     order.type = OrderType::Market;
     position_manager_->onOrderCancelled(order);
     std::cout << "FillListener: Cancel processed ("
-              << std::string_view(cancel_event.symbol, kSymbolCapacity)
+              << std::string_view(cancel_event.symbol,
+                                  strnlen(cancel_event.symbol, kSymbolCapacity))
               << " qty=" << cancel_event.quantity << ")" << std::endl;
   }
 }
