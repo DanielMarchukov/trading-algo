@@ -15,6 +15,8 @@ struct SymbolKey {
   }
 };
 
+static_assert(sizeof(SymbolKey) == 8, "SymbolKey must be exactly 8 bytes");
+
 struct SymbolKeyHashCompare {
   static std::size_t hash(const SymbolKey &k) {
     return std::hash<std::string_view>{}(
@@ -30,6 +32,10 @@ struct PositionState {
   int64_t filled = 0;
   int64_t pending = 0;
 };
+
+static_assert(sizeof(PositionState) == 16, "PositionState must be 16 bytes");
+static_assert(alignof(PositionState) == 8,
+              "PositionState must be 8-byte aligned");
 
 class PositionManager {
 public:

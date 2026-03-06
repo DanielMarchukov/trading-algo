@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <type_traits>
 
 struct MarketEvent {
   uint64_t eventType;
@@ -14,3 +15,6 @@ struct MarketEvent {
 };
 
 static_assert(sizeof(MarketEvent) == 64, "Struct size mismatch");
+static_assert(alignof(MarketEvent) == 8, "MarketEvent must be 8-byte aligned");
+static_assert(std::is_trivially_copyable_v<MarketEvent>,
+              "MarketEvent must be trivially copyable for lock-free queues");
