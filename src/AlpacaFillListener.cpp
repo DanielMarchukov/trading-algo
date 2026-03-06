@@ -6,8 +6,7 @@
 
 namespace {
 
-constexpr const char *kStreamUrl =
-    "wss://paper-api.alpaca.markets/stream";
+constexpr const char *kStreamUrl = "wss://paper-api.alpaca.markets/stream";
 constexpr int kMinReconnectMs = 100;
 constexpr int kMaxReconnectMs = 30000;
 constexpr std::size_t kSymbolCapacity = 8;
@@ -37,8 +36,7 @@ TradeUpdate parseTradingUpdate(const std::string &json) {
     return std::monostate{};
   }
 
-  if (!parsed.contains("stream") ||
-      parsed["stream"] != "trade_updates") {
+  if (!parsed.contains("stream") || parsed["stream"] != "trade_updates") {
     return std::monostate{};
   }
 
@@ -92,8 +90,7 @@ TradeUpdate parseTradingUpdate(const std::string &json) {
     return fill;
   }
 
-  if (event == "canceled" || event == "expired" ||
-      event == "rejected") {
+  if (event == "canceled" || event == "expired" || event == "rejected") {
     CancelEvent cancel{};
     copySymbol(cancel.symbol, symbol);
     cancel.side = side;
@@ -119,9 +116,8 @@ AlpacaFillListener::AlpacaFillListener(
     std::shared_ptr<PositionManager> position_manager,
     std::atomic<bool> &is_running, const std::string &api_key,
     const std::string &api_secret)
-    : position_manager_(std::move(position_manager)),
-      is_running_(is_running), api_key_(api_key),
-      api_secret_(api_secret) {}
+    : position_manager_(std::move(position_manager)), is_running_(is_running),
+      api_key_(api_key), api_secret_(api_secret) {}
 
 void AlpacaFillListener::start() {
   ws_.setUrl(kStreamUrl);
@@ -134,9 +130,7 @@ void AlpacaFillListener::start() {
   ws_.start();
 }
 
-void AlpacaFillListener::stop() {
-  ws_.stop();
-}
+void AlpacaFillListener::stop() { ws_.stop(); }
 
 void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
   if (!is_running_.load()) {
@@ -159,8 +153,8 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
     break;
 
   case ix::WebSocketMessageType::Close:
-    std::cout << "FillListener: WebSocket closed (code="
-              << msg->closeInfo.code << ")" << std::endl;
+    std::cout << "FillListener: WebSocket closed (code=" << msg->closeInfo.code
+              << ")" << std::endl;
     break;
 
   default:
@@ -169,16 +163,14 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
 }
 
 void AlpacaFillListener::sendAuth() {
-  nlohmann::json auth_msg = {{"action", "auth"},
-                             {"key", api_key_},
-                             {"secret", api_secret_}};
+  nlohmann::json auth_msg = {
+      {"action", "auth"}, {"key", api_key_}, {"secret", api_secret_}};
   ws_.send(auth_msg.dump());
 }
 
 void AlpacaFillListener::sendSubscribe() {
-  nlohmann::json sub_msg = {
-      {"action", "listen"},
-      {"data", {{"streams", {"trade_updates"}}}}};
+  nlohmann::json sub_msg = {{"action", "listen"},
+                            {"data", {{"streams", {"trade_updates"}}}}};
   ws_.send(sub_msg.dump());
 }
 
@@ -191,10 +183,8 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     return;
   }
 
-  if (parsed.contains("stream") &&
-      parsed["stream"] == "authorization") {
-    if (parsed.contains("data") &&
-        parsed["data"].contains("status") &&
+  if (parsed.contains("stream") && parsed["stream"] == "authorization") {
+    if (parsed.contains("data") && parsed["data"].contains("status") &&
         parsed["data"]["status"] == "authorized") {
       std::cout << "FillListener: Authorized" << std::endl;
       sendSubscribe();
@@ -204,10 +194,8 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     return;
   }
 
-  if (parsed.contains("stream") &&
-      parsed["stream"] == "listening") {
-    std::cout << "FillListener: Subscribed to trade_updates"
-              << std::endl;
+  if (parsed.contains("stream") && parsed["stream"] == "listening") {
+    std::cout << "FillListener: Subscribed to trade_updates" << std::endl;
     return;
   }
 

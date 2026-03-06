@@ -28,8 +28,7 @@ using TradeUpdate = std::variant<std::monostate, FillEvent, CancelEvent>;
 class AlpacaFillListener : public IFillListener {
 public:
   AlpacaFillListener(std::shared_ptr<PositionManager> position_manager,
-                     std::atomic<bool> &is_running,
-                     const std::string &api_key,
+                     std::atomic<bool> &is_running, const std::string &api_key,
                      const std::string &api_secret);
 
   void start() override;
