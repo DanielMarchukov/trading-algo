@@ -120,9 +120,32 @@ cmake --build build
 cd build && ctest
 ```
 
+### Sanitizer Builds
+
+Sanitizer builds instrument the binary to detect memory errors, undefined behavior, and data races at runtime. They run
+the same test suite but with runtime checks enabled.
+
+```bash
+# ASAN + UBSAN (memory errors + undefined behavior)
+cmake -B build-asan -S . -DCMAKE_BUILD_TYPE=Debug \
+  -DSANITIZE_ADDRESS=ON -DSANITIZE_UNDEFINED=ON \
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build build-asan
+cd build-asan && ctest --output-on-failure
+
+# TSAN (data races) — separate build, incompatible with ASAN
+cmake -B build-tsan -S . -DCMAKE_BUILD_TYPE=Debug \
+  -DSANITIZE_THREAD=ON \
+  -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build build-tsan
+cd build-tsan && ctest --output-on-failure
+```
+
+ASAN+UBSAN runs on every push in CI. TSAN runs nightly.
+
 ### Code Quality Tools
 
-- **C++**: clang-format, clang-tidy, LLVM coverage
+- **C++**: clang-format, clang-tidy, LLVM coverage, ASAN/TSAN/UBSAN
 - **Python**: black, isort, pylint, mypy
 - **Security**: CodeQL, bandit, safety
 
