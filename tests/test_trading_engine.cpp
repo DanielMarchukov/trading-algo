@@ -1,5 +1,6 @@
 #include "IRestClient.hpp"
 #include "TradingEngine.hpp"
+#include "Utils.hpp"
 #include <gtest/gtest.h>
 #include <memory>
 
@@ -44,5 +45,16 @@ TEST_F(TradingEngineTest, ShutdownIsIdempotent) {
   TradingEngine engine(symbols, std::move(mock_client));
 
   engine.stop();
-  EXPECT_NO_THROW(engine.stop()); // Should handle multiple stops gracefully
+  EXPECT_NO_THROW(engine.stop());
+}
+
+TEST_F(TradingEngineTest, ThrowsWhenApiCredentialsMissing) {
+  unsetenv("APCA_API_KEY_ID");
+  unsetenv("APCA_API_SECRET_KEY");
+
+  std::vector<std::string> symbols = {"AAPL"};
+  auto mock_client = std::make_unique<MockRestClientForEngine>();
+
+  EXPECT_THROW(TradingEngine(symbols, std::move(mock_client)),
+               std::runtime_error);
 }

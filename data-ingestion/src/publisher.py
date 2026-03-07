@@ -223,5 +223,5 @@ async def main(zmq_address=None):
 
 
 if __name__ == "__main__":
-    set_cpu_affinity(0)
+    set_cpu_affinity(1)
     asyncio.run(main())

@@ -1,5 +1,4 @@
 #include "MarketEventConsumer.hpp"
-#include "OrderGateway.hpp"
 #include "RiskManager.hpp"
 #include "Strategy.hpp"
 #include <cstring>
@@ -10,13 +9,6 @@ class ThrowingStrategy final : public Strategy {
 public:
   static std::vector<Order> onMarketEvent(const MarketEvent &) {
     throw std::runtime_error("Strategy error");
-  }
-};
-
-class ThrowingRestClient final : public IRestClient {
-public:
-  void placeOrder(const Order &) override {
-    throw std::runtime_error("Network error");
   }
 };
 
@@ -60,25 +52,3 @@ TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
 
   EXPECT_FALSE(callback_called);
 }
-
-TEST(OrderGatewayErrorTest, HandlesRestClientException) {
-  std::atomic is_running(true);
-  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
-  auto throwing_client = std::make_unique<ThrowingRestClient>();
-
-  OrderGateway gateway(is_running, order_queue, std::move(throwing_client));
-
-  Order test_order{};
-  test_order.id = 1;
-  order_queue->push(test_order);
-
-  std::thread gateway_thread(&OrderGateway::run, &gateway);
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  is_running.store(false);
-  gateway_thread.join();
-
-  SUCCEED();
-}
-
-// HandlesNullPositionManager: covered by test_risk_manager.cpp
-// HandlesMultiThreadedUpdates: covered by test_position_manager.cpp

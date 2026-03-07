@@ -1,39 +1,16 @@
-#include "Fill.hpp"
 #include "PositionManager.hpp"
+#include "TestHelpers.hpp"
 #include "Utils.hpp"
-#include <cstring>
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
 
+using test_helpers::createFill;
+using test_helpers::createOrder;
+
 class PositionManagerTest : public ::testing::Test {
 protected:
   PositionManager pm;
-
-  static Order createOrder(const char *symbol, const OrderSide side,
-                           const int64_t qty, const uint64_t price) {
-    Order order{};
-    std::memset(order.symbol, 0, sizeof(order.symbol));
-    const std::size_t copy_len =
-        (std::min)(std::strlen(symbol), sizeof(order.symbol));
-    std::memcpy(order.symbol, symbol, copy_len);
-    order.side = side;
-    order.quantity = qty;
-    order.price = price;
-    return order;
-  }
-
-  static Fill createFill(const char *symbol, const OrderSide side,
-                         const int64_t qty) {
-    Fill fill{};
-    std::memset(fill.symbol, 0, sizeof(fill.symbol));
-    const std::size_t copy_len =
-        (std::min)(std::strlen(symbol), sizeof(fill.symbol));
-    std::memcpy(fill.symbol, symbol, copy_len);
-    fill.side = side;
-    fill.quantity = qty;
-    return fill;
-  }
 };
 
 TEST_F(PositionManagerTest, NewPositionIsZero) {
@@ -45,6 +22,7 @@ TEST_F(PositionManagerTest, NewPositionIsZero) {
 struct FillTestParam {
   OrderSide side;
   int64_t quantity;
+  int64_t expected_pending;
   int64_t expected_filled;
   int64_t expected_exposure;
 };
@@ -54,19 +32,21 @@ class PositionManagerFillTest
       public ::testing::WithParamInterface<FillTestParam> {};
 
 TEST_P(PositionManagerFillTest, ProcessFillUpdatesPosition) {
-  const auto &[side, quantity, expected_filled, expected_exposure] = GetParam();
+  const auto &[side, quantity, expected_pending, expected_filled,
+               expected_exposure] = GetParam();
   const Order order = createOrder("AAPL", side, quantity, 1000);
   pm.onOrderSent(order);
   pm.onFill(createFill("AAPL", side, quantity));
 
+  EXPECT_EQ(pm.getPendingPosition("AAPL"), expected_pending);
   EXPECT_EQ(pm.getFilledPosition("AAPL"), expected_filled);
   EXPECT_EQ(pm.getTotalExposure("AAPL"), expected_exposure);
 }
 
 INSTANTIATE_TEST_SUITE_P(
     BuySell, PositionManagerFillTest,
-    ::testing::Values(FillTestParam{OrderSide::Buy, 100, 100, 100},
-                      FillTestParam{OrderSide::Sell, 75, -75, -75}));
+    ::testing::Values(FillTestParam{OrderSide::Buy, 100, 0, 100, 100},
+                      FillTestParam{OrderSide::Sell, 75, 0, -75, -75}));
 
 TEST_F(PositionManagerTest, HandlesMultipleSymbolsAndFills) {
   pm.onFill(createFill("AAPL", OrderSide::Buy, 200));
@@ -126,16 +106,6 @@ INSTANTIATE_TEST_SUITE_P(
     BuySell, PositionManagerOrderSentTest,
     ::testing::Values(OrderSentTestParam{OrderSide::Buy, 100, 100, 100},
                       OrderSentTestParam{OrderSide::Sell, 100, -100, -100}));
-
-TEST_F(PositionManagerTest, OnFillMovesFromPendingToFilled) {
-  const Order buy_order = createOrder("AAPL", OrderSide::Buy, 100, 1000);
-  pm.onOrderSent(buy_order);
-  pm.onFill(createFill("AAPL", OrderSide::Buy, 100));
-
-  EXPECT_EQ(pm.getPendingPosition("AAPL"), 0);
-  EXPECT_EQ(pm.getFilledPosition("AAPL"), 100);
-  EXPECT_EQ(pm.getTotalExposure("AAPL"), 100);
-}
 
 TEST_F(PositionManagerTest, PartialFillHandledCorrectly) {
   const Order buy_order = createOrder("AAPL", OrderSide::Buy, 100, 1000);

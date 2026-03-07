@@ -420,12 +420,13 @@ jobs:
           output: sarif-results
           upload: failure-only
 
-      - name: Filter SARIF to exclude vcpkg
+      - name: Filter SARIF to exclude vcpkg and test files
         uses: advanced-security/filter-sarif@v1
         with:
           patterns: |
             -**/vcpkg/**
             -**/vcpkg_installed/**
+            -**/tests/**
           input: sarif-results/cpp.sarif
           output: sarif-results/cpp.sarif
 

@@ -75,7 +75,7 @@ TEST_F(SimpleMarketMakingStrategyTest, HandlesZeroPrice) {
 TEST_F(SimpleMarketMakingStrategyTest, SkipsOrdersWhenBuyPriceUnderflows) {
   MarketEvent trade_event{};
   trade_event.eventType = 2;
-  trade_event.p1 = 50; // less than offset_ticks
+  trade_event.p1 = 50;
 
   const auto orders = strategy.onMarketEvent(trade_event);
   EXPECT_TRUE(orders.empty());

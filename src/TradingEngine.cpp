@@ -1,5 +1,8 @@
 #include "TradingEngine.hpp"
+#include "AlpacaFillListener.hpp"
+#include "Utils.hpp"
 #include <csignal>
+#include <cstdlib>
 #include <filesystem>
 #include <iostream>
 
@@ -67,6 +70,15 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   order_gateway_ = std::make_unique<OrderGateway>(is_running_, order_queue_,
                                                   std::move(rest_client));
 
+  const char *api_key = std::getenv("APCA_API_KEY_ID");
+  const char *api_secret = std::getenv("APCA_API_SECRET_KEY");
+  if (!api_key || !api_secret) {
+    throw std::runtime_error(
+        "APCA_API_KEY_ID and APCA_API_SECRET_KEY must be set");
+  }
+  fill_listener_ = std::make_unique<AlpacaFillListener>(
+      position_manager, is_running_, api_key, api_secret);
+
 #ifdef _WIN32
   ipc_address_ = "tcp://127.0.0.1:5555";
 #else
@@ -94,8 +106,8 @@ void TradingEngine::setup_signal_handler() {
 
 void TradingEngine::launch_gateway() {
   order_gateway_thread_ = std::thread(&OrderGateway::run, order_gateway_.get());
-  std::cout << "Pinned OrderGateway thread to CPU Core 1" << std::endl;
-  pin_thread_to_core(order_gateway_thread_, 1);
+  pin_thread_to_core(order_gateway_thread_, 0);
+  std::cout << "Pinned OrderGateway thread to CPU Core 0" << std::endl;
 }
 
 void TradingEngine::launch_consumers() {
@@ -128,6 +140,7 @@ void TradingEngine::main_loop() const {
 }
 
 void TradingEngine::shutdown() {
+  fill_listener_->stop();
   if (order_gateway_thread_.joinable()) {
     order_gateway_thread_.join();
   }
@@ -143,6 +156,8 @@ void TradingEngine::shutdown() {
 
 void TradingEngine::run() {
   std::cout << "Starting trading engine..." << std::endl;
+  fill_listener_->start();
+  std::cout << "FillListener started" << std::endl;
   launch_gateway();
   launch_consumers();
   main_loop();
