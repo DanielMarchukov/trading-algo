@@ -106,8 +106,8 @@ void TradingEngine::setup_signal_handler() {
 
 void TradingEngine::launch_gateway() {
   order_gateway_thread_ = std::thread(&OrderGateway::run, order_gateway_.get());
-  std::cout << "Pinned OrderGateway thread to CPU Core 1" << std::endl;
-  pin_thread_to_core(order_gateway_thread_, 1);
+  pin_thread_to_core(order_gateway_thread_, 0);
+  std::cout << "Pinned OrderGateway thread to CPU Core 0" << std::endl;
 }
 
 void TradingEngine::launch_consumers() {

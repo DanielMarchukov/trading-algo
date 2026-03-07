@@ -2,12 +2,11 @@
 
 ## Project Overview
 
-Ultra-low-latency paper-trading engine. C++23 core, Python data
-ingestion, Alpaca Markets integration. Target: sub-50μs hot path.
+Ultra-low-latency paper-trading engine. C++23 core, Python data ingestion, Alpaca Markets integration. Target: sub-50μs
+hot path.
 
-This is a **greenfield project**, not yet live. Refactors and
-breaking changes are welcome when they improve the design. No
-backwards compatibility constraints.
+This is a **greenfield project**, not yet live. Refactors and breaking changes are welcome when they improve the design.
+No backwards compatibility constraints.
 
 ## Build & Test
 
@@ -29,20 +28,19 @@ pytest data-ingestion/src/ -v
 
 ## Critical: Low-Latency by Default
 
-Every code change must respect the hot path / cold path boundary.
-Before writing any C++ code, check `.claude/rules/low-latency.md`.
+Every code change must respect the hot path / cold path boundary. Before writing any C++ code, check
+`.claude/rules/low-latency.md`.
 
 Key non-negotiables:
+
 - **No virtual dispatch on the hot path** — use templates/CRTP
 - **No heap allocation on the hot path** — pre-allocate at startup
 - **No mutex on the hot path** — use atomics and lock-free structures
 - **No exceptions on the hot path** — use error codes
-- **Cache-line align** all hot-path structs: `alignas(64)`,
-  `static_assert(sizeof(T) == expected)`
+- **Cache-line align** all hot-path structs: `alignas(64)`, `static_assert(sizeof(T) == expected)`
 - **Measure before/after** every optimization
 
-When unsure if something is hot path: if it runs between ZMQ recv
-and order_queue push, it's hot path.
+When unsure if something is hot path: if it runs between ZMQ recv and order_queue push, it's hot path.
 
 ## C++ Conventions
 
@@ -64,6 +62,7 @@ and order_queue push, it's hot path.
 ## Project Management
 
 Uses **Taskwarrior** with `project:rop` for all tasks.
+
 - `/task-next` — pick up next task, create branch
 - `/task-done` — complete current task, show what unblocked
 - `/task-status` — project progress report
@@ -71,26 +70,25 @@ Uses **Taskwarrior** with `project:rop` for all tasks.
 - Priorities: H (critical path), M (important), L (nice-to-have)
 
 ### Git Discipline
+
 - Branch per task: `<taskwarrior-id>/<short-slug>`
 - Commit messages: `[<id>] <imperative description>`
 - One logical change per commit
 - Explain **why** not **what**
-- **Never force push.** Always add fixup commits on top. Multiple
-  commits per PR is fine.
-- **Before every commit/push**, run `pre-commit run --all-files`
-  and stage any auto-fixes. Do not push code that fails
+- **Never force push.** Always add fixup commits on top. Multiple commits per PR is fine.
+- **Before every commit/push**, run `pre-commit run --all-files` and stage any auto-fixes. Do not push code that fails
   pre-commit checks.
 
 ### Pull Requests
-- Always reference the matching GitHub issue with `Closes #N` or
-  `Fixes #N` in the PR body. Find the issue number via
+
+- Always reference the matching GitHub issue with `Closes #N` or `Fixes #N` in the PR body. Find the issue number via
   `gh issue list --search "<keywords>"` before creating the PR.
 
 ## Web Research
 
-When implementing low-latency patterns, performance optimizations,
-or financial protocol integrations, **always search the web** for
-current best practices. Key topics to research as needed:
+When implementing low-latency patterns, performance optimizations, or financial protocol integrations, **always search
+the web** for current best practices. Key topics to research as needed:
+
 - Lock-free queue designs (Vyukov MPSC, Disruptor pattern)
 - Linux kernel bypass (io_uring, DPDK, AF_XDP)
 - Alpaca Markets API (REST v2, WebSocket streaming, msgpack framing)
@@ -100,6 +98,5 @@ current best practices. Key topics to research as needed:
 
 ## CI Pipeline
 
-GitHub Actions matrix: Ubuntu/macOS/Windows x GCC/Clang/MSVC x
-Debug/Release. Coverage via Codecov (80% target). CodeQL security
-scanning. Pre-commit hooks enforced.
+GitHub Actions matrix: Ubuntu/macOS/Windows x GCC/Clang/MSVC x Debug/Release. Coverage via Codecov (80% target). CodeQL
+security scanning. Pre-commit hooks enforced.
