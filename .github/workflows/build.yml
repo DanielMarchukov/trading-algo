@@ -87,7 +87,6 @@ jobs:
             cpp_compiler: clang++
             build_type: Debug
             vcpkg_triplet: x64-linux
-            extra_cmake_flags: "-DCMAKE_CXX_FLAGS=-stdlib=libc++"
           - os: windows-latest
             build_type: Debug
             vcpkg_triplet: x64-windows-static
@@ -107,7 +106,6 @@ jobs:
             cpp_compiler: clang++
             build_type: Release
             vcpkg_triplet: x64-linux
-            extra_cmake_flags: "-DCMAKE_CXX_FLAGS=-stdlib=libc++"
           - os: windows-latest
             build_type: Release
             vcpkg_triplet: x64-windows-static
@@ -134,7 +132,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy libc++-dev libc++abi-dev
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy
           clang-format --version
 
       - name: Install build prerequisites (macOS)
@@ -187,7 +185,6 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
           -DENABLE_COVERAGE=ON
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          ${{ matrix.extra_cmake_flags }}
         env:
           CC: ${{ env.CC || matrix.c_compiler }}
           CXX: ${{ env.CXX || matrix.cpp_compiler }}
