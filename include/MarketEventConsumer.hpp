@@ -57,11 +57,9 @@ public:
 
       auto event = static_cast<const MarketEvent *>(payload.data());
       try {
-        auto batch = strategy_->onMarketEvent(*event);
-        for (uint8_t i = 0; i < batch.count; ++i) {
-          if (risk_manager_->onNewOrder(batch.orders[i])) {
-            order_callback_(batch.orders[i]);
-          }
+        auto order = strategy_->onMarketEvent(*event);
+        if (order && risk_manager_->onNewOrder(*order)) {
+          order_callback_(*order);
         }
       } catch (...) {
       }
