@@ -27,6 +27,8 @@ using TradeUpdate = std::variant<std::monostate, FillEvent, CancelEvent>;
 [[nodiscard]] TradeUpdate parseTradingUpdate(const nlohmann::json &parsed);
 
 class AlpacaFillListener : public IFillListener {
+  friend class FillListenerTest;
+
 public:
   AlpacaFillListener(std::shared_ptr<PositionManager> position_manager,
                      std::atomic<bool> &is_running, const std::string &api_key,
