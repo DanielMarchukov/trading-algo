@@ -7,6 +7,7 @@
 #include <memory>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
+#include <thread>
 #include <variant>
 
 struct FillEvent {
@@ -50,4 +51,5 @@ private:
   std::string api_key_;
   std::string api_secret_;
   ix::WebSocket ws_;
+  std::thread thread_;
 };

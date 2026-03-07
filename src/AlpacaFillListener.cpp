@@ -4,6 +4,9 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <thread>
+
+void pin_thread_to_core(std::thread &t, size_t core_id);
 
 namespace {
 
@@ -154,10 +157,17 @@ void AlpacaFillListener::start() {
   ws_.setOnMessageCallback(
       [this](const ix::WebSocketMessagePtr &msg) { onMessage(msg); });
 
-  ws_.start();
+  thread_ = std::thread(&ix::WebSocket::run, &ws_);
+  pin_thread_to_core(thread_, 0);
+  std::cout << "Pinned FillListener thread to CPU Core 0" << std::endl;
 }
 
-void AlpacaFillListener::stop() { ws_.stop(); }
+void AlpacaFillListener::stop() {
+  ws_.stop();
+  if (thread_.joinable()) {
+    thread_.join();
+  }
+}
 
 void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
   if (!is_running_.load()) {
