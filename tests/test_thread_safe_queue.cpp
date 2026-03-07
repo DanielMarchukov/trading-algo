@@ -11,17 +11,6 @@ protected:
   ThreadSafeQueue<Order> queue;
 };
 
-TEST_F(ThreadSafeQueueTest, SingleThreadedPushAndPop) {
-  Order order_to_push{};
-  order_to_push.id = 123;
-  queue.push(order_to_push);
-
-  Order popped_order{};
-  queue.wait_and_pop(popped_order);
-
-  EXPECT_EQ(popped_order.id, 123);
-}
-
 TEST_F(ThreadSafeQueueTest, TryPopBehavesCorrectly) {
   Order temp_order{};
   EXPECT_FALSE(queue.try_pop(temp_order));

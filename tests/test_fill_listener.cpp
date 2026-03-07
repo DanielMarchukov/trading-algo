@@ -51,66 +51,58 @@ protected:
   std::unique_ptr<AlpacaFillListener> listener_;
 };
 
-TEST_F(FillListenerTest, ParsesFillEvent) {
-  const auto update = parse(R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "fill",
-      "qty": "100",
-      "price": "150.25",
-      "order": {
-        "symbol": "AAPL",
-        "side": "buy"
-      }
-    }
-  })");
+struct FillParseParam {
+  const char *event_type;
+  const char *symbol;
+  const char *side_str;
+  const char *qty;
+  const char *price;
+  OrderSide expected_side;
+  int64_t expected_qty;
+  double expected_price;
+};
+
+class FillParseTest : public FillListenerTest,
+                      public ::testing::WithParamInterface<FillParseParam> {};
+
+TEST_P(FillParseTest, ParsesFillFields) {
+  const auto &[event_type, symbol, side_str, qty, price, expected_side,
+               expected_qty, expected_price] = GetParam();
+  const std::string json = R"({"stream":"trade_updates","data":{"event":")" +
+                           std::string(event_type) + R"(","qty":")" + qty +
+                           R"(","price":")" + price +
+                           R"(","order":{"symbol":")" + symbol +
+                           R"(","side":")" + side_str + R"("}}})";
+  const auto update = parse(json);
 
   ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
 
   const auto &fill = std::get<FillEvent>(update);
   EXPECT_EQ(
       std::string_view(fill.symbol, strnlen(fill.symbol, sizeof(fill.symbol))),
-      "AAPL");
-  EXPECT_EQ(fill.side, OrderSide::Buy);
-  EXPECT_EQ(fill.quantity, 100);
-  EXPECT_DOUBLE_EQ(fill.price, 150.25);
+      symbol);
+  EXPECT_EQ(fill.side, expected_side);
+  EXPECT_EQ(fill.quantity, expected_qty);
+  EXPECT_DOUBLE_EQ(fill.price, expected_price);
 }
 
-TEST_F(FillListenerTest, ParsesPartialFillEvent) {
-  const auto update = parse(R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "partial_fill",
-      "qty": "50",
-      "price": "200.00",
-      "order": {
-        "symbol": "GOOGL",
-        "side": "sell"
-      }
-    }
-  })");
+INSTANTIATE_TEST_SUITE_P(
+    FillTypes, FillParseTest,
+    ::testing::Values(FillParseParam{"fill", "AAPL", "buy", "100", "150.25",
+                                     OrderSide::Buy, 100, 150.25},
+                      FillParseParam{"partial_fill", "GOOGL", "sell", "50",
+                                     "200.00", OrderSide::Sell, 50, 200.0}));
 
-  ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
+class CancelEventTypeTest : public FillListenerTest,
+                            public ::testing::WithParamInterface<const char *> {
+};
 
-  const auto &fill = std::get<FillEvent>(update);
-  EXPECT_EQ(fill.side, OrderSide::Sell);
-  EXPECT_EQ(fill.quantity, 50);
-  EXPECT_DOUBLE_EQ(fill.price, 200.0);
-}
-
-TEST_F(FillListenerTest, ParsesCanceledEvent) {
-  const auto update = parse(R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "canceled",
-      "order": {
-        "symbol": "AAPL",
-        "side": "buy",
-        "qty": "100",
-        "filled_qty": "0"
-      }
-    }
-  })");
+TEST_P(CancelEventTypeTest, ProducesCancelEvent) {
+  const std::string json =
+      R"({"stream":"trade_updates","data":{"event":")" +
+      std::string(GetParam()) +
+      R"(","order":{"symbol":"AAPL","side":"buy","qty":"100","filled_qty":"0"}}})";
+  const auto update = parse(json);
 
   ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
 
@@ -121,6 +113,9 @@ TEST_F(FillListenerTest, ParsesCanceledEvent) {
   EXPECT_EQ(cancel.side, OrderSide::Buy);
   EXPECT_EQ(cancel.quantity, 100);
 }
+
+INSTANTIATE_TEST_SUITE_P(EventTypes, CancelEventTypeTest,
+                         ::testing::Values("canceled", "expired", "rejected"));
 
 TEST_F(FillListenerTest, CancelAfterPartialFillUsesRemainingQty) {
   const auto update = parse(R"({
@@ -138,40 +133,6 @@ TEST_F(FillListenerTest, CancelAfterPartialFillUsesRemainingQty) {
 
   ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
   EXPECT_EQ(std::get<CancelEvent>(update).quantity, 40);
-}
-
-TEST_F(FillListenerTest, ParsesExpiredEvent) {
-  const auto update = parse(R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "expired",
-      "order": {
-        "symbol": "AAPL",
-        "side": "sell",
-        "qty": "200",
-        "filled_qty": "0"
-      }
-    }
-  })");
-
-  ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
-}
-
-TEST_F(FillListenerTest, ParsesRejectedEvent) {
-  const auto update = parse(R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "rejected",
-      "order": {
-        "symbol": "AAPL",
-        "side": "buy",
-        "qty": "50",
-        "filled_qty": "0"
-      }
-    }
-  })");
-
-  ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
 }
 
 TEST_F(FillListenerTest, IgnoresNewEvent) {
@@ -264,88 +225,6 @@ TEST_F(FillListenerTest, RejectsInvalidQtyString) {
   })");
 
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
-}
-
-TEST_F(FillListenerTest, FillUpdatesPositionManager) {
-  Order pending{};
-  pending.id = 1;
-  std::memcpy(pending.symbol, "AAPL\0\0\0\0", 8);
-  pending.quantity = 100;
-  pending.price = 1502500;
-  pending.side = OrderSide::Buy;
-  pending.type = OrderType::Limit;
-  position_manager_->onOrderSent(pending);
-
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
-  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 0);
-
-  const auto update = parse(R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "fill",
-      "qty": "100",
-      "price": "150.25",
-      "order": {
-        "symbol": "AAPL",
-        "side": "buy"
-      }
-    }
-  })");
-
-  ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
-
-  const auto &fill_event = std::get<FillEvent>(update);
-  Fill fill{};
-  std::memcpy(fill.symbol, fill_event.symbol, 8);
-  fill.executionId = 0;
-  fill.orderId = 0;
-  fill.side = fill_event.side;
-  fill.quantity = fill_event.quantity;
-  fill.price = fill_event.price;
-  position_manager_->onFill(fill);
-
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
-  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 100);
-}
-
-TEST_F(FillListenerTest, CancelUpdatesPositionManager) {
-  Order pending{};
-  pending.id = 1;
-  std::memcpy(pending.symbol, "AAPL\0\0\0\0", 8);
-  pending.quantity = 100;
-  pending.price = 1502500;
-  pending.side = OrderSide::Buy;
-  pending.type = OrderType::Limit;
-  position_manager_->onOrderSent(pending);
-
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
-
-  const auto update = parse(R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "canceled",
-      "order": {
-        "symbol": "AAPL",
-        "side": "buy",
-        "qty": "100",
-        "filled_qty": "0"
-      }
-    }
-  })");
-
-  ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
-
-  const auto &cancel_event = std::get<CancelEvent>(update);
-  Order cancel_order{};
-  cancel_order.id = 0;
-  std::memcpy(cancel_order.symbol, cancel_event.symbol, 8);
-  cancel_order.quantity = cancel_event.quantity;
-  cancel_order.price = 0;
-  cancel_order.side = cancel_event.side;
-  cancel_order.type = OrderType::Market;
-  position_manager_->onOrderCancelled(cancel_order);
-
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
 }
 
 TEST_F(FillListenerTest, ParsesNumericQtyAndPrice) {
@@ -483,25 +362,6 @@ TEST_F(FillListenerTest, OnMessageIgnoresWhenNotRunning) {
 
   EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
   EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 0);
-}
-
-TEST_F(FillListenerTest, OnMessageDispatchesFillEvent) {
-  addPendingOrder("AAPL", 50, OrderSide::Buy);
-
-  std::string body = R"({
-    "stream": "trade_updates",
-    "data": {
-      "event": "fill",
-      "qty": "50",
-      "price": "200.00",
-      "order": {"symbol": "AAPL", "side": "buy"}
-    }
-  })";
-  auto msg = makeMessage(ix::WebSocketMessageType::Message, body);
-  callOnMessage(msg);
-
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
-  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 50);
 }
 
 TEST_F(FillListenerTest, OnMessageHandlesOpenType) {

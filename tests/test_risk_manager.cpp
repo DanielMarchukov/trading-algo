@@ -1,43 +1,19 @@
-#include "Order.hpp"
 #include "PositionManager.hpp"
 #include "RiskManager.hpp"
+#include "TestHelpers.hpp"
 #include "Utils.hpp"
-#include <algorithm>
-#include <cstring>
 #include <gtest/gtest.h>
 #include <limits>
 #include <memory>
+
+using test_helpers::createFill;
+using test_helpers::createOrder;
 
 class RiskManagerTest : public ::testing::Test {
 protected:
   void SetUp() override {
     pos_manager_ = std::make_shared<PositionManager>();
     risk_manager_ = std::make_unique<RiskManager>(pos_manager_);
-  }
-
-  static Order createOrder(const char *symbol, const OrderSide side,
-                           const int64_t qty, const uint64_t price) {
-    Order order{};
-    std::memset(order.symbol, 0, sizeof(order.symbol));
-    const std::size_t copy_len =
-        std::min(std::strlen(symbol), sizeof(order.symbol));
-    std::memcpy(order.symbol, symbol, copy_len);
-    order.side = side;
-    order.quantity = qty;
-    order.price = price;
-    return order;
-  }
-
-  static Fill createFill(const char *symbol, const OrderSide side,
-                         const int64_t qty) {
-    Fill fill{};
-    std::memset(fill.symbol, 0, sizeof(fill.symbol));
-    const std::size_t copy_len =
-        (std::min)(std::strlen(symbol), sizeof(fill.symbol));
-    std::memcpy(fill.symbol, symbol, copy_len);
-    fill.side = side;
-    fill.quantity = qty;
-    return fill;
   }
 
   std::shared_ptr<PositionManager> pos_manager_;

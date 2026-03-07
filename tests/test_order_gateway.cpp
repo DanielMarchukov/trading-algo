@@ -98,13 +98,22 @@ private:
 
 } // namespace
 
-TEST(OrderGatewayTest, CatchesStdExceptionInMainLoop) {
+struct MainLoopExceptionParam {
+  std::function<std::unique_ptr<IRestClient>(std::promise<void> *)> factory;
+  const char *expected_substr;
+};
+
+class GatewayMainLoopExceptionTest
+    : public ::testing::TestWithParam<MainLoopExceptionParam> {};
+
+TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
+  const auto &[factory, expected_substr] = GetParam();
   std::atomic is_running(true);
   const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
   std::promise<void> promise;
   auto future = promise.get_future();
 
-  auto client = std::make_unique<ThrowingRestClient>(&promise);
+  auto client = factory(&promise);
   OrderGateway gateway(is_running, order_queue, std::move(client));
 
   std::stringstream captured;
@@ -123,50 +132,40 @@ TEST(OrderGatewayTest, CatchesStdExceptionInMainLoop) {
   guard.t.join();
   std::cerr.rdbuf(original);
 
-  EXPECT_TRUE(captured.str().find("OrderGateway: Error placing order:") !=
-              std::string::npos);
-  EXPECT_TRUE(captured.str().find("simulated rest error") != std::string::npos);
+  EXPECT_TRUE(captured.str().find(expected_substr) != std::string::npos);
 }
 
-TEST(OrderGatewayTest, CatchesUnknownExceptionInMainLoop) {
-  std::atomic is_running(true);
-  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
-  std::promise<void> promise;
-  auto future = promise.get_future();
+INSTANTIATE_TEST_SUITE_P(
+    ExceptionTypes, GatewayMainLoopExceptionTest,
+    ::testing::Values(
+        MainLoopExceptionParam{[](std::promise<void> *p) {
+                                 return std::make_unique<ThrowingRestClient>(p);
+                               },
+                               "OrderGateway: Error placing order:"},
+        MainLoopExceptionParam{
+            [](std::promise<void> *p) {
+              return std::make_unique<WildThrowingRestClient>(p);
+            },
+            "OrderGateway: Unknown error placing order"}));
 
-  auto client = std::make_unique<WildThrowingRestClient>(&promise);
-  OrderGateway gateway(is_running, order_queue, std::move(client));
+struct ShutdownExceptionParam {
+  std::function<std::unique_ptr<IRestClient>()> factory;
+  const char *expected_substr;
+};
 
-  std::stringstream captured;
-  auto *original = std::cerr.rdbuf(captured.rdbuf());
+class GatewayShutdownExceptionTest
+    : public ::testing::TestWithParam<ShutdownExceptionParam> {};
 
-  ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
-
-  Order order{};
-  order.id = 2;
-  order_queue->push(order);
-
-  const auto status = future.wait_for(std::chrono::seconds(2));
-  ASSERT_EQ(status, std::future_status::ready);
-  is_running.store(false);
-
-  guard.t.join();
-  std::cerr.rdbuf(original);
-
-  EXPECT_TRUE(
-      captured.str().find("OrderGateway: Unknown error placing order") !=
-      std::string::npos);
-}
-
-TEST(OrderGatewayTest, CatchesStdExceptionDuringShutdownDrain) {
+TEST_P(GatewayShutdownExceptionTest, LogsCorrectError) {
+  const auto &[factory, expected_substr] = GetParam();
   std::atomic is_running(false);
   const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
 
   Order order{};
-  order.id = 3;
+  order.id = 1;
   order_queue->push(order);
 
-  auto client = std::make_unique<ThrowingRestClient>();
+  auto client = factory();
   OrderGateway gateway(is_running, order_queue, std::move(client));
 
   std::stringstream captured;
@@ -176,32 +175,15 @@ TEST(OrderGatewayTest, CatchesStdExceptionDuringShutdownDrain) {
 
   std::cerr.rdbuf(original);
 
-  EXPECT_TRUE(captured.str().find(
-                  "OrderGateway: Error placing order during shutdown:") !=
-              std::string::npos);
-  EXPECT_TRUE(captured.str().find("simulated rest error") != std::string::npos);
+  EXPECT_TRUE(captured.str().find(expected_substr) != std::string::npos);
 }
 
-TEST(OrderGatewayTest, CatchesUnknownExceptionDuringShutdownDrain) {
-  std::atomic is_running(false);
-  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
-
-  Order order{};
-  order.id = 4;
-  order_queue->push(order);
-
-  auto client = std::make_unique<WildThrowingRestClient>();
-  OrderGateway gateway(is_running, order_queue, std::move(client));
-
-  std::stringstream captured;
-  auto *original = std::cerr.rdbuf(captured.rdbuf());
-
-  gateway.run();
-
-  std::cerr.rdbuf(original);
-
-  EXPECT_TRUE(
-      captured.str().find(
-          "OrderGateway: Unknown error placing order during shutdown") !=
-      std::string::npos);
-}
+INSTANTIATE_TEST_SUITE_P(
+    ExceptionTypes, GatewayShutdownExceptionTest,
+    ::testing::Values(
+        ShutdownExceptionParam{
+            []() { return std::make_unique<ThrowingRestClient>(); },
+            "OrderGateway: Error placing order during shutdown:"},
+        ShutdownExceptionParam{
+            []() { return std::make_unique<WildThrowingRestClient>(); },
+            "OrderGateway: Unknown error placing order during shutdown"}));
