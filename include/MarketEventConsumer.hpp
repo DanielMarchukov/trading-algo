@@ -2,6 +2,7 @@
 
 #include "MarketEvent.hpp"
 #include "RiskManager.hpp"
+#include "Strategy.hpp"
 #include <atomic>
 #include <exception>
 #include <functional>
@@ -11,7 +12,7 @@
 #include <utility>
 #include <zmq.hpp>
 
-template <typename StrategyType> class MarketEventConsumer {
+template <StrategyLike StrategyType> class MarketEventConsumer {
 public:
   using OrderCallback = std::function<void(const Order &)>;
 

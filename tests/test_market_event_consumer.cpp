@@ -1,7 +1,6 @@
 #include "MarketEvent.hpp"
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
-#include "Strategy.hpp"
 #include "ThreadGuard.hpp"
 #include <atomic>
 #include <chrono>
@@ -16,9 +15,9 @@
 #include <unistd.h>
 #endif
 
-class MockStrategy : public Strategy {
+class MockStrategy {
 public:
-  static std::vector<Order> onMarketEvent(const MarketEvent &event) {
+  std::vector<Order> onMarketEvent(const MarketEvent &event) {
     std::vector<Order> orders;
     if (event.eventType == 2) {
       Order buy_order{};
@@ -50,16 +49,14 @@ protected:
   std::shared_ptr<RiskManager> risk_manager_;
 };
 
-class EmptyStrategy : public Strategy {
+class EmptyStrategy {
 public:
-  static std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) {
-    return {};
-  }
+  std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) { return {}; }
 };
 
-class RejectedOrderStrategy : public Strategy {
+class RejectedOrderStrategy {
 public:
-  static std::vector<Order> onMarketEvent(const MarketEvent &event) {
+  std::vector<Order> onMarketEvent(const MarketEvent &event) {
     if (event.eventType == 2) {
       Order order{};
       order.id = 1;
@@ -72,11 +69,11 @@ public:
   }
 };
 
-class CountingStrategy : public Strategy {
+class CountingStrategy {
 public:
   static std::atomic<int> invocation_count;
 
-  static std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) {
+  std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) {
     invocation_count.fetch_add(1, std::memory_order_relaxed);
     return {};
   }

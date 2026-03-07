@@ -2,11 +2,10 @@
 
 #include "MarketEvent.hpp"
 #include "Order.hpp"
+#include <concepts>
 #include <vector>
 
-class Strategy {
-public:
-  ~Strategy() = default;
-
-  std::vector<Order> onMarketEvent(const MarketEvent &event);
+template <typename T>
+concept StrategyLike = requires(T t, const MarketEvent &e) {
+  { t.onMarketEvent(e) } -> std::same_as<std::vector<Order>>;
 };

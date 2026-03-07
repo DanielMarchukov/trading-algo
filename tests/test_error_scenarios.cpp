@@ -1,13 +1,12 @@
 #include "MarketEventConsumer.hpp"
 #include "RiskManager.hpp"
-#include "Strategy.hpp"
 #include <cstring>
 #include <gtest/gtest.h>
 #include <thread>
 
-class ThrowingStrategy final : public Strategy {
+class ThrowingStrategy {
 public:
-  static std::vector<Order> onMarketEvent(const MarketEvent &) {
+  std::vector<Order> onMarketEvent(const MarketEvent &) {
     throw std::runtime_error("Strategy error");
   }
 };

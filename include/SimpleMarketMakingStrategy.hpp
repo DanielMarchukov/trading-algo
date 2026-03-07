@@ -1,12 +1,14 @@
 #pragma once
 
-#include "Strategy.hpp"
+#include "MarketEvent.hpp"
+#include "Order.hpp"
 #include "Utils.hpp"
 
 #include <cstring>
 #include <limits>
+#include <vector>
 
-class SimpleMarketMakingStrategy : public Strategy {
+class SimpleMarketMakingStrategy {
 public:
   SimpleMarketMakingStrategy() : last_trade_price_(0), order_id_counter_(0) {}
 
