@@ -1,12 +1,16 @@
 #include "IRestClient.hpp"
 #include "TradingEngine.hpp"
 #include "Utils.hpp"
+#include <expected>
 #include <gtest/gtest.h>
 #include <memory>
 
 class MockRestClientForEngine : public IRestClient {
 public:
-  void placeOrder(const Order & /*order*/) override {}
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*order*/) override {
+    return OrderAck{"mock-id", "accepted"};
+  }
 };
 
 class TradingEngineTest : public ::testing::Test {

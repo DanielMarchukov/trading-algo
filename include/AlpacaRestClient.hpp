@@ -3,12 +3,14 @@
 #include "IRestClient.hpp"
 #include "Order.hpp"
 #include <cpr/cpr.h>
+#include <expected>
 #include <string>
 
 class AlpacaRestClient final : public IRestClient {
 public:
   AlpacaRestClient();
-  void placeOrder(const Order &order) override;
+  [[nodiscard]] std::expected<OrderAck, OrderError>
+  placeOrder(const Order &order) override;
 
 private:
   std::string api_key_;
