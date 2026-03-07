@@ -382,3 +382,42 @@ TEST_F(FillListenerTest, OnMessageHandlesCloseType) {
   auto msg = makeMessage(ix::WebSocketMessageType::Close, body);
   callOnMessage(msg);
 }
+
+TEST_F(FillListenerTest, StopDuringActiveProcessingCompletesCorrectly) {
+  constexpr int num_fills = 100;
+
+  for (int i = 0; i < num_fills; ++i) {
+    addPendingOrder("AAPL", 1, OrderSide::Buy);
+  }
+
+  std::atomic<int> processed{0};
+  std::thread processor([&]() {
+    for (int i = 0; i < num_fills; ++i) {
+      callHandleTradeUpdate(R"({
+        "stream": "trade_updates",
+        "data": {
+          "event": "fill",
+          "qty": "1",
+          "price": "150.25",
+          "order": {"symbol": "AAPL", "side": "buy"}
+        }
+      })");
+      processed.fetch_add(1, std::memory_order_relaxed);
+    }
+  });
+
+  // Wait until processing has started, then stop
+  while (processed.load(std::memory_order_relaxed) < 5) {
+    std::this_thread::yield();
+  }
+  listener_->stop();
+
+  processor.join();
+
+  // All fills that were dispatched must have completed atomically —
+  // no partial state corruption
+  const int64_t filled = position_manager_->getFilledPosition("AAPL");
+  const int64_t pending = position_manager_->getPendingPosition("AAPL");
+  EXPECT_EQ(filled + pending, num_fills);
+  EXPECT_EQ(filled, processed.load(std::memory_order_relaxed));
+}
