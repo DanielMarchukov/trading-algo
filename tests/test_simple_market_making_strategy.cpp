@@ -2,33 +2,24 @@
 #include "Order.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
 #include <gtest/gtest.h>
-#include <limits>
-#include <vector>
 
 class SimpleMarketMakingStrategyTest : public ::testing::Test {
 protected:
   SimpleMarketMakingStrategy strategy;
 };
 
-TEST_F(SimpleMarketMakingStrategyTest, GeneratesOrdersOnTradeEvent) {
+TEST_F(SimpleMarketMakingStrategyTest, GeneratesBuyOrderOnTradeEvent) {
   MarketEvent trade_event{};
   trade_event.eventType = 2;
   trade_event.p1 = 1500000;
 
-  const std::vector<Order> generated_orders =
-      strategy.onMarketEvent(trade_event);
+  const auto order = strategy.onMarketEvent(trade_event);
 
-  ASSERT_EQ(generated_orders.size(), 2);
-  const auto &buy_order = generated_orders[0];
-  const auto &sell_order = generated_orders[1];
-  EXPECT_EQ(buy_order.side, OrderSide::Buy);
-  EXPECT_EQ(buy_order.type, OrderType::Limit);
-  EXPECT_EQ(buy_order.quantity, 100);
-  EXPECT_EQ(buy_order.price, 1499900);
-  EXPECT_EQ(sell_order.side, OrderSide::Sell);
-  EXPECT_EQ(sell_order.type, OrderType::Limit);
-  EXPECT_EQ(sell_order.quantity, 100);
-  EXPECT_EQ(sell_order.price, 1500100);
+  ASSERT_TRUE(order.has_value());
+  EXPECT_EQ(order->side, OrderSide::Buy);
+  EXPECT_EQ(order->type, OrderType::Limit);
+  EXPECT_EQ(order->quantity, 100);
+  EXPECT_EQ(order->price, 1499900);
 }
 
 TEST_F(SimpleMarketMakingStrategyTest, IgnoresQuoteEvent) {
@@ -37,10 +28,7 @@ TEST_F(SimpleMarketMakingStrategyTest, IgnoresQuoteEvent) {
   quote_event.p1 = 1500000;
   quote_event.p2 = 1500200;
 
-  const std::vector<Order> generated_orders =
-      strategy.onMarketEvent(quote_event);
-
-  EXPECT_TRUE(generated_orders.empty());
+  EXPECT_FALSE(strategy.onMarketEvent(quote_event).has_value());
 }
 
 TEST_F(SimpleMarketMakingStrategyTest, OrderIdIncrements) {
@@ -52,15 +40,13 @@ TEST_F(SimpleMarketMakingStrategyTest, OrderIdIncrements) {
   trade2.eventType = 2;
   trade2.p1 = 1010000;
 
-  const std::vector<Order> orders1 = strategy.onMarketEvent(trade1);
-  ASSERT_EQ(orders1.size(), 2);
-  EXPECT_EQ(orders1[0].id, 1);
-  EXPECT_EQ(orders1[1].id, 2);
+  const auto order1 = strategy.onMarketEvent(trade1);
+  ASSERT_TRUE(order1.has_value());
+  EXPECT_EQ(order1->id, 1);
 
-  const std::vector<Order> orders2 = strategy.onMarketEvent(trade2);
-  ASSERT_EQ(orders2.size(), 2);
-  EXPECT_EQ(orders2[0].id, 3);
-  EXPECT_EQ(orders2[1].id, 4);
+  const auto order2 = strategy.onMarketEvent(trade2);
+  ASSERT_TRUE(order2.has_value());
+  EXPECT_EQ(order2->id, 2);
 }
 
 TEST_F(SimpleMarketMakingStrategyTest, HandlesZeroPrice) {
@@ -68,24 +54,13 @@ TEST_F(SimpleMarketMakingStrategyTest, HandlesZeroPrice) {
   trade_event.eventType = 2;
   trade_event.p1 = 0;
 
-  const auto orders = strategy.onMarketEvent(trade_event);
-  EXPECT_TRUE(orders.empty());
+  EXPECT_FALSE(strategy.onMarketEvent(trade_event).has_value());
 }
 
-TEST_F(SimpleMarketMakingStrategyTest, SkipsOrdersWhenBuyPriceUnderflows) {
+TEST_F(SimpleMarketMakingStrategyTest, SkipsOrderWhenBuyPriceUnderflows) {
   MarketEvent trade_event{};
   trade_event.eventType = 2;
   trade_event.p1 = 50;
 
-  const auto orders = strategy.onMarketEvent(trade_event);
-  EXPECT_TRUE(orders.empty());
-}
-
-TEST_F(SimpleMarketMakingStrategyTest, SkipsOrdersWhenSellPriceOverflows) {
-  MarketEvent trade_event{};
-  trade_event.eventType = 2;
-  trade_event.p1 = std::numeric_limits<uint64_t>::max() - 50;
-
-  const auto orders = strategy.onMarketEvent(trade_event);
-  EXPECT_TRUE(orders.empty());
+  EXPECT_FALSE(strategy.onMarketEvent(trade_event).has_value());
 }

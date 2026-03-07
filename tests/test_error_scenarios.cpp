@@ -2,11 +2,12 @@
 #include "RiskManager.hpp"
 #include <cstring>
 #include <gtest/gtest.h>
+#include <optional>
 #include <thread>
 
 class ThrowingStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent &) {
+  std::optional<Order> onMarketEvent(const MarketEvent &) {
     throw std::runtime_error("Strategy error");
   }
 };

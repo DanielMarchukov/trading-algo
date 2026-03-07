@@ -57,11 +57,9 @@ public:
 
       auto event = static_cast<const MarketEvent *>(payload.data());
       try {
-        auto orders = strategy_->onMarketEvent(*event);
-        for (const auto &order : orders) {
-          if (risk_manager_->onNewOrder(order)) {
-            order_callback_(order);
-          }
+        auto order = strategy_->onMarketEvent(*event);
+        if (order && risk_manager_->onNewOrder(*order)) {
+          order_callback_(*order);
         }
       } catch (...) {
       }

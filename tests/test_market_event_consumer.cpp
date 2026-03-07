@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <future>
 #include <gtest/gtest.h>
+#include <optional>
 #include <thread>
 #ifdef _WIN32
 #include <windows.h>
@@ -17,17 +18,16 @@
 
 class MockStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent &event) {
-    std::vector<Order> orders;
+  std::optional<Order> onMarketEvent(const MarketEvent &event) {
     if (event.eventType == 2) {
-      Order buy_order{};
-      buy_order.id = 1;
-      buy_order.side = OrderSide::Buy;
-      buy_order.type = OrderType::Market;
-      buy_order.quantity = 100;
-      orders.push_back(buy_order);
+      Order order{};
+      order.id = 1;
+      order.side = OrderSide::Buy;
+      order.type = OrderType::Market;
+      order.quantity = 100;
+      return order;
     }
-    return orders;
+    return std::nullopt;
   }
 };
 
@@ -51,21 +51,23 @@ protected:
 
 class EmptyStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) { return {}; }
+  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) {
+    return std::nullopt;
+  }
 };
 
 class RejectedOrderStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent &event) {
+  std::optional<Order> onMarketEvent(const MarketEvent &event) {
     if (event.eventType == 2) {
       Order order{};
       order.id = 1;
       order.side = OrderSide::Buy;
       order.quantity = 2000;
       order.price = 1000000;
-      return {order};
+      return order;
     }
-    return {};
+    return std::nullopt;
   }
 };
 
@@ -73,9 +75,9 @@ class CountingStrategy {
 public:
   static std::atomic<int> invocation_count;
 
-  std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) {
+  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) {
     invocation_count.fetch_add(1, std::memory_order_relaxed);
-    return {};
+    return std::nullopt;
   }
 };
 
