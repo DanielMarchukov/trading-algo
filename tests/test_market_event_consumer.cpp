@@ -17,17 +17,16 @@
 
 class MockStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent &event) {
-    std::vector<Order> orders;
+  OrderBatch onMarketEvent(const MarketEvent &event) {
+    OrderBatch batch{};
     if (event.eventType == 2) {
-      Order buy_order{};
+      Order &buy_order = batch.orders[batch.count++];
       buy_order.id = 1;
       buy_order.side = OrderSide::Buy;
       buy_order.type = OrderType::Market;
       buy_order.quantity = 100;
-      orders.push_back(buy_order);
     }
-    return orders;
+    return batch;
   }
 };
 
@@ -51,21 +50,21 @@ protected:
 
 class EmptyStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) { return {}; }
+  OrderBatch onMarketEvent(const MarketEvent & /*event*/) { return {}; }
 };
 
 class RejectedOrderStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent &event) {
+  OrderBatch onMarketEvent(const MarketEvent &event) {
+    OrderBatch batch{};
     if (event.eventType == 2) {
-      Order order{};
+      Order &order = batch.orders[batch.count++];
       order.id = 1;
       order.side = OrderSide::Buy;
       order.quantity = 2000;
       order.price = 1000000;
-      return {order};
     }
-    return {};
+    return batch;
   }
 };
 
@@ -73,7 +72,7 @@ class CountingStrategy {
 public:
   static std::atomic<int> invocation_count;
 
-  std::vector<Order> onMarketEvent(const MarketEvent & /*event*/) {
+  OrderBatch onMarketEvent(const MarketEvent & /*event*/) {
     invocation_count.fetch_add(1, std::memory_order_relaxed);
     return {};
   }

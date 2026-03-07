@@ -6,7 +6,7 @@
 
 class ThrowingStrategy {
 public:
-  std::vector<Order> onMarketEvent(const MarketEvent &) {
+  OrderBatch onMarketEvent(const MarketEvent &) {
     throw std::runtime_error("Strategy error");
   }
 };
