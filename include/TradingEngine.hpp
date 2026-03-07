@@ -1,10 +1,10 @@
 #pragma once
 
 #include "IRestClient.hpp"
+#include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
 #include "OrderGateway.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
-#include "ThreadSafeQueue.hpp"
 #include <atomic>
 #include <memory>
 #include <string>
@@ -42,7 +42,7 @@ private:
   std::vector<std::string> symbols_;
   std::shared_ptr<RiskManager> risk_manager_;
   zmq::context_t context_{1};
-  std::shared_ptr<ThreadSafeQueue<Order>> order_queue_;
+  std::shared_ptr<LockFreeMPSCQueue<Order>> order_queue_;
   std::unique_ptr<OrderGateway> order_gateway_;
   std::thread order_gateway_thread_;
   std::vector<ConsumerThread> consumer_threads_;

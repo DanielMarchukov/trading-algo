@@ -5,7 +5,7 @@
 
 OrderGateway::OrderGateway(
     std::atomic<bool> &is_running,
-    const std::shared_ptr<ThreadSafeQueue<Order>> &order_queue,
+    const std::shared_ptr<LockFreeMPSCQueue<Order>> &order_queue,
     std::unique_ptr<IRestClient> rest_client)
     : is_running_(is_running), order_queue_(order_queue),
       rest_client_(std::move(rest_client)) {}
