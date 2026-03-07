@@ -72,12 +72,10 @@ TEST_F(RiskManagerTest, HandlesMaximumAllowedPosition) {
   pos_manager_->onOrderSent(existing_order);
   pos_manager_->onFill(createFill("AAPL", OrderSide::Buy, 999));
 
-  // Order that would reach exactly the limit should be approved
   Order order = createOrder("AAPL", OrderSide::Buy, 1,
                             100 * static_cast<uint64_t>(SCALING_FACTOR));
   EXPECT_TRUE(risk_manager_->onNewOrder(order));
 
-  // Order that would exceed the limit should be rejected
   Order over_limit_order = createOrder(
       "AAPL", OrderSide::Buy, 2, 100 * static_cast<uint64_t>(SCALING_FACTOR));
   EXPECT_FALSE(risk_manager_->onNewOrder(over_limit_order));

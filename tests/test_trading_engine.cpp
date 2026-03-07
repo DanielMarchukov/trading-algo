@@ -45,7 +45,7 @@ TEST_F(TradingEngineTest, ShutdownIsIdempotent) {
   TradingEngine engine(symbols, std::move(mock_client));
 
   engine.stop();
-  EXPECT_NO_THROW(engine.stop()); // Should handle multiple stops gracefully
+  EXPECT_NO_THROW(engine.stop());
 }
 
 TEST_F(TradingEngineTest, ThrowsWhenApiCredentialsMissing) {

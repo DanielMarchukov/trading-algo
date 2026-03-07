@@ -52,8 +52,3 @@ TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
 
   EXPECT_FALSE(callback_called);
 }
-
-// HandlesRestClientException: covered by
-//   test_order_gateway.cpp::CatchesStdExceptionInMainLoop
-// HandlesNullPositionManager: covered by test_risk_manager.cpp
-// HandlesMultiThreadedUpdates: covered by test_position_manager.cpp

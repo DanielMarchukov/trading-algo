@@ -1,5 +1,6 @@
 #include "AlpacaFillListener.hpp"
 #include "PositionManager.hpp"
+#include "TestHelpers.hpp"
 #include <cstring>
 #include <gtest/gtest.h>
 #include <memory>
@@ -21,13 +22,8 @@ protected:
   }
 
   void addPendingOrder(const char *symbol, int64_t qty, OrderSide side) {
-    Order order{};
+    Order order = test_helpers::createOrder(symbol, side, qty, 1000000);
     order.id = 1;
-    std::memcpy(order.symbol, symbol, strnlen(symbol, 8));
-    order.quantity = qty;
-    order.price = 1000000;
-    order.side = side;
-    order.type = OrderType::Limit;
     position_manager_->onOrderSent(order);
   }
 
@@ -248,8 +244,6 @@ TEST_F(FillListenerTest, ParsesNumericQtyAndPrice) {
   EXPECT_DOUBLE_EQ(fill.price, 99.50);
 }
 
-// --- handleTradeUpdate tests (full dispatch pipeline) ---
-
 TEST_F(FillListenerTest, HandleTradeUpdateRejectsInvalidJson) {
   addPendingOrder("AAPL", 100, OrderSide::Buy);
   callHandleTradeUpdate("not valid json{{{");
@@ -261,7 +255,6 @@ TEST_F(FillListenerTest, HandleTradeUpdateProcessesAuthSuccess) {
     "stream": "authorization",
     "data": {"status": "authorized"}
   })");
-  // sendSubscribe calls ws_.send on non-connected socket — no crash
 }
 
 TEST_F(FillListenerTest, HandleTradeUpdateProcessesAuthFailure) {
@@ -342,8 +335,6 @@ TEST_F(FillListenerTest, HandleTradeUpdateIgnoresUnknownEvent) {
   EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
 }
 
-// --- onMessage tests (WebSocket dispatch) ---
-
 TEST_F(FillListenerTest, OnMessageIgnoresWhenNotRunning) {
   addPendingOrder("AAPL", 100, OrderSide::Buy);
   is_running_.store(false);
@@ -368,7 +359,6 @@ TEST_F(FillListenerTest, OnMessageHandlesOpenType) {
   std::string body;
   auto msg = makeMessage(ix::WebSocketMessageType::Open, body);
   callOnMessage(msg);
-  // sendAuth calls ws_.send on non-connected socket — no crash
 }
 
 TEST_F(FillListenerTest, OnMessageHandlesErrorType) {
@@ -406,7 +396,6 @@ TEST_F(FillListenerTest, StopDuringActiveProcessingCompletesCorrectly) {
     }
   });
 
-  // Wait until processing has started, then stop
   while (processed.load(std::memory_order_relaxed) < 5) {
     std::this_thread::yield();
   }
@@ -414,8 +403,6 @@ TEST_F(FillListenerTest, StopDuringActiveProcessingCompletesCorrectly) {
 
   processor.join();
 
-  // All fills that were dispatched must have completed atomically —
-  // no partial state corruption
   const int64_t filled = position_manager_->getFilledPosition("AAPL");
   const int64_t pending = position_manager_->getPendingPosition("AAPL");
   EXPECT_EQ(filled + pending, num_fills);

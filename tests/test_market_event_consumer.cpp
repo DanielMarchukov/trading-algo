@@ -117,7 +117,6 @@ TEST_F(MarketEventConsumerTest, HandlesRiskManagerRejection) {
     GTEST_SKIP() << "ZMQ connection failed: " << e.what();
   }
 
-  // Callback should not be called if risk manager rejects orders
   EXPECT_EQ(callback_count, 0);
 }
 
