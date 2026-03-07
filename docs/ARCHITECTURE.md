@@ -53,7 +53,7 @@ The trading engine is designed as a multiprocess system with clear separation of
 ║  ┌─────────────────────────────────┐          ┌──────────────────────────────────────┐ ║
 ║  │   TradingEngine (Main Thread)   │          │   OrderGateway (Worker Thread)       │ ║
 ║  │─────────────────────────────────│          │──────────────────────────────────────│ ║
-║  │ • Creates all components        │          │ • Polls ThreadSafeQueue<Order>       │ ║
+║  │ • Creates all components        │          │ • Polls LockFreeMPSCQueue<Order>       │ ║
 ║  │ • Launches threads              │          │ • Makes REST API calls to Alpaca     │ ║
 ║  │ • Handles signals (SIGINT/TERM) │          │ • Pinned to Core 0                   │ ║
 ║  │ • Manages shutdown              │          │ • TODO: Fill listener not impl yet   │ ║
@@ -62,11 +62,11 @@ The trading engine is designed as a multiprocess system with clear separation of
 ║                │ Creates & owns (std::shared_ptr)           │ Reads orders             ║
 ║                ↓                                            │                          ║
 ║  ┌──────────────────────────────────────────────┐  ┌────────┴───────────────────────┐  ║
-║  │             Shared Components                │  │   ThreadSafeQueue<Order>       │  ║
+║  │             Shared Components                │  │   LockFreeMPSCQueue<Order>       │  ║
 ║  │──────────────────────────────────────────────│  │────────────────────────────────│  ║
-║  │ • PositionManager (thread-safe R/W)          │  │ • Lock-based FIFO queue        │  ║
-║  │ • RiskManager (reads PositionManager)        │  │ • Condition variable for wait  │  ║
-║  │ • ThreadSafeQueue<Order>                     │  │ • Decouples hot/cold paths     │  ║
+║  │ • PositionManager (thread-safe R/W)          │  │ • Lock-free Vyukov MPSC queue   │  ║
+║  │ • RiskManager (reads PositionManager)        │  │ • Atomic push, single consumer │  ║
+║  │ • LockFreeMPSCQueue<Order>                     │  │ • Decouples hot/cold paths     │  ║
 ║  └──────────────────────────────────────────────┘  └────────────────────────────────┘  ║
 ║                     ↑                                                                  ║
 ║                     │ Shared access (read-only for hot path)                           ║
@@ -88,7 +88,7 @@ The trading engine is designed as a multiprocess system with clear separation of
 ║  ║  │    └─> Returns bool (approve/reject)                                       │   ║ ║
 ║  ║  │                                                                            │   ║ ║
 ║  ║  │ 4. If approved: order_queue_->push(order)                                  │   ║ ║
-║  ║  │    └─> Single mutex lock, minimal contention                               │   ║ ║
+║  ║  │    └─> Lock-free atomic push (Vyukov MPSC)                               │   ║ ║
 ║  ║  └────────────────────────────────────────────────────────────────────────────┘   ║ ║
 ║  ║                                                                                   ║ ║
 ║  ║  Target Latency: <50μs from market event to queue                                 ║ ║
@@ -97,7 +97,7 @@ The trading engine is designed as a multiprocess system with clear separation of
 ║  Key Design Points:                                                                    ║
 ║  • Template-based Strategy injection (compile-time polymorphism)                       ║
 ║  • Lock-free position reads using atomics                                              ║
-║  • Single contention point at ThreadSafeQueue                                          ║
+║  • Lock-free order queue (no contention on push)                                          ║
 ║  • CPU affinity for predictable latency                                                ║
 ║  • Static linking for performance                                                      ║
 ╚════════════════════════════════════════════════════════════════════════════════════════╝
@@ -265,7 +265,7 @@ class MarketEventConsumer {
 ### Lock-Free Design
 
 - **Atomic operations** for position updates
-- **Lock-free queue** (planned) for order submission
+- **Lock-free MPSC queue** for order submission
 - **Read-heavy optimization** in PositionManager
 - **Minimal mutex usage** only where necessary
 

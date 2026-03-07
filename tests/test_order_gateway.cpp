@@ -1,8 +1,8 @@
 #include "IRestClient.hpp"
+#include "LockFreeMPSCQueue.hpp"
 #include "Order.hpp"
 #include "OrderGateway.hpp"
 #include "ThreadGuard.hpp"
-#include "ThreadSafeQueue.hpp"
 #include <future>
 #include <gtest/gtest.h>
 #include <memory>
@@ -25,7 +25,7 @@ public:
 
 TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
   std::atomic is_running(true);
-  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
+  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
   std::promise<void> promise;
   const auto future = promise.get_future();
 
@@ -46,7 +46,7 @@ TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
 
 TEST(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
   std::atomic is_running(true);
-  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
+  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
   std::promise<void> promise;
   auto future = promise.get_future();
 
@@ -109,7 +109,7 @@ class GatewayMainLoopExceptionTest
 TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
   const auto &[factory, expected_substr] = GetParam();
   std::atomic is_running(true);
-  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
+  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
   std::promise<void> promise;
   auto future = promise.get_future();
 
@@ -159,7 +159,7 @@ class GatewayShutdownExceptionTest
 TEST_P(GatewayShutdownExceptionTest, LogsCorrectError) {
   const auto &[factory, expected_substr] = GetParam();
   std::atomic is_running(false);
-  const auto order_queue = std::make_shared<ThreadSafeQueue<Order>>();
+  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
 
   Order order{};
   order.id = 1;

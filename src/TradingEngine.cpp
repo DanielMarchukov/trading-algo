@@ -66,7 +66,7 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
     position_manager->registerSymbol(symbol);
   }
   risk_manager_ = std::make_shared<RiskManager>(position_manager);
-  order_queue_ = std::make_shared<ThreadSafeQueue<Order>>();
+  order_queue_ = std::make_shared<LockFreeMPSCQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(is_running_, order_queue_,
                                                   std::move(rest_client));
 
