@@ -9,7 +9,7 @@ enum class OrderType : uint8_t { Market, Limit };
 
 constexpr int64_t SCALING_FACTOR = 10000;
 
-struct Order {
+struct alignas(64) Order {
   uint64_t id;
   char symbol[8];
   int64_t quantity;
@@ -18,7 +18,7 @@ struct Order {
   OrderType type;
 };
 
-static_assert(sizeof(Order) == 40, "Expected size is 40 bytes");
-static_assert(alignof(Order) == 8, "Order must be 8-byte aligned");
+static_assert(sizeof(Order) == 64, "Order must be exactly one cache line");
+static_assert(alignof(Order) == 64, "Order must be cache-line aligned");
 static_assert(std::is_trivially_copyable_v<Order>,
               "Order must be trivially copyable for lock-free queues");
