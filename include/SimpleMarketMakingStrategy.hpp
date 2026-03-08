@@ -9,7 +9,7 @@
 
 class SimpleMarketMakingStrategy {
 public:
-  SimpleMarketMakingStrategy() : last_trade_price_(0), order_id_counter_(0) {}
+  SimpleMarketMakingStrategy() : last_trade_price_(0) {}
 
   [[nodiscard]] std::optional<Order> onMarketEvent(const MarketEvent &event) {
     if (event.eventType != 2) [[unlikely]] {
@@ -24,7 +24,6 @@ public:
     }
 
     Order order{};
-    order.id = ++order_id_counter_;
     std::memcpy(order.symbol, event.symbol, sizeof(order.symbol));
     order.side = OrderSide::Buy;
     order.type = OrderType::Limit;
@@ -35,5 +34,4 @@ public:
 
 private:
   uint64_t last_trade_price_;
-  uint64_t order_id_counter_;
 };

@@ -31,22 +31,14 @@ TEST_F(SimpleMarketMakingStrategyTest, IgnoresQuoteEvent) {
   EXPECT_FALSE(strategy.onMarketEvent(quote_event).has_value());
 }
 
-TEST_F(SimpleMarketMakingStrategyTest, OrderIdIncrements) {
-  MarketEvent trade1{};
-  trade1.eventType = 2;
-  trade1.p1 = 1000000;
+TEST_F(SimpleMarketMakingStrategyTest, LeavesOrderIdUnset) {
+  MarketEvent trade{};
+  trade.eventType = 2;
+  trade.p1 = 1000000;
 
-  MarketEvent trade2{};
-  trade2.eventType = 2;
-  trade2.p1 = 1010000;
-
-  const auto order1 = strategy.onMarketEvent(trade1);
-  ASSERT_TRUE(order1.has_value());
-  EXPECT_EQ(order1->id, 1);
-
-  const auto order2 = strategy.onMarketEvent(trade2);
-  ASSERT_TRUE(order2.has_value());
-  EXPECT_EQ(order2->id, 2);
+  const auto order = strategy.onMarketEvent(trade);
+  ASSERT_TRUE(order.has_value());
+  EXPECT_EQ(order->id, 0);
 }
 
 TEST_F(SimpleMarketMakingStrategyTest, HandlesZeroPrice) {
