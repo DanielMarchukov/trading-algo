@@ -11,7 +11,7 @@ struct SymbolKey {
   char value[8] = {};
 
   [[nodiscard]] bool operator==(const SymbolKey &other) const {
-    return strncmp(value, other.value, sizeof(value)) == 0;
+    return std::memcmp(value, other.value, sizeof(value)) == 0;
   }
 };
 
