@@ -12,6 +12,13 @@ public:
   }
 };
 
+class ThrowingNonStdStrategy {
+public:
+  std::optional<Order> onMarketEvent(const MarketEvent &) {
+    throw 42; // NOLINT: intentional non-std throw for test coverage
+  }
+};
+
 TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
   zmq::context_t context(1);
   zmq::socket_t publisher(context, zmq::socket_type::pub);
@@ -40,6 +47,47 @@ TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
   event.s1 = 1;
 
   for (int i = 0; i < 5; ++i) {
+    zmq::message_t topic("TEST", 4);
+    zmq::message_t payload(&event, sizeof(MarketEvent));
+    publisher.send(topic, zmq::send_flags::sndmore);
+    publisher.send(payload, zmq::send_flags::none);
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
+
+  is_running.store(false);
+  consumer_thread.join();
+
+  EXPECT_FALSE(callback_called);
+}
+
+TEST(MarketEventConsumerErrorTest, HandlesNonStdException) {
+  zmq::context_t context(1);
+  zmq::socket_t publisher(context, zmq::socket_type::pub);
+  publisher.bind("tcp://127.0.0.1:5557");
+
+  std::atomic is_running(true);
+  auto position_manager = std::make_shared<PositionManager>();
+  auto risk_manager = std::make_unique<RiskManager>(position_manager);
+
+  bool callback_called = false;
+  auto callback = [&](const Order &) { callback_called = true; };
+
+  MarketEventConsumer<ThrowingNonStdStrategy> consumer(
+      context, "tcp://127.0.0.1:5557", "TEST", is_running, callback,
+      risk_manager.get());
+
+  std::thread consumer_thread(&MarketEventConsumer<ThrowingNonStdStrategy>::run,
+                              &consumer);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  MarketEvent event{};
+  event.eventType = 2;
+  std::memcpy(event.symbol, "TEST", 4);
+  event.timestamp = 1;
+  event.p1 = 100;
+  event.s1 = 1;
+
+  for (int i = 0; i < 3; ++i) {
     zmq::message_t topic("TEST", 4);
     zmq::message_t payload(&event, sizeof(MarketEvent));
     publisher.send(topic, zmq::send_flags::sndmore);
