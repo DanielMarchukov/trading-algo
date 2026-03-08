@@ -87,6 +87,7 @@ jobs:
             cpp_compiler: clang++
             build_type: Debug
             vcpkg_triplet: x64-linux
+            cmake_extra_flags: "-DCMAKE_CXX_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14 -DCMAKE_C_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14"
           - os: windows-latest
             build_type: Debug
             vcpkg_triplet: x64-windows-static
@@ -106,6 +107,7 @@ jobs:
             cpp_compiler: clang++
             build_type: Release
             vcpkg_triplet: x64-linux
+            cmake_extra_flags: "-DCMAKE_CXX_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14 -DCMAKE_C_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14"
           - os: windows-latest
             build_type: Release
             vcpkg_triplet: x64-windows-static
@@ -132,8 +134,22 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy libstdc++-14-dev
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy libstdc++-14-dev g++-14
           clang-format --version
+
+      - name: Diagnose Clang GCC detection (Linux + Clang)
+        if: runner.os == 'Linux' && matrix.c_compiler == 'clang'
+        run: |
+          echo "=== Clang version ==="
+          clang++ --version
+          echo "=== GCC installations ==="
+          ls -la /usr/lib/gcc/x86_64-linux-gnu/
+          echo "=== Clang header search paths ==="
+          clang++ -std=c++23 -v -xc++ /dev/null -fsyntax-only 2>&1 | head -40
+          echo "=== Test std::expected availability ==="
+          echo '#include <expected>' | clang++ -std=c++23 -xc++ -fsyntax-only - 2>&1 || true
+          echo "=== Test with explicit GCC 14 ==="
+          echo '#include <expected>' | clang++ -std=c++23 --gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14 -xc++ -fsyntax-only - 2>&1 || true
 
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS'
@@ -185,6 +201,7 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
           -DENABLE_COVERAGE=ON
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          ${{ matrix.cmake_extra_flags || '' }}
         env:
           CC: ${{ env.CC || matrix.c_compiler }}
           CXX: ${{ env.CXX || matrix.cpp_compiler }}
