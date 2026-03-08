@@ -142,11 +142,11 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
   return std::monostate{};
 }
 
-AlpacaFillListener::AlpacaFillListener(
-    std::shared_ptr<PositionManager> position_manager,
-    std::atomic<bool> &is_running, const std::string &api_key,
-    const std::string &api_secret)
-    : position_manager_(std::move(position_manager)), is_running_(is_running),
+AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
+                                       std::atomic<bool> &is_running,
+                                       const std::string &api_key,
+                                       const std::string &api_secret)
+    : position_manager_(position_manager), is_running_(is_running),
       api_key_(api_key), api_secret_(api_secret) {}
 
 AlpacaFillListener::~AlpacaFillListener() { stop(); }

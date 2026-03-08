@@ -1,6 +1,7 @@
 #include "MarketEvent.hpp"
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
+#include "PositionManager.hpp"
 #include "ThreadGuard.hpp"
 #include <atomic>
 #include <chrono>
@@ -41,12 +42,12 @@ protected:
     std::filesystem::path socket_path = temp_dir / ("test_market_data.sock");
     ipc_address = "ipc:///" + socket_path.string();
 #endif
-    position_manager_ = std::make_shared<PositionManager>();
-    risk_manager_ = std::make_unique<RiskManager>(position_manager_);
+    position_manager_ = std::make_unique<PositionManager>();
+    risk_manager_ = std::make_unique<RiskManager>(position_manager_.get());
   }
 
   std::string ipc_address;
-  std::shared_ptr<PositionManager> position_manager_;
+  std::unique_ptr<PositionManager> position_manager_;
   std::unique_ptr<RiskManager> risk_manager_;
 };
 

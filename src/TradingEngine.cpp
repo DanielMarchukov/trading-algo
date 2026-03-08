@@ -61,14 +61,15 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client)
     : is_running_(true), symbols_(symbols) {
   setup_signal_handler();
-  position_manager_ = std::make_shared<PositionManager>();
+  position_manager_ = std::make_unique<PositionManager>();
   for (const auto &symbol : symbols_) {
     position_manager_->registerSymbol(symbol);
   }
-  risk_manager_ = std::make_unique<RiskManager>(position_manager_);
-  order_queue_ = std::make_shared<LockFreeMPSCQueue<Order>>();
+  risk_manager_ = std::make_unique<RiskManager>(position_manager_.get());
+  order_queue_ = std::make_unique<LockFreeMPSCQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(
-      is_running_, order_queue_, std::move(rest_client), position_manager_);
+      is_running_, order_queue_.get(), std::move(rest_client),
+      position_manager_.get());
 
   const char *api_key = std::getenv("APCA_API_KEY_ID");
   const char *api_secret = std::getenv("APCA_API_SECRET_KEY");
@@ -77,7 +78,7 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
         "APCA_API_KEY_ID and APCA_API_SECRET_KEY must be set");
   }
   fill_listener_ = std::make_unique<AlpacaFillListener>(
-      position_manager_, is_running_, api_key, api_secret);
+      position_manager_.get(), is_running_, api_key, api_secret);
 
 #ifdef _WIN32
   ipc_address_ = "tcp://127.0.0.1:5555";

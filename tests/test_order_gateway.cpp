@@ -29,25 +29,24 @@ public:
 
 class OrderGatewayTest : public ::testing::Test {
 protected:
-  std::shared_ptr<PositionManager> position_manager_ =
-      std::make_shared<PositionManager>();
+  PositionManager position_manager_;
 };
 
 TEST_F(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
   std::atomic is_running(true);
-  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+  LockFreeMPSCQueue<Order> order_queue;
   std::promise<void> promise;
   const auto future = promise.get_future();
 
   auto mock_client = std::make_unique<MockRestClient>(&promise);
-  OrderGateway gateway(is_running, order_queue, std::move(mock_client),
-                       position_manager_);
+  OrderGateway gateway(is_running, &order_queue, std::move(mock_client),
+                       &position_manager_);
 
   ThreadGuard gateway_thread_guard{std::thread(&OrderGateway::run, &gateway)};
 
   Order test_order{};
   test_order.id = 999;
-  order_queue->push(test_order);
+  order_queue.push(test_order);
 
   const auto status = future.wait_for(std::chrono::seconds(2));
   ASSERT_EQ(status, std::future_status::ready);
@@ -57,19 +56,19 @@ TEST_F(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
 
 TEST_F(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
   std::atomic is_running(true);
-  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+  LockFreeMPSCQueue<Order> order_queue;
   std::promise<void> promise;
   auto future = promise.get_future();
 
   auto mock_client = std::make_unique<MockRestClient>(&promise);
-  OrderGateway gateway(is_running, order_queue, std::move(mock_client),
-                       position_manager_);
+  OrderGateway gateway(is_running, &order_queue, std::move(mock_client),
+                       &position_manager_);
 
   ThreadGuard gateway_thread_guard{std::thread(&OrderGateway::run, &gateway)};
 
   Order test_order{};
   test_order.id = 1234;
-  order_queue->push(test_order);
+  order_queue.push(test_order);
 
   is_running.store(false);
 
@@ -79,7 +78,7 @@ TEST_F(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
 
 TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
   std::atomic is_running(true);
-  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+  LockFreeMPSCQueue<Order> order_queue;
 
   std::vector<uint64_t> received_ids;
   std::atomic<int> call_count{0};
@@ -101,15 +100,15 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
   };
 
   OrderGateway gateway(
-      is_running, order_queue,
+      is_running, &order_queue,
       std::make_unique<CapturingClient>(received_ids, call_count),
-      position_manager_);
+      &position_manager_);
   ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
 
   Order order1{};
   Order order2{};
-  order_queue->push(order1);
-  order_queue->push(order2);
+  order_queue.push(order1);
+  order_queue.push(order2);
 
   while (call_count.load(std::memory_order_acquire) < 2) {
   }
@@ -123,9 +122,9 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
 
 TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
   std::atomic is_running(false);
-  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+  LockFreeMPSCQueue<Order> order_queue;
 
-  position_manager_->registerSymbol("AAPL");
+  position_manager_.registerSymbol("AAPL");
 
   Order order{};
   order.id = 1;
@@ -133,10 +132,10 @@ TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
   order.side = OrderSide::Buy;
   order.quantity = 100;
 
-  position_manager_->onOrderSent(order);
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
+  position_manager_.onOrderSent(order);
+  EXPECT_EQ(position_manager_.getPendingPosition("AAPL"), 100);
 
-  order_queue->push(order);
+  order_queue.push(order);
 
   class RejectingClient final : public IRestClient {
   public:
@@ -146,11 +145,11 @@ TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
     }
   };
 
-  OrderGateway gateway(is_running, order_queue,
-                       std::make_unique<RejectingClient>(), position_manager_);
+  OrderGateway gateway(is_running, &order_queue,
+                       std::make_unique<RejectingClient>(), &position_manager_);
   gateway.run();
 
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
+  EXPECT_EQ(position_manager_.getPendingPosition("AAPL"), 0);
 }
 
 namespace {
@@ -196,20 +195,19 @@ struct MainLoopExceptionParam {
 class GatewayMainLoopExceptionTest
     : public ::testing::TestWithParam<MainLoopExceptionParam> {
 protected:
-  std::shared_ptr<PositionManager> position_manager_ =
-      std::make_shared<PositionManager>();
+  PositionManager position_manager_;
 };
 
 TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
   const auto &[factory, expected_substr] = GetParam();
   std::atomic is_running(true);
-  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+  LockFreeMPSCQueue<Order> order_queue;
   std::promise<void> promise;
   auto future = promise.get_future();
 
   auto client = factory(&promise);
-  OrderGateway gateway(is_running, order_queue, std::move(client),
-                       position_manager_);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_);
 
   std::stringstream captured;
   auto *original = std::cerr.rdbuf(captured.rdbuf());
@@ -218,7 +216,7 @@ TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
 
   Order order{};
   order.id = 1;
-  order_queue->push(order);
+  order_queue.push(order);
 
   const auto status = future.wait_for(std::chrono::seconds(2));
   ASSERT_EQ(status, std::future_status::ready);
@@ -251,22 +249,21 @@ struct ShutdownExceptionParam {
 class GatewayShutdownExceptionTest
     : public ::testing::TestWithParam<ShutdownExceptionParam> {
 protected:
-  std::shared_ptr<PositionManager> position_manager_ =
-      std::make_shared<PositionManager>();
+  PositionManager position_manager_;
 };
 
 TEST_P(GatewayShutdownExceptionTest, LogsCorrectError) {
   const auto &[factory, expected_substr] = GetParam();
   std::atomic is_running(false);
-  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+  LockFreeMPSCQueue<Order> order_queue;
 
   Order order{};
   order.id = 1;
-  order_queue->push(order);
+  order_queue.push(order);
 
   auto client = factory();
-  OrderGateway gateway(is_running, order_queue, std::move(client),
-                       position_manager_);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_);
 
   std::stringstream captured;
   auto *original = std::cerr.rdbuf(captured.rdbuf());

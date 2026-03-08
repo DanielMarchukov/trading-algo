@@ -42,10 +42,10 @@ private:
   std::atomic<bool> is_running_;
   std::string ipc_address_;
   std::vector<std::string> symbols_;
-  std::shared_ptr<PositionManager> position_manager_;
+  std::unique_ptr<PositionManager> position_manager_;
   std::unique_ptr<RiskManager> risk_manager_;
   zmq::context_t context_{1};
-  std::shared_ptr<LockFreeMPSCQueue<Order>> order_queue_;
+  std::unique_ptr<LockFreeMPSCQueue<Order>> order_queue_;
   std::unique_ptr<OrderGateway> order_gateway_;
   std::thread order_gateway_thread_;
   std::vector<ConsumerThread> consumer_threads_;

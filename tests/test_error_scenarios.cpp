@@ -1,4 +1,5 @@
 #include "MarketEventConsumer.hpp"
+#include "PositionManager.hpp"
 #include "RiskManager.hpp"
 #include <cstring>
 #include <gtest/gtest.h>
@@ -25,8 +26,8 @@ TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
   publisher.bind("tcp://127.0.0.1:5556");
 
   std::atomic is_running(true);
-  auto position_manager = std::make_shared<PositionManager>();
-  auto risk_manager = std::make_unique<RiskManager>(position_manager);
+  auto position_manager = std::make_unique<PositionManager>();
+  auto risk_manager = std::make_unique<RiskManager>(position_manager.get());
 
   bool callback_called = false;
   auto callback = [&](const Order &) { callback_called = true; };
@@ -66,8 +67,8 @@ TEST(MarketEventConsumerErrorTest, HandlesNonStdException) {
   publisher.bind("tcp://127.0.0.1:5557");
 
   std::atomic is_running(true);
-  auto position_manager = std::make_shared<PositionManager>();
-  auto risk_manager = std::make_unique<RiskManager>(position_manager);
+  auto position_manager = std::make_unique<PositionManager>();
+  auto risk_manager = std::make_unique<RiskManager>(position_manager.get());
 
   bool callback_called = false;
   auto callback = [&](const Order &) { callback_called = true; };
