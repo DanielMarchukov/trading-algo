@@ -11,15 +11,15 @@ class SimpleMarketMakingStrategy {
 public:
   SimpleMarketMakingStrategy() : last_trade_price_(0), order_id_counter_(0) {}
 
-  std::optional<Order> onMarketEvent(const MarketEvent &event) {
-    if (event.eventType != 2) {
+  [[nodiscard]] std::optional<Order> onMarketEvent(const MarketEvent &event) {
+    if (event.eventType != 2) [[unlikely]] {
       return std::nullopt;
     }
 
     last_trade_price_ = event.p1;
 
     constexpr uint64_t offset_ticks = 100;
-    if (last_trade_price_ < offset_ticks) {
+    if (last_trade_price_ < offset_ticks) [[unlikely]] {
       return std::nullopt;
     }
 

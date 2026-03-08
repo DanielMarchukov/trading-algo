@@ -8,7 +8,7 @@ RiskManager::RiskManager(
 }
 
 bool RiskManager::onNewOrder(const Order &order) {
-  if (!position_manager_) {
+  if (!position_manager_) [[unlikely]] {
     return false;
   }
 
@@ -21,7 +21,7 @@ bool RiskManager::onNewOrder(const Order &order) {
     new_exposure -= order.quantity;
   }
 
-  if (std::llabs(new_exposure) > max_position_per_symbol_) {
+  if (std::llabs(new_exposure) > max_position_per_symbol_) [[unlikely]] {
     return false;
   }
 
@@ -31,7 +31,7 @@ bool RiskManager::onNewOrder(const Order &order) {
         static_cast<long double>(std::llabs(order.quantity));
     const long double limit = static_cast<long double>(max_order_value_) *
                               static_cast<long double>(SCALING_FACTOR);
-    if (notional > limit) {
+    if (notional > limit) [[unlikely]] {
       return false;
     }
   }

@@ -45,7 +45,7 @@ public:
     prev_head->next.store(node, std::memory_order_release);
   }
 
-  bool try_pop(T &result) {
+  [[nodiscard]] bool try_pop(T &result) {
     Node *tail = tail_;
     Node *next = tail->next.load(std::memory_order_acquire);
 

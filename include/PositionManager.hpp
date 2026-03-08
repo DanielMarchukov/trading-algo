@@ -10,20 +10,20 @@
 struct SymbolKey {
   char value[8] = {};
 
-  bool operator==(const SymbolKey &other) const {
-    return strncmp(value, other.value, sizeof(value)) == 0;
+  [[nodiscard]] bool operator==(const SymbolKey &other) const {
+    return std::memcmp(value, other.value, sizeof(value)) == 0;
   }
 };
 
 static_assert(sizeof(SymbolKey) == 8, "SymbolKey must be exactly 8 bytes");
 
 struct SymbolKeyHashCompare {
-  static std::size_t hash(const SymbolKey &k) {
+  [[nodiscard]] static std::size_t hash(const SymbolKey &k) {
     return std::hash<std::string_view>{}(
         std::string_view(k.value, sizeof(k.value)));
   }
 
-  static bool equal(const SymbolKey &lhs, const SymbolKey &rhs) {
+  [[nodiscard]] static bool equal(const SymbolKey &lhs, const SymbolKey &rhs) {
     return std::memcmp(lhs.value, rhs.value, sizeof(lhs.value)) == 0;
   }
 };
@@ -54,8 +54,8 @@ private:
   using PositionMap =
       tbb::concurrent_hash_map<SymbolKey, PositionState, SymbolKeyHashCompare>;
 
-  static SymbolKey makeKey(std::string_view symbol);
-  static SymbolKey makeKeyFromBuffer(const char *symbol_buffer);
+  [[nodiscard]] static SymbolKey makeKey(std::string_view symbol);
+  [[nodiscard]] static SymbolKey makeKeyFromBuffer(const char *symbol_buffer);
 
   mutable PositionMap positions_;
 };

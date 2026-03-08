@@ -27,7 +27,7 @@ TEST_F(LockFreeMPSCQueueTest, SinglePushPop) {
 TEST_F(LockFreeMPSCQueueTest, PopAfterPushLeavesEmpty) {
   queue.push(100);
   int value;
-  queue.try_pop(value);
+  EXPECT_TRUE(queue.try_pop(value));
   EXPECT_FALSE(queue.try_pop(value));
 }
 

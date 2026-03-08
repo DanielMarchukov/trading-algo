@@ -26,7 +26,7 @@ void signal_handler(const int signum) {
 }
 } // namespace
 
-void pin_thread_to_core(std::thread &t, size_t core_id) {
+void pin_thread_to_core(std::thread &t, uint32_t core_id) {
 #if defined(__linux__) || defined(__gnu_linux__)
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
@@ -111,7 +111,7 @@ void TradingEngine::launch_gateway() {
 }
 
 void TradingEngine::launch_consumers() {
-  for (size_t i = 0; i < symbols_.size(); ++i) {
+  for (uint32_t i = 0; i < symbols_.size(); ++i) {
     const auto &symbol = symbols_[i];
     auto callback = [this](const Order &order) {
       this->order_queue_->push(order);
