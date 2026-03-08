@@ -87,7 +87,6 @@ jobs:
             cpp_compiler: clang++
             build_type: Debug
             vcpkg_triplet: x64-linux
-            cmake_extra_flags: "-DCMAKE_CXX_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14 -DCMAKE_C_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14"
           - os: windows-latest
             build_type: Debug
             vcpkg_triplet: x64-windows-static
@@ -107,7 +106,6 @@ jobs:
             cpp_compiler: clang++
             build_type: Release
             vcpkg_triplet: x64-linux
-            cmake_extra_flags: "-DCMAKE_CXX_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14 -DCMAKE_C_FLAGS=--gcc-install-dir=/usr/lib/gcc/x86_64-linux-gnu/14"
           - os: windows-latest
             build_type: Release
             vcpkg_triplet: x64-windows-static
@@ -201,7 +199,6 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
           -DENABLE_COVERAGE=ON
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          ${{ matrix.cmake_extra_flags || '' }}
         env:
           CC: ${{ env.CC || matrix.c_compiler }}
           CXX: ${{ env.CXX || matrix.cpp_compiler }}
@@ -219,8 +216,21 @@ jobs:
           -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         shell: pwsh
 
+      - name: Show compile command (Linux + Clang Debug)
+        if: runner.os == 'Linux' && matrix.c_compiler == 'clang' && matrix.build_type == 'Debug'
+        run: |
+          python3 -c "
+          import json
+          with open('build/compile_commands.json') as f:
+              cmds = json.load(f)
+          for c in cmds:
+              if 'main.cpp' in c.get('file',''):
+                  print(c['command'])
+                  break
+          "
+
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }}
+        run: cmake --build build --config ${{ matrix.build_type }} --verbose
 
       - name: Run clang-tidy static analysis
         if: runner.os == 'Linux' && matrix.c_compiler == 'clang' && matrix.build_type == 'Debug'

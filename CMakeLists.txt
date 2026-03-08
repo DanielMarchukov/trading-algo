@@ -9,6 +9,10 @@ endif()
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+message(
+    STATUS
+        "C++ standard: ${CMAKE_CXX_STANDARD} (compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION})"
+)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 option(SANITIZE_ADDRESS "Enable AddressSanitizer (ASAN)" OFF)
@@ -90,6 +94,7 @@ list(FILTER SOURCES EXCLUDE REGEX "main.cpp")
 include_directories(include)
 
 add_executable(paper_money src/main.cpp ${SOURCES})
+target_compile_features(paper_money PUBLIC cxx_std_23)
 target_link_libraries(
     paper_money
     PRIVATE Boost::lockfree
@@ -115,6 +120,7 @@ enable_testing()
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 
 add_executable(rich_on_tests ${SOURCES} ${TESTS})
+target_compile_features(rich_on_tests PUBLIC cxx_std_23)
 target_link_libraries(
     rich_on_tests
     PUBLIC Boost::lockfree
