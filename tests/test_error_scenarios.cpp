@@ -18,15 +18,15 @@ TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
   publisher.bind("tcp://127.0.0.1:5556");
 
   std::atomic is_running(true);
-  const auto risk_manager =
-      std::make_shared<RiskManager>(std::make_shared<PositionManager>());
+  auto position_manager = std::make_shared<PositionManager>();
+  auto risk_manager = std::make_unique<RiskManager>(position_manager);
 
   bool callback_called = false;
   auto callback = [&](const Order &) { callback_called = true; };
 
   MarketEventConsumer<ThrowingStrategy> consumer(
       context, "tcp://127.0.0.1:5556", "TEST", is_running, callback,
-      risk_manager);
+      risk_manager.get());
 
   std::thread consumer_thread(&MarketEventConsumer<ThrowingStrategy>::run,
                               &consumer);
