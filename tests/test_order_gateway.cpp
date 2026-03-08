@@ -32,6 +32,30 @@ protected:
   PositionManager position_manager_;
 };
 
+TEST_F(OrderGatewayTest, ThrowsOnNullOrderQueue) {
+  std::atomic is_running(true);
+  EXPECT_THROW(OrderGateway(is_running, nullptr,
+                            std::make_unique<MockRestClient>(),
+                            &position_manager_),
+               std::invalid_argument);
+}
+
+TEST_F(OrderGatewayTest, ThrowsOnNullRestClient) {
+  std::atomic is_running(true);
+  LockFreeMPSCQueue<Order> order_queue;
+  EXPECT_THROW(
+      OrderGateway(is_running, &order_queue, nullptr, &position_manager_),
+      std::invalid_argument);
+}
+
+TEST_F(OrderGatewayTest, ThrowsOnNullPositionManager) {
+  std::atomic is_running(true);
+  LockFreeMPSCQueue<Order> order_queue;
+  EXPECT_THROW(OrderGateway(is_running, &order_queue,
+                            std::make_unique<MockRestClient>(), nullptr),
+               std::invalid_argument);
+}
+
 TEST_F(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
   std::atomic is_running(true);
   LockFreeMPSCQueue<Order> order_queue;

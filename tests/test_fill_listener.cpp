@@ -48,6 +48,12 @@ protected:
   std::unique_ptr<AlpacaFillListener> listener_;
 };
 
+TEST(AlpacaFillListenerConstructionTest, ThrowsOnNullPositionManager) {
+  std::atomic<bool> is_running{true};
+  EXPECT_THROW(AlpacaFillListener(nullptr, is_running, "key", "secret"),
+               std::invalid_argument);
+}
+
 struct FillParseParam {
   const char *event_type;
   const char *symbol;

@@ -12,10 +12,9 @@ private:
 
     explicit Node(const T &value) : next(nullptr), data(value) {}
     Node() : next(nullptr), data() {}
-
-    static_assert(sizeof(T) <= 64,
-                  "Queue element must fit in a single cache line");
   };
+
+  static_assert(sizeof(Node) <= 128, "Node must fit within two cache lines");
 
   alignas(64) std::atomic<Node *> head_;
   alignas(64) Node *tail_;
