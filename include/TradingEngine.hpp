@@ -7,6 +7,7 @@
 #include "PositionManager.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <thread>
@@ -14,7 +15,7 @@
 
 class IFillListener;
 
-void pin_thread_to_core(std::thread &t, size_t core_id);
+void pin_thread_to_core(std::thread &t, uint32_t core_id);
 
 class TradingEngine {
 public:

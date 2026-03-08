@@ -12,7 +12,7 @@ constexpr std::size_t kSymbolCapacity = sizeof(SymbolKey{}.value);
 
 SymbolKey PositionManager::makeKey(std::string_view symbol) {
   SymbolKey key{};
-  const auto copy_len = std::min(symbol.size(), kSymbolCapacity);
+  const auto copy_len = (std::min)(symbol.size(), kSymbolCapacity);
   if (copy_len > 0) {
     std::memcpy(key.value, symbol.data(), copy_len);
   }
