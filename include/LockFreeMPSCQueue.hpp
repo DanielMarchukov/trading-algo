@@ -78,4 +78,24 @@ public:
       delete tail;
     }
   }
+
+  [[nodiscard]] bool wait_and_pop(T &result, const std::atomic<bool> &running) {
+    Node *tail = tail_;
+    Node *next = tail->next.load(std::memory_order_acquire);
+
+    while (next == nullptr) {
+      if (!running.load(std::memory_order_relaxed)) {
+        return false;
+      }
+      next = tail->next.load(std::memory_order_acquire);
+    }
+
+    result = next->data;
+    tail_ = next;
+
+    if (tail != &stub_) {
+      delete tail;
+    }
+    return true;
+  }
 };
