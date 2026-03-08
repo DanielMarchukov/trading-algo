@@ -60,7 +60,14 @@ public:
         if (order && risk_manager_->onNewOrder(*order)) {
           order_callback_(*order);
         }
+      } catch (const std::exception &e) {
+        std::cerr << "MarketEventConsumer[" << symbol_
+                  << "]: exception in strategy/risk pipeline: " << e.what()
+                  << std::endl;
       } catch (...) {
+        std::cerr << "MarketEventConsumer[" << symbol_
+                  << "]: unknown exception in strategy/risk pipeline"
+                  << std::endl;
       }
     }
   }
