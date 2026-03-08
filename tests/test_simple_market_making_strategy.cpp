@@ -22,15 +22,6 @@ TEST_F(SimpleMarketMakingStrategyTest, GeneratesBuyOrderOnTradeEvent) {
   EXPECT_EQ(order->price, 1499900);
 }
 
-TEST_F(SimpleMarketMakingStrategyTest, IgnoresQuoteEvent) {
-  MarketEvent quote_event{};
-  quote_event.eventType = 1;
-  quote_event.p1 = 1500000;
-  quote_event.p2 = 1500200;
-
-  EXPECT_FALSE(strategy.onMarketEvent(quote_event).has_value());
-}
-
 TEST_F(SimpleMarketMakingStrategyTest, LeavesOrderIdUnset) {
   MarketEvent trade{};
   trade.eventType = 2;
@@ -41,18 +32,28 @@ TEST_F(SimpleMarketMakingStrategyTest, LeavesOrderIdUnset) {
   EXPECT_EQ(order->id, 0);
 }
 
-TEST_F(SimpleMarketMakingStrategyTest, HandlesZeroPrice) {
-  MarketEvent trade_event{};
-  trade_event.eventType = 2;
-  trade_event.p1 = 0;
+struct RejectParam {
+  uint8_t event_type;
+  uint64_t p1;
+  const char *name;
+};
 
-  EXPECT_FALSE(strategy.onMarketEvent(trade_event).has_value());
+class StrategyRejectsInputTest : public ::testing::TestWithParam<RejectParam> {
+protected:
+  SimpleMarketMakingStrategy strategy;
+};
+
+TEST_P(StrategyRejectsInputTest, ReturnsNullopt) {
+  const auto &[event_type, p1, name] = GetParam();
+  MarketEvent event{};
+  event.eventType = event_type;
+  event.p1 = p1;
+
+  EXPECT_FALSE(strategy.onMarketEvent(event).has_value()) << name;
 }
 
-TEST_F(SimpleMarketMakingStrategyTest, SkipsOrderWhenBuyPriceUnderflows) {
-  MarketEvent trade_event{};
-  trade_event.eventType = 2;
-  trade_event.p1 = 50;
-
-  EXPECT_FALSE(strategy.onMarketEvent(trade_event).has_value());
-}
+INSTANTIATE_TEST_SUITE_P(
+    InvalidInputs, StrategyRejectsInputTest,
+    ::testing::Values(RejectParam{1, 1500000, "quote event (non-trade)"},
+                      RejectParam{2, 0, "zero price"},
+                      RejectParam{2, 50, "price below offset"}));
