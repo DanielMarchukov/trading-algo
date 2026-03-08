@@ -61,14 +61,14 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client)
     : is_running_(true), symbols_(symbols) {
   setup_signal_handler();
-  auto position_manager = std::make_shared<PositionManager>();
+  position_manager_ = std::make_shared<PositionManager>();
   for (const auto &symbol : symbols_) {
-    position_manager->registerSymbol(symbol);
+    position_manager_->registerSymbol(symbol);
   }
-  risk_manager_ = std::make_shared<RiskManager>(position_manager);
+  risk_manager_ = std::make_unique<RiskManager>(position_manager_);
   order_queue_ = std::make_shared<LockFreeMPSCQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(
-      is_running_, order_queue_, std::move(rest_client), position_manager);
+      is_running_, order_queue_, std::move(rest_client), position_manager_);
 
   const char *api_key = std::getenv("APCA_API_KEY_ID");
   const char *api_secret = std::getenv("APCA_API_SECRET_KEY");
@@ -77,7 +77,7 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
         "APCA_API_KEY_ID and APCA_API_SECRET_KEY must be set");
   }
   fill_listener_ = std::make_unique<AlpacaFillListener>(
-      position_manager, is_running_, api_key, api_secret);
+      position_manager_, is_running_, api_key, api_secret);
 
 #ifdef _WIN32
   ipc_address_ = "tcp://127.0.0.1:5555";
@@ -120,7 +120,7 @@ void TradingEngine::launch_consumers() {
     auto consumer =
         std::make_unique<MarketEventConsumer<SimpleMarketMakingStrategy>>(
             context_, ipc_address_, symbol, is_running_, callback,
-            risk_manager_);
+            risk_manager_.get());
 
     consumer_threads_.push_back(
         {std::thread(&MarketEventConsumer<SimpleMarketMakingStrategy>::run,

@@ -4,6 +4,7 @@
 #include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
 #include "OrderGateway.hpp"
+#include "PositionManager.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
 #include <atomic>
 #include <memory>
@@ -40,7 +41,8 @@ private:
   std::atomic<bool> is_running_;
   std::string ipc_address_;
   std::vector<std::string> symbols_;
-  std::shared_ptr<RiskManager> risk_manager_;
+  std::shared_ptr<PositionManager> position_manager_;
+  std::unique_ptr<RiskManager> risk_manager_;
   zmq::context_t context_{1};
   std::shared_ptr<LockFreeMPSCQueue<Order>> order_queue_;
   std::unique_ptr<OrderGateway> order_gateway_;

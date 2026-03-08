@@ -18,8 +18,7 @@ public:
 
   MarketEventConsumer(zmq::context_t &context, std::string address,
                       std::string symbol, std::atomic<bool> &is_running,
-                      OrderCallback order_callback,
-                      const std::shared_ptr<RiskManager> &risk_manager)
+                      OrderCallback order_callback, RiskManager *risk_manager)
       : subscriber_(context, zmq::socket_type::sub),
         address_(std::move(address)), symbol_(std::move(symbol)),
         is_running_(is_running), order_callback_(std::move(order_callback)),
@@ -73,5 +72,5 @@ private:
   std::atomic<bool> &is_running_;
   OrderCallback order_callback_;
   std::unique_ptr<StrategyType> strategy_;
-  std::shared_ptr<RiskManager> risk_manager_;
+  RiskManager *risk_manager_;
 };

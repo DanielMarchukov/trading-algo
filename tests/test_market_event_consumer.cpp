@@ -41,12 +41,13 @@ protected:
     std::filesystem::path socket_path = temp_dir / ("test_market_data.sock");
     ipc_address = "ipc:///" + socket_path.string();
 #endif
-    risk_manager_ =
-        std::make_shared<RiskManager>(std::make_shared<PositionManager>());
+    position_manager_ = std::make_shared<PositionManager>();
+    risk_manager_ = std::make_unique<RiskManager>(position_manager_);
   }
 
   std::string ipc_address;
-  std::shared_ptr<RiskManager> risk_manager_;
+  std::shared_ptr<PositionManager> position_manager_;
+  std::unique_ptr<RiskManager> risk_manager_;
 };
 
 class EmptyStrategy {
@@ -91,8 +92,9 @@ TEST_F(MarketEventConsumerTest, HandlesStrategyReturningNoOrders) {
   auto callback = [&](const Order & /*order*/) { callback_count++; };
 
   try {
-    MarketEventConsumer<EmptyStrategy> consumer(
-        context, ipc_address, "TEST", is_running, callback, risk_manager_);
+    MarketEventConsumer<EmptyStrategy> consumer(context, ipc_address, "TEST",
+                                                is_running, callback,
+                                                risk_manager_.get());
 
     SUCCEED();
   } catch (const std::exception &e) {
@@ -109,7 +111,8 @@ TEST_F(MarketEventConsumerTest, HandlesRiskManagerRejection) {
 
   try {
     MarketEventConsumer<RejectedOrderStrategy> consumer(
-        context, ipc_address, "TEST", is_running, callback, risk_manager_);
+        context, ipc_address, "TEST", is_running, callback,
+        risk_manager_.get());
 
     SUCCEED();
   } catch (const std::exception &e) {
@@ -126,7 +129,7 @@ TEST_F(MarketEventConsumerTest, ConstructorThrowsOnInvalidAddress) {
 
   EXPECT_THROW(MarketEventConsumer<EmptyStrategy>(context, "invalid://address",
                                                   "TEST", is_running, callback,
-                                                  risk_manager_),
+                                                  risk_manager_.get()),
                zmq::error_t);
 }
 
@@ -141,7 +144,7 @@ TEST_F(MarketEventConsumerTest, CallsStrategyAndReceivesOrders) {
   auto test_callback = [&](const Order &order) { promise.set_value(order); };
   MarketEventConsumer<MockStrategy> consumer(context, ipc_address, "TEST",
                                              is_test_running, test_callback,
-                                             risk_manager_);
+                                             risk_manager_.get());
 
   ThreadGuard consumer_thread_guard{
       std::thread(&MarketEventConsumer<MockStrategy>::run, &consumer)};
@@ -185,7 +188,7 @@ TEST_F(MarketEventConsumerTest, SkipsMismatchedPayloadSize) {
   auto callback = [](const Order &) {};
 
   MarketEventConsumer<CountingStrategy> consumer(
-      context, ipc_address, "TEST", is_running, callback, risk_manager_);
+      context, ipc_address, "TEST", is_running, callback, risk_manager_.get());
 
   ThreadGuard consumer_thread_guard{
       std::thread(&MarketEventConsumer<CountingStrategy>::run, &consumer)};
