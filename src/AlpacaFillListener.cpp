@@ -41,7 +41,8 @@ void copySymbol(char (&dest)[8], const std::string &src) {
     if (val.is_number_integer()) {
       return val.get<int64_t>();
     }
-  } catch (const std::exception &) {
+  } catch (const std::exception &e) {
+    std::cerr << "FillListener: parseQty failed: " << e.what() << std::endl;
   }
   return std::nullopt;
 }
@@ -54,7 +55,8 @@ void copySymbol(char (&dest)[8], const std::string &src) {
     if (val.is_number()) {
       return val.get<double>();
     }
-  } catch (const std::exception &) {
+  } catch (const std::exception &e) {
+    std::cerr << "FillListener: parsePrice failed: " << e.what() << std::endl;
   }
   return std::nullopt;
 }

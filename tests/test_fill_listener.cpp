@@ -223,6 +223,23 @@ TEST_F(FillListenerTest, RejectsInvalidQtyString) {
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
 }
 
+TEST_F(FillListenerTest, RejectsInvalidPriceString) {
+  const auto update = parse(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "fill",
+      "qty": "100",
+      "price": "not_a_price",
+      "order": {
+        "symbol": "AAPL",
+        "side": "buy"
+      }
+    }
+  })");
+
+  EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
+}
+
 TEST_F(FillListenerTest, ParsesNumericQtyAndPrice) {
   const auto update = parse(R"({
     "stream": "trade_updates",
