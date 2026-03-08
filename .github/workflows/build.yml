@@ -83,8 +83,8 @@ jobs:
             build_type: Debug
             vcpkg_triplet: x64-linux
           - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
+            c_compiler: clang-19
+            cpp_compiler: clang++-19
             build_type: Debug
             vcpkg_triplet: x64-linux
           - os: windows-latest
@@ -102,8 +102,8 @@ jobs:
             build_type: Release
             vcpkg_triplet: x64-linux
           - os: ubuntu-latest
-            c_compiler: clang
-            cpp_compiler: clang++
+            c_compiler: clang-19
+            cpp_compiler: clang++-19
             build_type: Release
             vcpkg_triplet: x64-linux
           - os: windows-latest
@@ -132,8 +132,19 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy libstdc++-14-dev g++-14
           clang-format --version
+
+      - name: Install Clang 19 (Linux)
+        if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang')
+        run: |
+          if ! command -v clang++-19 &>/dev/null; then
+            wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+            sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
+            sudo apt-get update
+          fi
+          sudo apt-get install -y clang-19 llvm-19 clang-tidy-19
+          clang++-19 --version
 
       - name: Install build prerequisites (macOS)
         if: runner.os == 'macOS'
@@ -171,7 +182,7 @@ jobs:
           Update-SessionEnvironment
 
       - name: Check C++ formatting (clang-format)
-        if: runner.os == 'Linux' && matrix.c_compiler == 'clang' # Only run once
+        if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang') # Only run once
         run: |
           find src/ include/ tests/ -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | \
             xargs clang-format -style=file --dry-run --Werror
@@ -206,13 +217,13 @@ jobs:
         run: cmake --build build --config ${{ matrix.build_type }}
 
       - name: Run clang-tidy static analysis
-        if: runner.os == 'Linux' && matrix.c_compiler == 'clang' && matrix.build_type == 'Debug'
+        if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang') && matrix.build_type == 'Debug'
         run: |
-          find src/ tests/ -name "*.cpp" | xargs clang-tidy -p build/ --format-style=file
+          find src/ tests/ -name "*.cpp" | xargs clang-tidy-19 -p build/ --format-style=file
         continue-on-error: true
 
       - name: Test (Clang)
-        if: (runner.os == 'Linux' || runner.os == 'macOS') && matrix.c_compiler == 'clang'
+        if: (runner.os == 'Linux' || runner.os == 'macOS') && startsWith(matrix.c_compiler, 'clang')
         working-directory: ./build
         run: |
           LLVM_PROFILE_FILE="default.profraw" ctest --build-config ${{ matrix.build_type }} --output-on-failure
@@ -232,15 +243,15 @@ jobs:
           lcov --list coverage.info
 
       - name: Collect coverage (Clang on Linux)
-        if: runner.os == 'Linux' && matrix.cpp_compiler == 'clang++'
+        if: runner.os == 'Linux' && startsWith(matrix.cpp_compiler, 'clang')
         run: |
           cd build
-          llvm-profdata merge -sparse default.profraw -o default.profdata
-          llvm-cov export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
+          llvm-profdata-19 merge -sparse default.profraw -o default.profdata
+          llvm-cov-19 export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
           lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
 
       - name: Collect coverage (Clang on macOS)
-        if: runner.os == 'macOS' && matrix.cpp_compiler == 'clang++'
+        if: runner.os == 'macOS' && startsWith(matrix.cpp_compiler, 'clang')
         run: |
           cd build
           xcrun llvm-profdata merge -sparse default.profraw -o default.profdata

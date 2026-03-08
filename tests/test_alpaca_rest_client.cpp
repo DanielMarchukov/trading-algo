@@ -228,9 +228,10 @@ TEST_P(AlpacaMarketOrderTest, PayloadIsCorrect) {
 
   CapturedRequest req;
   std::thread t([&]() { req = server.serve_one(); });
-  client.placeOrder(order);
+  auto result = client.placeOrder(order);
   t.join();
 
+  EXPECT_TRUE(result.has_value());
   EXPECT_EQ(req.path, "/v2/orders");
   auto json = nlohmann::json::parse(req.body);
   EXPECT_EQ(json["symbol"], symbol);
@@ -269,9 +270,10 @@ TEST_P(AlpacaLimitOrderTest, PayloadIsCorrect) {
 
   CapturedRequest req;
   std::thread t([&]() { req = server.serve_one(); });
-  client.placeOrder(order);
+  auto result = client.placeOrder(order);
   t.join();
 
+  EXPECT_TRUE(result.has_value());
   auto json = nlohmann::json::parse(req.body);
   EXPECT_EQ(json["side"], expected_side);
   EXPECT_EQ(json["type"], "limit");
@@ -286,40 +288,35 @@ INSTANTIATE_TEST_SUITE_P(
         LimitOrderParam{"MSFT", OrderSide::Buy, 10, 4500000, "buy", 450.0},
         LimitOrderParam{"GOOG", OrderSide::Sell, 5, 1750000, "sell", 175.0}));
 
-TEST_F(AlpacaRestClientPlaceOrderTest, ErrorResponsePrintsToStderr) {
+TEST_F(AlpacaRestClientPlaceOrderTest, ErrorResponseReturnsUnexpected) {
   StubHttpServer server(422, R"({"message":"insufficient qty"})");
   point_client_to(server.port());
   AlpacaRestClient client;
   Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 100, 0);
 
-  std::stringstream captured;
-  auto *original = std::cerr.rdbuf(captured.rdbuf());
-
   CapturedRequest req;
   std::thread t([&]() { req = server.serve_one(); });
-  client.placeOrder(order);
+  auto result = client.placeOrder(order);
   t.join();
 
-  std::cerr.rdbuf(original);
-  EXPECT_TRUE(captured.str().find("Error placing order") != std::string::npos);
-  EXPECT_TRUE(captured.str().find("422") != std::string::npos);
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().status_code, 422);
+  EXPECT_TRUE(result.error().message.find("insufficient qty") !=
+              std::string::npos);
 }
 
-TEST_F(AlpacaRestClientPlaceOrderTest, SuccessResponsePrintsToStdout) {
-  StubHttpServer server(200, R"({"id":"ord-abc-123"})");
+TEST_F(AlpacaRestClientPlaceOrderTest, SuccessResponseReturnsOrderAck) {
+  StubHttpServer server(200, R"({"id":"ord-abc-123","status":"accepted"})");
   point_client_to(server.port());
   AlpacaRestClient client;
   Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 100, 0);
 
-  std::stringstream captured;
-  auto *original = std::cout.rdbuf(captured.rdbuf());
-
   CapturedRequest req;
   std::thread t([&]() { req = server.serve_one(); });
-  client.placeOrder(order);
+  auto result = client.placeOrder(order);
   t.join();
 
-  std::cout.rdbuf(original);
-  EXPECT_TRUE(captured.str().find("Successfully placed order") !=
-              std::string::npos);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(result->client_order_id, "ord-abc-123");
+  EXPECT_EQ(result->status, "accepted");
 }

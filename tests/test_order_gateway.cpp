@@ -2,7 +2,9 @@
 #include "LockFreeMPSCQueue.hpp"
 #include "Order.hpp"
 #include "OrderGateway.hpp"
+#include "PositionManager.hpp"
 #include "ThreadGuard.hpp"
+#include <expected>
 #include <future>
 #include <gtest/gtest.h>
 #include <memory>
@@ -14,23 +16,32 @@ public:
   explicit MockRestClient(std::promise<void> *p = nullptr)
       : promise_to_fulfill(p) {}
 
-  void placeOrder(const Order & /*unused*/) override {
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*unused*/) override {
     if (promise_to_fulfill) {
       promise_to_fulfill->set_value();
     }
+    return OrderAck{"ord-123", "accepted"};
   }
 
   std::promise<void> *promise_to_fulfill = nullptr;
 };
 
-TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
+class OrderGatewayTest : public ::testing::Test {
+protected:
+  std::shared_ptr<PositionManager> position_manager_ =
+      std::make_shared<PositionManager>();
+};
+
+TEST_F(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
   std::atomic is_running(true);
   const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
   std::promise<void> promise;
   const auto future = promise.get_future();
 
   auto mock_client = std::make_unique<MockRestClient>(&promise);
-  OrderGateway gateway(is_running, order_queue, std::move(mock_client));
+  OrderGateway gateway(is_running, order_queue, std::move(mock_client),
+                       position_manager_);
 
   ThreadGuard gateway_thread_guard{std::thread(&OrderGateway::run, &gateway)};
 
@@ -44,14 +55,15 @@ TEST(OrderGatewayTest, ProcessesOrderAndCallsRestClient) {
   is_running.store(false);
 }
 
-TEST(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
+TEST_F(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
   std::atomic is_running(true);
   const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
   std::promise<void> promise;
   auto future = promise.get_future();
 
   auto mock_client = std::make_unique<MockRestClient>(&promise);
-  OrderGateway gateway(is_running, order_queue, std::move(mock_client));
+  OrderGateway gateway(is_running, order_queue, std::move(mock_client),
+                       position_manager_);
 
   ThreadGuard gateway_thread_guard{std::thread(&OrderGateway::run, &gateway)};
 
@@ -65,13 +77,46 @@ TEST(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
   ASSERT_EQ(status, std::future_status::ready);
 }
 
+TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
+  std::atomic is_running(false);
+  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+
+  position_manager_->registerSymbol("AAPL");
+
+  Order order{};
+  order.id = 1;
+  std::memcpy(order.symbol, "AAPL", 4);
+  order.side = OrderSide::Buy;
+  order.quantity = 100;
+
+  position_manager_->onOrderSent(order);
+  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 100);
+
+  order_queue->push(order);
+
+  class RejectingClient final : public IRestClient {
+  public:
+    std::expected<OrderAck, OrderError>
+    placeOrder(const Order & /*unused*/) override {
+      return std::unexpected(OrderError{422, "insufficient qty"});
+    }
+  };
+
+  OrderGateway gateway(is_running, order_queue,
+                       std::make_unique<RejectingClient>(), position_manager_);
+  gateway.run();
+
+  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
+}
+
 namespace {
 
 class ThrowingRestClient final : public IRestClient {
 public:
   explicit ThrowingRestClient(std::promise<void> *p = nullptr) : promise_(p) {}
 
-  void placeOrder(const Order & /*unused*/) override {
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*unused*/) override {
     if (promise_)
       promise_->set_value();
     throw std::runtime_error("simulated rest error");
@@ -86,7 +131,8 @@ public:
   explicit WildThrowingRestClient(std::promise<void> *p = nullptr)
       : promise_(p) {}
 
-  void placeOrder(const Order & /*unused*/) override {
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*unused*/) override {
     if (promise_)
       promise_->set_value();
     throw 42;
@@ -104,7 +150,11 @@ struct MainLoopExceptionParam {
 };
 
 class GatewayMainLoopExceptionTest
-    : public ::testing::TestWithParam<MainLoopExceptionParam> {};
+    : public ::testing::TestWithParam<MainLoopExceptionParam> {
+protected:
+  std::shared_ptr<PositionManager> position_manager_ =
+      std::make_shared<PositionManager>();
+};
 
 TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
   const auto &[factory, expected_substr] = GetParam();
@@ -114,7 +164,8 @@ TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
   auto future = promise.get_future();
 
   auto client = factory(&promise);
-  OrderGateway gateway(is_running, order_queue, std::move(client));
+  OrderGateway gateway(is_running, order_queue, std::move(client),
+                       position_manager_);
 
   std::stringstream captured;
   auto *original = std::cerr.rdbuf(captured.rdbuf());
@@ -141,7 +192,7 @@ INSTANTIATE_TEST_SUITE_P(
         MainLoopExceptionParam{[](std::promise<void> *p) {
                                  return std::make_unique<ThrowingRestClient>(p);
                                },
-                               "OrderGateway: Error placing order:"},
+                               "OrderGateway: Exception placing order:"},
         MainLoopExceptionParam{
             [](std::promise<void> *p) {
               return std::make_unique<WildThrowingRestClient>(p);
@@ -154,7 +205,11 @@ struct ShutdownExceptionParam {
 };
 
 class GatewayShutdownExceptionTest
-    : public ::testing::TestWithParam<ShutdownExceptionParam> {};
+    : public ::testing::TestWithParam<ShutdownExceptionParam> {
+protected:
+  std::shared_ptr<PositionManager> position_manager_ =
+      std::make_shared<PositionManager>();
+};
 
 TEST_P(GatewayShutdownExceptionTest, LogsCorrectError) {
   const auto &[factory, expected_substr] = GetParam();
@@ -166,7 +221,8 @@ TEST_P(GatewayShutdownExceptionTest, LogsCorrectError) {
   order_queue->push(order);
 
   auto client = factory();
-  OrderGateway gateway(is_running, order_queue, std::move(client));
+  OrderGateway gateway(is_running, order_queue, std::move(client),
+                       position_manager_);
 
   std::stringstream captured;
   auto *original = std::cerr.rdbuf(captured.rdbuf());
@@ -183,7 +239,7 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         ShutdownExceptionParam{
             []() { return std::make_unique<ThrowingRestClient>(); },
-            "OrderGateway: Error placing order during shutdown:"},
+            "OrderGateway: Exception placing order:"},
         ShutdownExceptionParam{
             []() { return std::make_unique<WildThrowingRestClient>(); },
-            "OrderGateway: Unknown error placing order during shutdown"}));
+            "OrderGateway: Unknown error placing order"}));

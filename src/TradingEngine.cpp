@@ -67,8 +67,8 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   }
   risk_manager_ = std::make_shared<RiskManager>(position_manager);
   order_queue_ = std::make_shared<LockFreeMPSCQueue<Order>>();
-  order_gateway_ = std::make_unique<OrderGateway>(is_running_, order_queue_,
-                                                  std::move(rest_client));
+  order_gateway_ = std::make_unique<OrderGateway>(
+      is_running_, order_queue_, std::move(rest_client), position_manager);
 
   const char *api_key = std::getenv("APCA_API_KEY_ID");
   const char *api_secret = std::getenv("APCA_API_SECRET_KEY");

@@ -1,5 +1,4 @@
 #include "AlpacaRestClient.hpp"
-#include <iostream>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string_view>
@@ -24,7 +23,8 @@ AlpacaRestClient::AlpacaRestClient() {
   }
 }
 
-void AlpacaRestClient::placeOrder(const Order &order) {
+std::expected<OrderAck, OrderError>
+AlpacaRestClient::placeOrder(const Order &order) {
   nlohmann::json payload;
   payload["symbol"] = std::string_view(order.symbol);
   payload["qty"] = std::to_string(order.quantity);
@@ -45,9 +45,16 @@ void AlpacaRestClient::placeOrder(const Order &order) {
                 cpr::Body{payload.dump()});
 
   if (r.status_code >= 400) {
-    std::cerr << "Error placing order: " << r.status_code << " - " << r.text
-              << std::endl;
-  } else {
-    std::cout << "Successfully placed order: " << r.text << std::endl;
+    return std::unexpected(
+        OrderError{r.status_code, "Error placing order: " + r.text});
   }
+
+  auto response = nlohmann::json::parse(r.text, nullptr, false);
+  if (response.is_discarded()) {
+    return std::unexpected(
+        OrderError{r.status_code, "Invalid JSON in response: " + r.text});
+  }
+
+  return OrderAck{response.value("id", ""),
+                  response.value("status", "unknown")};
 }
