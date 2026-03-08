@@ -8,6 +8,7 @@
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <variant>
 
 struct FillEvent {
@@ -17,11 +18,21 @@ struct FillEvent {
   double price;
 };
 
+static_assert(sizeof(FillEvent) == 32, "FillEvent must be 32 bytes");
+static_assert(alignof(FillEvent) == 8, "FillEvent must be 8-byte aligned");
+static_assert(std::is_trivially_copyable_v<FillEvent>,
+              "FillEvent must be trivially copyable");
+
 struct CancelEvent {
   char symbol[8];
   OrderSide side;
   int64_t quantity;
 };
+
+static_assert(sizeof(CancelEvent) == 24, "CancelEvent must be 24 bytes");
+static_assert(alignof(CancelEvent) == 8, "CancelEvent must be 8-byte aligned");
+static_assert(std::is_trivially_copyable_v<CancelEvent>,
+              "CancelEvent must be trivially copyable");
 
 using TradeUpdate = std::variant<std::monostate, FillEvent, CancelEvent>;
 
