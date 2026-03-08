@@ -77,6 +77,50 @@ TEST_F(OrderGatewayTest, DrainsPendingOrdersWhenStopping) {
   ASSERT_EQ(status, std::future_status::ready);
 }
 
+TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
+  std::atomic is_running(true);
+  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
+
+  std::vector<uint64_t> received_ids;
+  std::atomic<int> call_count{0};
+
+  class CapturingClient final : public IRestClient {
+  public:
+    CapturingClient(std::vector<uint64_t> &ids, std::atomic<int> &count)
+        : ids_(ids), count_(count) {}
+    std::expected<OrderAck, OrderError>
+    placeOrder(const Order &order) override {
+      ids_.push_back(order.id);
+      count_.fetch_add(1, std::memory_order_release);
+      return OrderAck{"ord-" + std::to_string(order.id), "accepted"};
+    }
+
+  private:
+    std::vector<uint64_t> &ids_;
+    std::atomic<int> &count_;
+  };
+
+  OrderGateway gateway(
+      is_running, order_queue,
+      std::make_unique<CapturingClient>(received_ids, call_count),
+      position_manager_);
+  ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
+
+  Order order1{};
+  Order order2{};
+  order_queue->push(order1);
+  order_queue->push(order2);
+
+  while (call_count.load(std::memory_order_acquire) < 2) {
+  }
+  is_running.store(false);
+  guard.t.join();
+
+  ASSERT_EQ(received_ids.size(), 2);
+  EXPECT_EQ(received_ids[0], 1);
+  EXPECT_EQ(received_ids[1], 2);
+}
+
 TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
   std::atomic is_running(false);
   const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();

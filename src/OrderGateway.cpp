@@ -1,7 +1,5 @@
 #include "OrderGateway.hpp"
-#include <chrono>
 #include <iostream>
-#include <thread>
 
 OrderGateway::OrderGateway(
     std::atomic<bool> &is_running,
@@ -33,17 +31,16 @@ void OrderGateway::executeOrder(const Order &order) const {
   }
 }
 
-void OrderGateway::run() const {
-  while (is_running_.load()) {
-    if (Order order_to_execute{}; order_queue_->try_pop(order_to_execute)) {
-      executeOrder(order_to_execute);
-    } else {
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
+void OrderGateway::run() {
+  Order order_to_execute{};
+  while (order_queue_->wait_and_pop(order_to_execute, is_running_)) {
+    order_to_execute.id = ++order_id_counter_;
+    executeOrder(order_to_execute);
   }
 
   Order remaining_order{};
   while (order_queue_->try_pop(remaining_order)) {
+    remaining_order.id = ++order_id_counter_;
     executeOrder(remaining_order);
   }
 }

@@ -78,7 +78,6 @@ find_package(cppzmq CONFIG REQUIRED)
 find_package(cpr CONFIG REQUIRED)
 find_package(nlohmann_json REQUIRED)
 find_package(GTest REQUIRED)
-find_package(unofficial-uwebsockets CONFIG REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 find_package(ixwebsocket CONFIG REQUIRED)
 
@@ -98,7 +97,6 @@ target_link_libraries(
             cppzmq
             nlohmann_json::nlohmann_json
             cpr::cpr
-            unofficial::uwebsockets::uwebsockets
             TBB::tbb
             ixwebsocket::ixwebsocket)
 

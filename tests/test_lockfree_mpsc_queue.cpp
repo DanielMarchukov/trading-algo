@@ -84,6 +84,41 @@ TEST_F(LockFreeMPSCQueueTest, WaitAndPopBlocks) {
   EXPECT_EQ(consumed_value, 999);
 }
 
+TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopReturnsOnData) {
+  std::atomic<bool> running{true};
+  int value = 0;
+
+  std::thread producer([&]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    queue.push(42);
+  });
+
+  EXPECT_TRUE(queue.wait_and_pop(value, running));
+  EXPECT_EQ(value, 42);
+
+  producer.join();
+}
+
+TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopExitsOnStop) {
+  std::atomic<bool> running{true};
+  std::atomic<bool> consumer_exited{false};
+  bool got = true;
+  int value = 0;
+
+  std::thread consumer([&]() {
+    got = queue.wait_and_pop(value, running);
+    consumer_exited.store(true);
+  });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  EXPECT_FALSE(consumer_exited.load());
+
+  running.store(false);
+  consumer.join();
+  EXPECT_TRUE(consumer_exited.load());
+  EXPECT_FALSE(got);
+}
+
 TEST_F(LockFreeMPSCQueueTest, MultiProducerSingleConsumer) {
   constexpr int num_producers = 8;
   constexpr int items_per_producer = 1000;

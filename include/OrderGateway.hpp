@@ -14,7 +14,7 @@ public:
                std::unique_ptr<IRestClient> rest_client,
                std::shared_ptr<PositionManager> position_manager);
 
-  void run() const;
+  void run();
 
 private:
   void executeOrder(const Order &order) const;
@@ -23,4 +23,5 @@ private:
   std::shared_ptr<LockFreeMPSCQueue<Order>> order_queue_;
   std::unique_ptr<IRestClient> rest_client_;
   std::shared_ptr<PositionManager> position_manager_;
+  uint64_t order_id_counter_ = 0;
 };
