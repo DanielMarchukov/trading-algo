@@ -1,4 +1,5 @@
 #include "AlpacaRestClient.hpp"
+#include <cstring>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string_view>
@@ -26,7 +27,8 @@ AlpacaRestClient::AlpacaRestClient() {
 std::expected<OrderAck, OrderError>
 AlpacaRestClient::placeOrder(const Order &order) {
   nlohmann::json payload;
-  payload["symbol"] = std::string_view(order.symbol);
+  payload["symbol"] = std::string_view(
+      order.symbol, strnlen(order.symbol, sizeof(order.symbol)));
   payload["qty"] = std::to_string(order.quantity);
   payload["side"] = (order.side == OrderSide::Buy) ? "buy" : "sell";
   payload["type"] = (order.type == OrderType::Market) ? "market" : "limit";
