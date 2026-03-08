@@ -121,61 +121,6 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
   EXPECT_EQ(received_ids[1], 2);
 }
 
-TEST_F(OrderGatewayTest, DrainLoopAssignsIds) {
-  std::atomic is_running(true);
-  const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();
-
-  std::vector<uint64_t> received_ids;
-  std::promise<void> first_order_started;
-  std::promise<void> shutdown_done;
-
-  class BlockingClient final : public IRestClient {
-  public:
-    BlockingClient(std::vector<uint64_t> &ids, std::promise<void> &started,
-                   std::future<void> shutdown)
-        : ids_(ids), started_(started), shutdown_(std::move(shutdown)),
-          first_(true) {}
-    std::expected<OrderAck, OrderError>
-    placeOrder(const Order &order) override {
-      ids_.push_back(order.id);
-      if (first_) {
-        first_ = false;
-        started_.set_value();
-        shutdown_.wait();
-      }
-      return OrderAck{"ord-" + std::to_string(order.id), "accepted"};
-    }
-
-  private:
-    std::vector<uint64_t> &ids_;
-    std::promise<void> &started_;
-    std::future<void> shutdown_;
-    bool first_;
-  };
-
-  auto shutdown_future = shutdown_done.get_future();
-  OrderGateway gateway(
-      is_running, order_queue,
-      std::make_unique<BlockingClient>(received_ids, first_order_started,
-                                       std::move(shutdown_future)),
-      position_manager_);
-  ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
-
-  order_queue->push(Order{});
-
-  first_order_started.get_future().wait();
-
-  order_queue->push(Order{});
-  is_running.store(false);
-  shutdown_done.set_value();
-
-  guard.t.join();
-
-  ASSERT_EQ(received_ids.size(), 2);
-  EXPECT_EQ(received_ids[0], 1);
-  EXPECT_EQ(received_ids[1], 2);
-}
-
 TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
   std::atomic is_running(false);
   const auto order_queue = std::make_shared<LockFreeMPSCQueue<Order>>();

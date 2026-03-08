@@ -102,10 +102,11 @@ TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopReturnsOnData) {
 TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopExitsOnStop) {
   std::atomic<bool> running{true};
   std::atomic<bool> consumer_exited{false};
+  bool got = true;
   int value = 0;
 
   std::thread consumer([&]() {
-    [[maybe_unused]] bool got = queue.wait_and_pop(value, running);
+    got = queue.wait_and_pop(value, running);
     consumer_exited.store(true);
   });
 
@@ -115,6 +116,7 @@ TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopExitsOnStop) {
   running.store(false);
   consumer.join();
   EXPECT_TRUE(consumer_exited.load());
+  EXPECT_FALSE(got);
 }
 
 TEST_F(LockFreeMPSCQueueTest, MultiProducerSingleConsumer) {

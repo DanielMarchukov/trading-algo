@@ -84,7 +84,8 @@ public:
     Node *next = tail->next.load(std::memory_order_acquire);
 
     while (next == nullptr) {
-      if (!running.load(std::memory_order_relaxed)) {
+      if (!running.load(std::memory_order_relaxed) &&
+          tail == head_.load(std::memory_order_acquire)) {
         return false;
       }
       next = tail->next.load(std::memory_order_acquire);
