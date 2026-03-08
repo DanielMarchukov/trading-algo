@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <sstream>
 #include <string>
 
 class FillListenerTest : public ::testing::Test {
@@ -207,6 +208,9 @@ TEST_F(FillListenerTest, RejectsUnknownSide) {
 }
 
 TEST_F(FillListenerTest, RejectsInvalidQtyString) {
+  std::ostringstream captured;
+  auto *old_buf = std::cerr.rdbuf(captured.rdbuf());
+
   const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
@@ -220,10 +224,16 @@ TEST_F(FillListenerTest, RejectsInvalidQtyString) {
     }
   })");
 
+  std::cerr.rdbuf(old_buf);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
+  EXPECT_NE(captured.str().find("FillListener: parseQty failed:"),
+            std::string::npos);
 }
 
 TEST_F(FillListenerTest, RejectsInvalidPriceString) {
+  std::ostringstream captured;
+  auto *old_buf = std::cerr.rdbuf(captured.rdbuf());
+
   const auto update = parse(R"({
     "stream": "trade_updates",
     "data": {
@@ -237,7 +247,10 @@ TEST_F(FillListenerTest, RejectsInvalidPriceString) {
     }
   })");
 
+  std::cerr.rdbuf(old_buf);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
+  EXPECT_NE(captured.str().find("FillListener: parsePrice failed:"),
+            std::string::npos);
 }
 
 TEST_F(FillListenerTest, ParsesNumericQtyAndPrice) {
