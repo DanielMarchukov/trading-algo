@@ -5,22 +5,24 @@
 #include <atomic>
 #include <concepts>
 #include <cstdint>
+#include <functional>
 #include <span>
 #include <string_view>
+#include <utility>
 
 template <typename T>
 concept MarketDataSourceLike =
-    requires(T t, void (*cb)(std::span<const char>)) {
+    requires(T t, std::function<void(std::span<const char>)> cb) {
       { t.start() } -> std::same_as<void>;
       { t.stop() } -> std::same_as<void>;
-      { t.setOnData(cb) } -> std::same_as<void>;
+      { t.setOnData(std::move(cb)) } -> std::same_as<void>;
     };
 
 template <typename T>
 concept MarketDataDecoderLike =
     requires(T t, std::span<const char> data, uint64_t arrived_at,
-             void (*emit)(const MarketEvent &, std::string_view)) {
-      { t.decode(data, arrived_at, emit) } -> std::same_as<void>;
+             std::function<void(const MarketEvent &, std::string_view)> emit) {
+      { t.decode(data, arrived_at, std::move(emit)) } -> std::same_as<void>;
     };
 
 template <typename T>

@@ -25,6 +25,10 @@ void AlpacaWebSocketSource::setOnData(DataCallback cb) {
 }
 
 void AlpacaWebSocketSource::start() {
+  if (thread_.joinable()) {
+    return;
+  }
+
   ws_->setUrl(std::string(kDataStreamUrl) + "?encoding=msgpack");
   ws_->setExtraHeaders(
       ix::WebSocketHttpHeaders{{"Content-Type", "application/msgpack"}});
