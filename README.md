@@ -4,23 +4,23 @@
 [![codecov](https://codecov.io/gh/DanielMarchukov/rich-on-paper/branch/mainline/graph/badge.svg)](https://codecov.io/gh/DanielMarchukov/rich-on-paper)
 ![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/DanielMarchukov/rich-on-paper?utm_source=oss&utm_medium=github&utm_campaign=DanielMarchukov%2Frich-on-paper&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
-A production-grade, ultra-low latency trading engine built with modern C++23 and Python, targeting sub-50 microsecond
-internal processing latency. The system demonstrates professional software engineering practices including comprehensive
-testing, multi-platform support, and continuous integration.
+A production-grade, ultra-low latency trading engine built with modern C++23, targeting sub-50 microsecond internal
+processing latency. The system demonstrates professional software engineering practices including comprehensive testing,
+multi-platform support, and continuous integration.
 
 ## Key Features
 
 - **Ultra-Low Latency**: Target sub-50μs internal processing latency using lock-free data structures and CPU affinity
-- **Multi-Language Architecture**: High-performance C++23 core with Python data ingestion via ZeroMQ
+- **Single-Binary Architecture**: Entire pipeline in C++23 — market data, strategy, risk, execution
 - **Production-Grade**: 80%+ test coverage, CI/CD pipeline, and cross-platform support (Linux, macOS, Windows)
 - **Real Market Data**: Integrates with Alpaca Markets for live and paper trading
 - **Modular Design**: Clean separation between market data, strategy, risk management, and execution
 
 ## Technology Stack
 
-- **C++23**: Core trading engine with template metaprogramming and compile-time optimizations
-- **Python 3.12**: Market data ingestion and normalization
+- **C++23**: Trading engine with template metaprogramming and compile-time optimizations
 - **ZeroMQ**: High-performance IPC/TCP messaging between components
+- **msgpack-cxx**: Zero-copy msgpack decoding for Alpaca WebSocket market data
 - **vcpkg**: Cross-platform C++ dependency management
 - **CMake**: Build system with modern CMake practices
 - **Google Test**: Comprehensive unit and integration testing
@@ -65,11 +65,7 @@ cp .env.template .env
 rich-on-paper/
 ├── src/                    # C++ source files
 ├── include/                # C++ headers
-├── tests/                  # C++ unit tests
-├── data-ingestion/         # Python market data publisher
-│   └── src/
-│       ├── publisher.py    # WebSocket client for Alpaca
-│       └── test_*.py       # Python tests
+├── tests/                  # C++ unit tests (Google Test)
 ├── setup/                  # Platform-specific setup scripts
 ├── docs/                   # Documentation
 │   ├── ARCHITECTURE.md     # System design and architecture
@@ -80,9 +76,9 @@ rich-on-paper/
 
 ## Architecture Overview
 
-The trading engine uses a multiprocess architecture with dedicated threads for different components:
+The trading engine runs as a single process with dedicated threads for different components:
 
-- **Python Publisher**: Connects to Alpaca WebSocket, normalizes data, publishes via ZeroMQ
+- **C++ Market Publisher**: Connects to Alpaca WebSocket, decodes msgpack, publishes MarketEvents via ZeroMQ
 - **C++ Consumer Threads**: One per symbol, receives market data and generates orders based on trading strategy
 - **Risk Manager**: Validates orders against position limits and risk parameters
 - **Order Gateway**: Executes approved orders via REST API
@@ -91,13 +87,9 @@ For detailed architecture documentation, see [docs/ARCHITECTURE.md](docs/ARCHITE
 
 ## Testing
 
-Run the comprehensive test suite:
+Run the test suite:
 
 ```bash
-# Python tests
-pytest data-ingestion/src/ -v
-
-# C++ tests
 cd build && ctest --output-on-failure
 ```
 
@@ -146,8 +138,7 @@ ASAN+UBSAN runs on every push in CI. TSAN runs nightly.
 ### Code Quality Tools
 
 - **C++**: clang-format, clang-tidy, LLVM coverage, ASAN/TSAN/UBSAN
-- **Python**: black, isort, pylint, mypy
-- **Security**: CodeQL, bandit, safety
+- **Security**: CodeQL
 
 ## Documentation
 

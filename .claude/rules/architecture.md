@@ -4,16 +4,15 @@ Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [uW
 
 ## Process Boundaries
 
-- Python publisher and C++ engine are separate OS processes
-- Communication is via ZeroMQ (IPC on Unix, TCP on Windows)
-- Wire format is the 64-byte `MarketEvent` struct — both sides agree
-- Any change to `MarketEvent` must update both `publisher.py` and `MarketEvent.hpp` atomically
+- Single process: `paper_money` binary contains all components
+- Internal communication is via ZeroMQ (IPC on Unix, TCP on Windows)
+- Wire format is the 64-byte `MarketEvent` struct
 
 ## Thread Model
 
 - Core 0 (housekeeping): OrderGateway, FillListener, OS interrupts, main thread — all cold-path I/O-bound work
-- Core 1 (data path): Python publisher — receives market data from Alpaca WebSocket, packs MarketEvent structs,
-  publishes via ZMQ. Pin with `taskset -c 1` at launch.
+- Core 1 (data path): AlpacaMarketPublisher thread (managed by TradingEngine) — receives market data from Alpaca
+  WebSocket, decodes msgpack, publishes MarketEvent structs via ZMQ
 - Cores 2+ (hot path): per-symbol MarketEventConsumer threads, one per core, pinned at startup
 - No thread may block another thread on the hot path
 
@@ -49,14 +48,13 @@ Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [uW
 - msgpack mode: append `?encoding=msgpack` to URL
 - Trades: `{"T":"t","S":"AAPL","p":150.25,"s":100,"t":"..."}`
 - Quotes: `{"T":"q","S":"AAPL","bp":150.20,"bs":200,"ap":150.30,...}`
-- Python publisher currently handles this; C++ rewrite planned
+- Handled by `AlpacaMarketPublisher` (ixwebsocket + msgpack-cxx)
 
 ### Library Choices
 
-- **uWebSockets** (already in vcpkg): zero-copy design, `onMessage` gives `std::string_view` into internal buffer. Best
-  for fill listener and future C++ data publisher.
-- **msgpack-c**: zero-copy unpack with reference mode — strings point into original buffer. Buffer must outlive
-  msgpack::object.
+- **ixwebsocket** (vcpkg): Used by both AlpacaFillListener and AlpacaMarketPublisher for WebSocket connections.
+- **msgpack-cxx** (vcpkg, header-only): Decodes Alpaca market data stream. One zone allocation per batch — documented
+  for future zero-copy optimization.
 - **simdjson**: 4x faster than RapidJSON for parsing REST responses. Use for any JSON parsing that becomes
   latency-sensitive.
 

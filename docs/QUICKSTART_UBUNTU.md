@@ -26,9 +26,8 @@ chmod +x setup/setup_ubuntu.sh
 
 This script will:
 
-- Install system dependencies (CMake, Python 3.12, C++ libraries)
+- Install system dependencies (CMake, C++ libraries)
 - Set up vcpkg package manager
-- Create Python virtual environment
 - Build the C++ trading engine
 - Run tests to verify the installation
 
@@ -72,12 +71,12 @@ Execute the run script:
 You should see output like:
 
 ```bash
-[2024-01-15 10:30:45] Starting Python market data publisher...
-[2024-01-15 10:30:48] Starting C++ trading engine...
-[2024-01-15 10:30:49] Trading system is running!
-[2024-01-15 10:30:49] Publisher PID: 12345
-[2024-01-15 10:30:49] Engine PID: 12346
-[2024-01-15 10:30:49] Press Ctrl+C to stop...
+Starting trading engine...
+FillListener started
+MarketPublisher started
+MarketPublisher: ZMQ PUB bound to ipc:///tmp/market_data.sock
+Pinned MarketPublisher thread to CPU Core 1
+Pinned OrderGateway thread to CPU Core 0
 ```
 
 ## Step 5: Verify It's Working
@@ -98,19 +97,6 @@ To stop the system, press `Ctrl+C`.
 
 ```bash
 source .env
-```
-
-### "Connection refused" or ZMQ Errors
-
-**Solution**: The Python publisher may have failed to start. Check:
-
-```bash
-# Verify Python environment
-source env/bin/activate
-python --version  # Should show Python 3.12.x
-
-# Test publisher directly
-python data-ingestion/src/publisher.py
 ```
 
 ### Build Errors
@@ -163,18 +149,6 @@ htop
 - Read [Architecture Documentation](ARCHITECTURE.md) to understand the system
 
 ## Manual Operation (For Developers)
-
-If you prefer to run components separately:
-
-**Terminal 1 - Python Publisher**:
-
-```bash
-source env/bin/activate
-source .env
-python data-ingestion/src/publisher.py
-```
-
-**Terminal 2 - C++ Trading Engine**:
 
 ```bash
 source .env

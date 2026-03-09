@@ -1,0 +1,85 @@
+#pragma once
+
+#include "MarketEvent.hpp"
+#include "Utils.hpp"
+#include <atomic>
+#include <concepts>
+#include <cstdint>
+#include <functional>
+#include <span>
+#include <string_view>
+
+// --- Pipeline stage concepts ---
+
+template <typename T>
+concept MarketDataSourceLike = requires(T t) {
+  { t.start() } -> std::same_as<void>;
+  { t.stop() } -> std::same_as<void>;
+  {
+    t.setOnData(std::declval<std::function<void(std::span<const char>)>>())
+  } -> std::same_as<void>;
+};
+
+template <typename T>
+concept MarketDataDecoderLike = requires(
+    T t, std::span<const char> data, uint64_t arrived_at,
+    const std::function<void(const MarketEvent &, std::string_view)> &emit) {
+  { t.decode(data, arrived_at, emit) } -> std::same_as<void>;
+};
+
+template <typename T>
+concept MarketEventSinkLike = requires(T t, const MarketEvent &event,
+                                       std::string_view symbol) {
+  { t.start() } -> std::same_as<void>;
+  { t.stop() } -> std::same_as<void>;
+  { t.publish(event, symbol) } -> std::same_as<void>;
+};
+
+// --- Pipeline: composes Source -> Decoder -> Sink via templates ---
+
+template <MarketDataSourceLike SourceType, MarketDataDecoderLike DecoderType,
+          MarketEventSinkLike SinkType>
+class MarketDataPipeline {
+public:
+  MarketDataPipeline(SourceType source, DecoderType decoder, SinkType sink)
+      : source_(std::move(source)), decoder_(std::move(decoder)),
+        sink_(std::move(sink)) {
+    // Wire auth-success callback if the source supports it
+    if constexpr (requires { source_.sendSubscribe(); }) {
+      decoder_.setOnAuthSuccess([this]() { source_.sendSubscribe(); });
+    }
+
+    // Wire data path: source -> decoder -> sink
+    source_.setOnData([this](std::span<const char> data) {
+      const uint64_t arrived_at = nowNanos();
+      decoder_.decode(
+          data, arrived_at,
+          [this](const MarketEvent &event, std::string_view symbol) {
+            sink_.publish(event, symbol);
+          });
+    });
+  }
+
+  // Pipeline must not be moved after construction (captured this)
+  MarketDataPipeline(MarketDataPipeline &&) = delete;
+  MarketDataPipeline &operator=(MarketDataPipeline &&) = delete;
+  MarketDataPipeline(const MarketDataPipeline &) = delete;
+  MarketDataPipeline &operator=(const MarketDataPipeline &) = delete;
+
+  ~MarketDataPipeline() = default;
+
+  void start() {
+    sink_.start();
+    source_.start();
+  }
+
+  void stop() {
+    source_.stop();
+    sink_.stop();
+  }
+
+private:
+  SourceType source_;
+  DecoderType decoder_;
+  SinkType sink_;
+};

@@ -14,11 +14,11 @@ low-latency trading engine.
 
 ## System Overview
 
-The trading engine is designed as a multiprocess system with clear separation of concerns:
+The trading engine is designed as a single-process, multi-threaded system with clear separation of concerns:
 
 1. **Hot Path Components** (latency-critical):
 
-   - Market Data Ingestion and normalization (Python)
+   - Market Data Publisher (C++ — AlpacaMarketPublisher)
    - Market Data Consumer (C++)
    - Trading Strategy execution
    - Risk Management checks
@@ -34,21 +34,21 @@ The trading engine is designed as a multiprocess system with clear separation of
 ### Current Architecture
 
 ```text
-                               +----------------------------------+
-                               |     Python Data Publisher        |
-                               |         (Core 0)                 |
-                               |----------------------------------|
-                               | • Alpaca WebSocket Client        |
-                               | • Normalizes to 64-byte struct   |
-                               | • ZMQ PUB Socket                 |
-                               +----------------------------------+
-                                              |
-                                              | 64-byte MarketEvent
-                                              | [ZMQ IPC: ipc:///tmp/market_data.sock]
-                                              | [Windows: tcp://127.0.0.1:5555]
-                                              ↓
 ╔════════════════════════════════════════════════════════════════════════════════════════╗
 ║                                C++ TRADING ENGINE PROCESS                              ║
+║                                                                                        ║
+║  ┌──────────────────────────────────────┐                                              ║
+║  │   AlpacaMarketPublisher (Core 1)     │                                              ║
+║  │──────────────────────────────────────│                                              ║
+║  │ • Alpaca WebSocket Client (msgpack)  │                                              ║
+║  │ • Decodes to 64-byte MarketEvent     │                                              ║
+║  │ • ZMQ PUB Socket                     │                                              ║
+║  └──────────────────┬───────────────────┘                                              ║
+║                     |                                                                  ║
+║                     | 64-byte MarketEvent                                              ║
+║                     | [ZMQ IPC: ipc:///tmp/market_data.sock]                           ║
+║                     | [Windows: tcp://127.0.0.1:5555]                                  ║
+║                     ↓                                                                  ║
 ║                                                                                        ║
 ║  ┌─────────────────────────────────┐          ┌──────────────────────────────────────┐ ║
 ║  │   TradingEngine (Main Thread)   │          │   OrderGateway (Worker Thread)       │ ║
@@ -110,12 +110,12 @@ Legend:
 
 ## Component Design
 
-### Market Data Publisher (Python)
+### Market Data Publisher (C++)
 
 - **Purpose**: Connect to Alpaca WebSocket API and normalize market data
-- **Design**: Single-threaded with asyncio for WebSocket handling
-- **Output**: 64-byte packed struct via ZeroMQ PUB socket
-- **CPU Affinity**: Pinned to Core 0
+- **Design**: Dedicated thread with ixwebsocket + msgpack-cxx decoding
+- **Output**: 64-byte MarketEvent struct via ZeroMQ PUB socket
+- **CPU Affinity**: Pinned to Core 1
 
 ### Market Event Consumer (C++)
 
@@ -168,22 +168,18 @@ static_assert(sizeof(MarketEvent) == 64);
 
 ## Key Design Decisions
 
-### 1. Python for Data Ingestion
+### 1. C++ for Data Ingestion
 
-**Decision**: Use Python for market data ingestion instead of C++
+**Decision**: Use C++ for market data ingestion (AlpacaMarketPublisher)
 
 **Rationale**:
 
-- Alpaca's Python SDK is better maintained than C++ alternatives
-- Rapid prototyping and iteration
-- WebSocket handling is simpler in Python
-- Performance impact is minimal (network I/O bound)
+- Single binary — no Python runtime, no cross-language overhead
+- Direct msgpack decoding with zero-copy where possible
+- Same build/test/CI pipeline as the rest of the engine
+- Thread pinning and cache-line alignment for consistent latency
 
-**Trade-offs**:
-
-- Additional serialization overhead
-- Cross-language complexity
-- Separate process management
+**Libraries**: ixwebsocket (WebSocket client), msgpack-cxx (header-only msgpack decoding)
 
 ### 2. ZeroMQ for IPC
 
@@ -284,12 +280,6 @@ class MarketEventConsumer {
    - Implement SPSC lock-free queue
    - Use memory-mapped files for persistence
    - Target: \<2μs IPC latency
-
-1. **C++ Market Data Ingestion**
-
-   - Migrate to Databento C++ client
-   - Direct TCP connection to exchange
-   - Remove Python serialization overhead
 
 1. **Custom Memory Allocators**
 

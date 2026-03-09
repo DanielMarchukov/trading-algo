@@ -1,61 +1,21 @@
 #include "TradingEngine.hpp"
 #include "AlpacaFillListener.hpp"
+#include "ThreadPinning.hpp"
 #include "Utils.hpp"
 #include <csignal>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
 
-#if defined(_WIN32)
-#include <windows.h>
-#elif defined(__linux__) || defined(__gnu_linux__)
-#include <pthread.h>
-#elif defined(__APPLE__)
-#include <mach/thread_act.h>
-#include <mach/thread_policy.h>
-#endif
-
 namespace {
 std::atomic<bool> *g_is_running_ptr = nullptr;
-void signal_handler(const int signum) {
+void signalHandler(const int signum) {
+  (void)signum;
   if (g_is_running_ptr) {
-    std::cout << "\nSignal " << signum << " received. Initiating shutdown..."
-              << std::endl;
     g_is_running_ptr->store(false);
   }
 }
 } // namespace
-
-void pin_thread_to_core(std::thread &t, uint32_t core_id) {
-#if defined(__linux__) || defined(__gnu_linux__)
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(core_id, &cpuset);
-  if (pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset) !=
-      0) {
-    std::cerr << "Error calling pthread_setaffinity_np\n";
-  }
-#elif defined(_WIN32)
-  if (const DWORD_PTR mask = 1LL << core_id;
-      SetThreadAffinityMask(t.native_handle(), mask) == 0) {
-    std::cerr << "Error calling SetThreadAffinityMask: " << GetLastError()
-              << std::endl;
-  }
-#elif defined(__APPLE__)
-  thread_affinity_policy_data_t policy = {static_cast<integer_t>(core_id)};
-  thread_port_t mach_thread = pthread_mach_thread_np(t.native_handle());
-  if (thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY,
-                        (thread_policy_t)&policy,
-                        THREAD_AFFINITY_POLICY_COUNT) != KERN_SUCCESS) {
-    std::cerr << "Error calling thread_policy_set" << std::endl;
-  }
-#else
-  (void)t;
-  (void)core_id;
-  std::cout << "Warning: CPU pinning not supported on this platform."
-            << std::endl;
-#endif
-}
 
 TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client)
@@ -80,13 +40,14 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   fill_listener_ = std::make_unique<AlpacaFillListener>(
       position_manager_.get(), is_running_, api_key, api_secret);
 
-#ifdef _WIN32
-  ipc_address_ = "tcp://127.0.0.1:5555";
-#else
-  std::filesystem::path temp_dir = std::filesystem::temp_directory_path();
-  std::filesystem::path socket_path = temp_dir / "market_data.sock";
-  ipc_address_ = "ipc://" + socket_path.string();
-#endif
+  ipc_address_ = getZmqMarketDataAddress();
+
+  auto source =
+      AlpacaWebSocketSource(api_key, api_secret, symbols_, is_running_);
+  auto decoder = AlpacaMsgpackDecoder();
+  auto sink = ZmqMarketEventSink(context_, ipc_address_);
+  market_publisher_ = std::make_unique<AlpacaPipeline>(
+      std::move(source), std::move(decoder), std::move(sink));
 }
 
 TradingEngine::~TradingEngine() {
@@ -101,8 +62,8 @@ TradingEngine::~TradingEngine() {
 
 void TradingEngine::setup_signal_handler() {
   g_is_running_ptr = &is_running_;
-  std::signal(SIGINT, signal_handler);
-  std::signal(SIGTERM, signal_handler);
+  std::signal(SIGINT, signalHandler);
+  std::signal(SIGTERM, signalHandler);
 }
 
 void TradingEngine::launch_gateway() {
@@ -141,17 +102,24 @@ void TradingEngine::main_loop() const {
 }
 
 void TradingEngine::shutdown() {
-  fill_listener_->stop();
-  if (order_gateway_thread_.joinable()) {
-    order_gateway_thread_.join();
-  }
+  // 1. Stop the market publisher first (stop producing data)
+  market_publisher_->stop();
+
+  // 2. Stop consumers (they drain remaining events) and join their threads
   for (auto &[thread, consumer] : consumer_threads_) {
     if (thread.joinable()) {
       thread.join();
     }
   }
-
   consumer_threads_.clear();
+
+  // 3. Stop the fill listener
+  fill_listener_->stop();
+
+  // 4. Stop and join the order gateway
+  if (order_gateway_thread_.joinable()) {
+    order_gateway_thread_.join();
+  }
   order_gateway_.reset();
 }
 
@@ -159,6 +127,8 @@ void TradingEngine::run() {
   std::cout << "Starting trading engine..." << std::endl;
   fill_listener_->start();
   std::cout << "FillListener started" << std::endl;
+  market_publisher_->start();
+  std::cout << "MarketPublisher started" << std::endl;
   launch_gateway();
   launch_consumers();
   main_loop();

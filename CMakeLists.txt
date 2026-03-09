@@ -80,6 +80,7 @@ find_package(nlohmann_json REQUIRED)
 find_package(GTest REQUIRED)
 find_package(TBB CONFIG REQUIRED)
 find_package(ixwebsocket CONFIG REQUIRED)
+find_package(msgpack-cxx CONFIG REQUIRED)
 
 file(GLOB_RECURSE SOURCES src/*.cpp)
 file(GLOB_RECURSE HEADERS include/*.hpp)
@@ -98,7 +99,8 @@ target_link_libraries(
             nlohmann_json::nlohmann_json
             cpr::cpr
             TBB::tbb
-            ixwebsocket::ixwebsocket)
+            ixwebsocket::ixwebsocket
+            msgpack-cxx)
 
 if(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
@@ -124,7 +126,8 @@ target_link_libraries(
            nlohmann_json::nlohmann_json
            GTest::gtest_main
            TBB::tbb
-           ixwebsocket::ixwebsocket)
+           ixwebsocket::ixwebsocket
+           msgpack-cxx)
 
 if(SANITIZER_ACTIVE AND NOT MSVC)
     target_compile_options(rich_on_tests PRIVATE ${SANITIZER_FLAGS})
