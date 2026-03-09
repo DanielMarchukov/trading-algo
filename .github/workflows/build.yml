@@ -68,8 +68,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format clang-tidy libstdc++-14-dev g++-14
-          clang-format --version
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format-19 clang-tidy libstdc++-14-dev g++-14
+          clang-format-19 --version
 
       - name: Install Clang 19 (Linux)
         if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang')
@@ -121,7 +121,7 @@ jobs:
         if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang') # Only run once
         run: |
           find src/ include/ tests/ -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | \
-            xargs clang-format -style=file --dry-run --Werror
+            xargs clang-format-19 -style=file --dry-run --Werror
 
       - name: Configure CMake
         if: runner.os != 'Windows'

@@ -12,12 +12,13 @@ repos:
       - id: check-toml
       - id: mixed-line-ending
 
-  - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v20.1.8
+  - repo: local
     hooks:
       - id: clang-format
+        name: clang-format
+        entry: clang-format-19 -i -style=file
+        language: system
         files: \.(cpp|hpp|h|c|cc|cxx)$
-        args: ["-style=file"]
 
   - repo: https://github.com/cheshirekow/cmake-format-precommit
     rev: v0.6.13
