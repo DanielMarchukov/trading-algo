@@ -14,6 +14,8 @@ private:
     Node() : next(nullptr), data() {}
   };
 
+  static_assert(sizeof(Node) <= 128, "Node must fit within two cache lines");
+
   alignas(64) std::atomic<Node *> head_;
   alignas(64) Node *tail_;
   alignas(64) Node stub_;

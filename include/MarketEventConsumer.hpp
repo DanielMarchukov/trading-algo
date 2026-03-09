@@ -4,6 +4,7 @@
 #include "RiskManager.hpp"
 #include "Strategy.hpp"
 #include <atomic>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <iostream>
@@ -54,9 +55,10 @@ public:
         continue;
       }
 
-      auto event = static_cast<const MarketEvent *>(payload.data());
+      MarketEvent event{};
+      std::memcpy(&event, payload.data(), sizeof(MarketEvent));
       try {
-        auto order = strategy_->onMarketEvent(*event);
+        auto order = strategy_->onMarketEvent(event);
         if (order && risk_manager_->onNewOrder(*order)) {
           order_callback_(*order);
         }

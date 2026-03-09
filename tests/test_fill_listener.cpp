@@ -11,11 +11,11 @@
 class FillListenerTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    position_manager_ = std::make_shared<PositionManager>();
+    position_manager_ = std::make_unique<PositionManager>();
     position_manager_->registerSymbol("AAPL");
     position_manager_->registerSymbol("GOOGL");
     listener_ = std::make_unique<AlpacaFillListener>(
-        position_manager_, is_running_, "test_key", "test_secret");
+        position_manager_.get(), is_running_, "test_key", "test_secret");
   }
 
   static TradeUpdate parse(const std::string &json_str) {
@@ -43,10 +43,16 @@ protected:
     listener_->onMessage(msg);
   }
 
-  std::shared_ptr<PositionManager> position_manager_;
+  std::unique_ptr<PositionManager> position_manager_;
   std::atomic<bool> is_running_{true};
   std::unique_ptr<AlpacaFillListener> listener_;
 };
+
+TEST(AlpacaFillListenerConstructionTest, ThrowsOnNullPositionManager) {
+  std::atomic<bool> is_running{true};
+  EXPECT_THROW(AlpacaFillListener(nullptr, is_running, "key", "secret"),
+               std::invalid_argument);
+}
 
 struct FillParseParam {
   const char *event_type;

@@ -12,11 +12,11 @@ using test_helpers::createOrder;
 class RiskManagerTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    pos_manager_ = std::make_shared<PositionManager>();
-    risk_manager_ = std::make_unique<RiskManager>(pos_manager_);
+    pos_manager_ = std::make_unique<PositionManager>();
+    risk_manager_ = std::make_unique<RiskManager>(pos_manager_.get());
   }
 
-  std::shared_ptr<PositionManager> pos_manager_;
+  std::unique_ptr<PositionManager> pos_manager_;
   std::unique_ptr<RiskManager> risk_manager_;
 };
 

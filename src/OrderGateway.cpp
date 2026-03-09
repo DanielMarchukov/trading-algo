@@ -1,14 +1,26 @@
 #include "OrderGateway.hpp"
+#include "PositionManager.hpp"
 #include <iostream>
+#include <stdexcept>
 
-OrderGateway::OrderGateway(
-    std::atomic<bool> &is_running,
-    const std::shared_ptr<LockFreeMPSCQueue<Order>> &order_queue,
-    std::unique_ptr<IRestClient> rest_client,
-    std::shared_ptr<PositionManager> position_manager)
+OrderGateway::OrderGateway(std::atomic<bool> &is_running,
+                           LockFreeMPSCQueue<Order> *order_queue,
+                           std::unique_ptr<IRestClient> rest_client,
+                           PositionManager *position_manager)
     : is_running_(is_running), order_queue_(order_queue),
       rest_client_(std::move(rest_client)),
-      position_manager_(std::move(position_manager)) {}
+      position_manager_(position_manager) {
+  if (order_queue_ == nullptr) {
+    throw std::invalid_argument("OrderGateway: order_queue must not be null");
+  }
+  if (rest_client_ == nullptr) {
+    throw std::invalid_argument("OrderGateway: rest_client must not be null");
+  }
+  if (position_manager_ == nullptr) {
+    throw std::invalid_argument(
+        "OrderGateway: position_manager must not be null");
+  }
+}
 
 void OrderGateway::executeOrder(const Order &order) const {
   try {

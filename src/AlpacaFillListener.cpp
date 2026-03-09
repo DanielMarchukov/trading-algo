@@ -4,6 +4,7 @@
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <stdexcept>
 #include <thread>
 
 void pin_thread_to_core(std::thread &t, uint32_t core_id);
@@ -142,12 +143,17 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
   return std::monostate{};
 }
 
-AlpacaFillListener::AlpacaFillListener(
-    std::shared_ptr<PositionManager> position_manager,
-    std::atomic<bool> &is_running, const std::string &api_key,
-    const std::string &api_secret)
-    : position_manager_(std::move(position_manager)), is_running_(is_running),
-      api_key_(api_key), api_secret_(api_secret) {}
+AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
+                                       std::atomic<bool> &is_running,
+                                       const std::string &api_key,
+                                       const std::string &api_secret)
+    : position_manager_(position_manager), is_running_(is_running),
+      api_key_(api_key), api_secret_(api_secret) {
+  if (position_manager_ == nullptr) {
+    throw std::invalid_argument(
+        "AlpacaFillListener: position_manager must not be null");
+  }
+}
 
 AlpacaFillListener::~AlpacaFillListener() { stop(); }
 

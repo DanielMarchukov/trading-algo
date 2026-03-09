@@ -1,8 +1,8 @@
 #include "RiskManager.hpp"
+#include "PositionManager.hpp"
 #include <cstdlib>
 
-RiskManager::RiskManager(
-    const std::shared_ptr<PositionManager> &position_manager)
+RiskManager::RiskManager(PositionManager *position_manager)
     : position_manager_(position_manager) {
   // TODO: Load parameters from some config.
 }

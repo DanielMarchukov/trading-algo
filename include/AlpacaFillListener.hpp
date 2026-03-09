@@ -42,7 +42,7 @@ class AlpacaFillListener : public IFillListener {
   friend class FillListenerTest;
 
 public:
-  AlpacaFillListener(std::shared_ptr<PositionManager> position_manager,
+  AlpacaFillListener(PositionManager *position_manager,
                      std::atomic<bool> &is_running, const std::string &api_key,
                      const std::string &api_secret);
 
@@ -57,7 +57,7 @@ private:
   void sendSubscribe();
   void handleTradeUpdate(const std::string &json);
 
-  std::shared_ptr<PositionManager> position_manager_;
+  PositionManager *position_manager_;
   std::atomic<bool> &is_running_;
   std::string api_key_;
   std::string api_secret_;
