@@ -20,6 +20,11 @@ public:
   }
 };
 
+struct FlagOrderCallback {
+  bool *called;
+  void operator()(const Order & /*order*/) const { *called = true; }
+};
+
 TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
   zmq::context_t context(1);
   zmq::socket_t publisher(context, zmq::socket_type::pub);
@@ -30,14 +35,15 @@ TEST(MarketEventConsumerErrorTest, HandlesStrategyException) {
   auto risk_manager = std::make_unique<RiskManager>(position_manager.get());
 
   bool callback_called = false;
-  auto callback = [&](const Order &) { callback_called = true; };
+  FlagOrderCallback callback{&callback_called};
 
-  MarketEventConsumer<ThrowingStrategy> consumer(
+  MarketEventConsumer<ThrowingStrategy, FlagOrderCallback> consumer(
       context, "tcp://127.0.0.1:5556", "TEST", is_running, callback,
       risk_manager.get());
 
-  std::thread consumer_thread(&MarketEventConsumer<ThrowingStrategy>::run,
-                              &consumer);
+  std::thread consumer_thread(
+      &MarketEventConsumer<ThrowingStrategy, FlagOrderCallback>::run,
+      &consumer);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   MarketEvent event{};
@@ -71,14 +77,15 @@ TEST(MarketEventConsumerErrorTest, HandlesNonStdException) {
   auto risk_manager = std::make_unique<RiskManager>(position_manager.get());
 
   bool callback_called = false;
-  auto callback = [&](const Order &) { callback_called = true; };
+  FlagOrderCallback callback{&callback_called};
 
-  MarketEventConsumer<ThrowingNonStdStrategy> consumer(
+  MarketEventConsumer<ThrowingNonStdStrategy, FlagOrderCallback> consumer(
       context, "tcp://127.0.0.1:5557", "TEST", is_running, callback,
       risk_manager.get());
 
-  std::thread consumer_thread(&MarketEventConsumer<ThrowingNonStdStrategy>::run,
-                              &consumer);
+  std::thread consumer_thread(
+      &MarketEventConsumer<ThrowingNonStdStrategy, FlagOrderCallback>::run,
+      &consumer);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   MarketEvent event{};

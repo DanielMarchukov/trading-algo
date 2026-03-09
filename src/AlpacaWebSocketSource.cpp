@@ -20,10 +20,6 @@ AlpacaWebSocketSource::AlpacaWebSocketSource(std::string api_key,
 
 AlpacaWebSocketSource::~AlpacaWebSocketSource() { stop(); }
 
-void AlpacaWebSocketSource::setOnData(DataCallback cb) {
-  on_data_ = std::move(cb);
-}
-
 void AlpacaWebSocketSource::start() {
   if (thread_.joinable()) {
     return;

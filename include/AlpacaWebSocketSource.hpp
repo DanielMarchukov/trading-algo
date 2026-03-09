@@ -8,6 +8,7 @@
 #include <span>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 class AlpacaWebSocketSource {
@@ -24,7 +25,10 @@ public:
   AlpacaWebSocketSource(const AlpacaWebSocketSource &) = delete;
   AlpacaWebSocketSource &operator=(const AlpacaWebSocketSource &) = delete;
 
-  void setOnData(DataCallback cb);
+  template <typename Fn> void setOnData(Fn &&cb) {
+    on_data_ = std::forward<Fn>(cb);
+  }
+
   void start();
   void stop();
   void sendSubscribe();

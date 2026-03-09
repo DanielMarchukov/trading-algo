@@ -4,6 +4,7 @@
 #include "IRestClient.hpp"
 #include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
+#include "Order.hpp"
 #include "OrderGateway.hpp"
 #include "PositionManager.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
@@ -15,6 +16,14 @@
 #include <vector>
 
 class IFillListener;
+
+struct OrderQueuePusher {
+  LockFreeMPSCQueue<Order> *queue;
+  void operator()(const Order &order) const { queue->push(order); }
+};
+
+using ConsumerType =
+    MarketEventConsumer<SimpleMarketMakingStrategy, OrderQueuePusher>;
 
 class TradingEngine {
 public:
@@ -29,7 +38,7 @@ public:
 private:
   struct ConsumerThread {
     std::thread thread;
-    std::unique_ptr<MarketEventConsumer<SimpleMarketMakingStrategy>> consumer;
+    std::unique_ptr<ConsumerType> consumer;
   };
 
   void setup_signal_handler();
