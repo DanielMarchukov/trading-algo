@@ -28,22 +28,19 @@ protected:
     sink_.reset();
   }
 
-  [[nodiscard]] bool recvEvent(MarketEvent &event,
-                               std::string &topic_out) {
+  [[nodiscard]] bool recvEvent(MarketEvent &event, std::string &topic_out) {
     zmq::message_t topic;
     zmq::message_t payload;
     if (auto r = sub_.recv(topic, zmq::recv_flags::none); !r.has_value()) {
       return false;
     }
-    if (auto r = sub_.recv(payload, zmq::recv_flags::none);
-        !r.has_value()) {
+    if (auto r = sub_.recv(payload, zmq::recv_flags::none); !r.has_value()) {
       return false;
     }
     if (payload.size() != sizeof(MarketEvent)) {
       return false;
     }
-    topic_out =
-        std::string(static_cast<char *>(topic.data()), topic.size());
+    topic_out = std::string(static_cast<char *>(topic.data()), topic.size());
     std::memcpy(&event, payload.data(), sizeof(MarketEvent));
     return true;
   }

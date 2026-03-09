@@ -28,12 +28,12 @@ concept MarketDataDecoderLike = requires(
 };
 
 template <typename T>
-concept MarketEventSinkLike = requires(T t, const MarketEvent &event,
-                                       std::string_view symbol) {
-  { t.start() } -> std::same_as<void>;
-  { t.stop() } -> std::same_as<void>;
-  { t.publish(event, symbol) } -> std::same_as<void>;
-};
+concept MarketEventSinkLike =
+    requires(T t, const MarketEvent &event, std::string_view symbol) {
+      { t.start() } -> std::same_as<void>;
+      { t.stop() } -> std::same_as<void>;
+      { t.publish(event, symbol) } -> std::same_as<void>;
+    };
 
 // --- Pipeline: composes Source -> Decoder -> Sink via templates ---
 

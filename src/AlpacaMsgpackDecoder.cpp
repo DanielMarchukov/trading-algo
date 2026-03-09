@@ -84,8 +84,8 @@ void AlpacaMsgpackDecoder::setOnAuthSuccess(AuthSuccessCallback cb) {
 }
 
 void AlpacaMsgpackDecoder::decode(std::span<const char> data,
-                                   uint64_t arrived_at,
-                                   const EmitCallback &emit) {
+                                  uint64_t arrived_at,
+                                  const EmitCallback &emit) {
   try {
     msgpack::object_handle oh = msgpack::unpack(data.data(), data.size());
     const msgpack::object &root = oh.get();
@@ -117,11 +117,9 @@ void AlpacaMsgpackDecoder::decode(std::span<const char> data,
         std::string_view key(kv.key.via.str.ptr, kv.key.via.str.size);
 
         if (key == "T" && kv.val.type == msgpack::type::STR) {
-          msg_type =
-              std::string_view(kv.val.via.str.ptr, kv.val.via.str.size);
+          msg_type = std::string_view(kv.val.via.str.ptr, kv.val.via.str.size);
         } else if (key == "S" && kv.val.type == msgpack::type::STR) {
-          symbol =
-              std::string_view(kv.val.via.str.ptr, kv.val.via.str.size);
+          symbol = std::string_view(kv.val.via.str.ptr, kv.val.via.str.size);
         } else if (key == "t") {
           ts_obj = &kv.val;
         } else if (key == "bp" || key == "p") {

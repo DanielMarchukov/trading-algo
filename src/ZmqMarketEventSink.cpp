@@ -7,7 +7,7 @@ constexpr std::size_t kSymbolCapacity = 8;
 } // namespace
 
 ZmqMarketEventSink::ZmqMarketEventSink(zmq::context_t &context,
-                                         std::string zmq_address)
+                                       std::string zmq_address)
     : zmq_address_(std::move(zmq_address)),
       zmq_pub_(context, zmq::socket_type::pub) {}
 
@@ -23,7 +23,7 @@ void ZmqMarketEventSink::stop() {
 }
 
 void ZmqMarketEventSink::publish(const MarketEvent &event,
-                                  std::string_view symbol) {
+                                 std::string_view symbol) {
   const auto topic_len = (std::min)(symbol.size(), kSymbolCapacity);
   zmq_pub_.send(zmq::buffer(symbol.data(), topic_len),
                 zmq::send_flags::sndmore);

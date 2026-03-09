@@ -54,8 +54,7 @@ inline std::string packQuoteMsg(const char *sym, double bp, int64_t bs,
   return std::string(buf.data(), buf.size());
 }
 
-inline std::string packTradeMsg(const char *sym, double price,
-                                int64_t size) {
+inline std::string packTradeMsg(const char *sym, double price, int64_t size) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(&buf);
   pk.pack_array(1);

@@ -15,11 +15,10 @@ protected:
   std::vector<std::pair<MarketEvent, std::string>> captured_;
 
   void decode(const std::string &raw, uint64_t arrived_at = 999) {
-    decoder_.decode(
-        std::span<const char>(raw.data(), raw.size()), arrived_at,
-        [this](const MarketEvent &event, std::string_view symbol) {
-          captured_.emplace_back(event, std::string(symbol));
-        });
+    decoder_.decode(std::span<const char>(raw.data(), raw.size()), arrived_at,
+                    [this](const MarketEvent &event, std::string_view symbol) {
+                      captured_.emplace_back(event, std::string(symbol));
+                    });
   }
 };
 
@@ -64,22 +63,18 @@ INSTANTIATE_TEST_SUITE_P(
             "quote_all_fields",
             [] { return packQuoteMsg("AAPL", 150.25, 200, 150.30, 100); }, 1,
             "AAPL", 1502500, 200, 1503000, 100},
-        MarketEventParam{
-            "trade_all_fields",
-            [] { return packTradeMsg("GOOGL", 2800.50, 50); }, 2, "GOOGL",
-            28005000, 50, 0, 0},
-        MarketEventParam{
-            "quote_zero_prices",
-            [] { return packQuoteMsg("AMZN", 0.0, 0, 0.0, 0); }, 1, "AMZN",
-            0, 0, 0, 0},
-        MarketEventParam{
-            "trade_large_values",
-            [] { return packTradeMsg("TSLA", 99999.99, 10000); }, 2, "TSLA",
-            999999900, 10000, 0, 0},
-        MarketEventParam{
-            "symbol_truncated_to_8_chars",
-            [] { return packTradeMsg("LONGERSYM", 100.0, 1); }, 2,
-            "LONGERSY", 1000000, 1, 0, 0}),
+        MarketEventParam{"trade_all_fields",
+                         [] { return packTradeMsg("GOOGL", 2800.50, 50); }, 2,
+                         "GOOGL", 28005000, 50, 0, 0},
+        MarketEventParam{"quote_zero_prices",
+                         [] { return packQuoteMsg("AMZN", 0.0, 0, 0.0, 0); }, 1,
+                         "AMZN", 0, 0, 0, 0},
+        MarketEventParam{"trade_large_values",
+                         [] { return packTradeMsg("TSLA", 99999.99, 10000); },
+                         2, "TSLA", 999999900, 10000, 0, 0},
+        MarketEventParam{"symbol_truncated_to_8_chars",
+                         [] { return packTradeMsg("LONGERSYM", 100.0, 1); }, 2,
+                         "LONGERSY", 1000000, 1, 0, 0}),
     [](const ::testing::TestParamInfo<MarketEventParam> &info) {
       return info.param.description;
     });
@@ -437,129 +432,119 @@ TEST_P(TimestampDecodeTest, DecodesTimestampCorrectly) {
 INSTANTIATE_TEST_SUITE_P(
     Timestamps, TimestampDecodeTest,
     ::testing::Values(
-        TimestampParam{
-            "positive_integer",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    pk.pack(static_cast<uint64_t>(5000000000ULL));
-                  });
-            },
-            5000000000ULL},
-        TimestampParam{
-            "negative_integer",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    pk.pack(static_cast<int64_t>(-1));
-                  });
-            },
-            UINT64_MAX},
-        TimestampParam{
-            "float_timestamp",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    pk.pack(1234567890.0);
-                  });
-            },
-            1234567890ULL},
-        TimestampParam{
-            "ext4_seconds_only",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    uint8_t data[4];
-                    writeBE32(data, 1000);
-                    pk.pack_ext(4, -1);
-                    pk.pack_ext_body(
-                        reinterpret_cast<const char *>(data), 4);
-                  });
-            },
-            1000ULL * 1'000'000'000ULL},
-        TimestampParam{
-            "ext8_combined",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    uint64_t sec = 100;
-                    uint32_t nsec = 500;
-                    uint64_t val =
-                        (static_cast<uint64_t>(nsec) << 34) | sec;
-                    uint8_t data[8];
-                    writeBE64(data, val);
-                    pk.pack_ext(8, -1);
-                    pk.pack_ext_body(
-                        reinterpret_cast<const char *>(data), 8);
-                  });
-            },
-            100ULL * 1'000'000'000ULL + 500ULL},
-        TimestampParam{
-            "ext12_separate_fields",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    uint8_t data[12];
-                    writeBE32(data, 999999999);
-                    writeBE64(data + 4, 42);
-                    pk.pack_ext(12, -1);
-                    pk.pack_ext_body(
-                        reinterpret_cast<const char *>(data), 12);
-                  });
-            },
-            42ULL * 1'000'000'000ULL + 999999999ULL},
-        TimestampParam{
-            "ext_wrong_type_returns_zero",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    uint8_t data[4] = {0, 0, 0, 42};
-                    pk.pack_ext(4, 5);
-                    pk.pack_ext_body(
-                        reinterpret_cast<const char *>(data), 4);
-                  });
-            },
-            0ULL},
-        TimestampParam{
-            "ext_unknown_size_returns_zero",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    uint8_t data[6] = {0, 0, 0, 0, 0, 42};
-                    pk.pack_ext(6, -1);
-                    pk.pack_ext_body(
-                        reinterpret_cast<const char *>(data), 6);
-                  });
-            },
-            0ULL},
-        TimestampParam{
-            "string_timestamp_returns_zero",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    pk.pack("2024-01-15T10:30:00Z");
-                  });
-            },
-            0ULL},
-        TimestampParam{
-            "nil_timestamp_returns_zero",
-            [] {
-              return packQuoteMsgWithTimestamp(
-                  "AAPL", 100.0, 1, 101.0, 1,
-                  [](msgpack::packer<msgpack::sbuffer> &pk) {
-                    pk.pack_nil();
-                  });
-            },
-            0ULL}),
+        TimestampParam{"positive_integer",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               pk.pack(static_cast<uint64_t>(5000000000ULL));
+                             });
+                       },
+                       5000000000ULL},
+        TimestampParam{"negative_integer",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               pk.pack(static_cast<int64_t>(-1));
+                             });
+                       },
+                       UINT64_MAX},
+        TimestampParam{"float_timestamp",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               pk.pack(1234567890.0);
+                             });
+                       },
+                       1234567890ULL},
+        TimestampParam{"ext4_seconds_only",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               uint8_t data[4];
+                               writeBE32(data, 1000);
+                               pk.pack_ext(4, -1);
+                               pk.pack_ext_body(
+                                   reinterpret_cast<const char *>(data), 4);
+                             });
+                       },
+                       1000ULL * 1'000'000'000ULL},
+        TimestampParam{"ext8_combined",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               uint64_t sec = 100;
+                               uint32_t nsec = 500;
+                               uint64_t val =
+                                   (static_cast<uint64_t>(nsec) << 34) | sec;
+                               uint8_t data[8];
+                               writeBE64(data, val);
+                               pk.pack_ext(8, -1);
+                               pk.pack_ext_body(
+                                   reinterpret_cast<const char *>(data), 8);
+                             });
+                       },
+                       100ULL * 1'000'000'000ULL + 500ULL},
+        TimestampParam{"ext12_separate_fields",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               uint8_t data[12];
+                               writeBE32(data, 999999999);
+                               writeBE64(data + 4, 42);
+                               pk.pack_ext(12, -1);
+                               pk.pack_ext_body(
+                                   reinterpret_cast<const char *>(data), 12);
+                             });
+                       },
+                       42ULL * 1'000'000'000ULL + 999999999ULL},
+        TimestampParam{"ext_wrong_type_returns_zero",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               uint8_t data[4] = {0, 0, 0, 42};
+                               pk.pack_ext(4, 5);
+                               pk.pack_ext_body(
+                                   reinterpret_cast<const char *>(data), 4);
+                             });
+                       },
+                       0ULL},
+        TimestampParam{"ext_unknown_size_returns_zero",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               uint8_t data[6] = {0, 0, 0, 0, 0, 42};
+                               pk.pack_ext(6, -1);
+                               pk.pack_ext_body(
+                                   reinterpret_cast<const char *>(data), 6);
+                             });
+                       },
+                       0ULL},
+        TimestampParam{"string_timestamp_returns_zero",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               pk.pack("2024-01-15T10:30:00Z");
+                             });
+                       },
+                       0ULL},
+        TimestampParam{"nil_timestamp_returns_zero",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               pk.pack_nil();
+                             });
+                       },
+                       0ULL}),
     [](const ::testing::TestParamInfo<TimestampParam> &info) {
       return info.param.description;
     });

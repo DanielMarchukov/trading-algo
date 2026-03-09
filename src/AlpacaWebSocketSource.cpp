@@ -10,9 +10,10 @@ constexpr int kMinReconnectMs = 100;
 constexpr int kMaxReconnectMs = 30000;
 } // namespace
 
-AlpacaWebSocketSource::AlpacaWebSocketSource(
-    std::string api_key, std::string api_secret,
-    std::vector<std::string> symbols, std::atomic<bool> &is_running)
+AlpacaWebSocketSource::AlpacaWebSocketSource(std::string api_key,
+                                             std::string api_secret,
+                                             std::vector<std::string> symbols,
+                                             std::atomic<bool> &is_running)
     : api_key_(std::move(api_key)), api_secret_(std::move(api_secret)),
       symbols_(std::move(symbols)), is_running_(is_running),
       ws_(std::make_unique<ix::WebSocket>()) {}
@@ -69,13 +70,13 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
     break;
 
   case ix::WebSocketMessageType::Error:
-    std::cerr << "AlpacaWebSocketSource: error: "
-              << msg->errorInfo.reason << std::endl;
+    std::cerr << "AlpacaWebSocketSource: error: " << msg->errorInfo.reason
+              << std::endl;
     break;
 
   case ix::WebSocketMessageType::Close:
-    std::cout << "AlpacaWebSocketSource: closed (code="
-              << msg->closeInfo.code << ")" << std::endl;
+    std::cout << "AlpacaWebSocketSource: closed (code=" << msg->closeInfo.code
+              << ")" << std::endl;
     break;
 
   default:
@@ -107,6 +108,6 @@ void AlpacaWebSocketSource::sendSubscribe() {
   pk.pack("trades");
   pk.pack(symbols_);
   ws_->sendBinary(std::string(buffer.data(), buffer.size()));
-  std::cout << "AlpacaWebSocketSource: subscribed to "
-            << symbols_.size() << " symbols" << std::endl;
+  std::cout << "AlpacaWebSocketSource: subscribed to " << symbols_.size()
+            << " symbols" << std::endl;
 }

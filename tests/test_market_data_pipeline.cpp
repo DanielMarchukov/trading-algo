@@ -113,19 +113,16 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
   auto state = std::make_shared<DataFlowState>();
 
   // Source that exports its on_data callback via shared_ptr
-  auto inject = std::make_shared<
-      std::function<void(std::span<const char>)>>();
+  auto inject = std::make_shared<std::function<void(std::span<const char>)>>();
   TestSource source;
   // Replace setOnData to capture into shared inject pointer
   // — but TestSource already stores a callback. We need the
   //   pipeline constructor to wire it, so we use a thin wrapper.
   struct InjectableSource {
-    std::shared_ptr<std::function<void(std::span<const char>)>>
-        inject_;
+    std::shared_ptr<std::function<void(std::span<const char>)>> inject_;
     void start() {}
     void stop() {}
-    void setOnData(
-        std::function<void(std::span<const char>)> cb) {
+    void setOnData(std::function<void(std::span<const char>)> cb) {
       if (inject_) {
         *inject_ = std::move(cb);
       }
@@ -155,8 +152,7 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
     std::shared_ptr<DataFlowState> state_;
     void start() {}
     void stop() {}
-    void publish(const MarketEvent &event,
-                 std::string_view symbol) {
+    void publish(const MarketEvent &event, std::string_view symbol) {
       state_->event_published = true;
       state_->published_symbol = std::string(symbol);
       state_->published_arrived_at = event.arrivedAt;
@@ -166,16 +162,13 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
   InjectableSource src;
   src.inject_ = inject;
 
-  MarketDataPipeline<InjectableSource, PassthroughDecoder,
-                     CapturingSink>
-      pipeline(std::move(src), PassthroughDecoder{state},
-               CapturingSink{state});
+  MarketDataPipeline<InjectableSource, PassthroughDecoder, CapturingSink>
+      pipeline(std::move(src), PassthroughDecoder{state}, CapturingSink{state});
 
   pipeline.start();
 
   std::string test_data = "test_payload";
-  (*inject)(std::span<const char>(test_data.data(),
-                                  test_data.size()));
+  (*inject)(std::span<const char>(test_data.data(), test_data.size()));
 
   EXPECT_TRUE(state->data_decoded);
   EXPECT_TRUE(state->event_published);
@@ -212,8 +205,7 @@ TEST_F(MarketDataPipelineTest, AuthSuccessCallbackWiresDecoderToSource) {
         *trigger_ = std::move(cb);
       }
     }
-    void decode(std::span<const char>, uint64_t,
-                const EmitCallback &) {}
+    void decode(std::span<const char>, uint64_t, const EmitCallback &) {}
     void sendSubscribe() {}
   };
 
