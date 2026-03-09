@@ -36,5 +36,4 @@ ignore:
   - "**/test_*.py"
   - "src/TradingEngine.cpp"
   - "src/ThreadPinning.cpp"
-  - "include/Utils.hpp"
   - "include/AlpacaMsgpackDecoder.hpp"
