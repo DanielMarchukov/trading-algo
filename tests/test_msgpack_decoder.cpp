@@ -692,7 +692,153 @@ INSTANTIATE_TEST_SUITE_P(
                                pk.pack_nil();
                              });
                        },
+                       0ULL},
+        TimestampParam{"nan_float_timestamp_returns_zero",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               pk.pack(
+                                   std::numeric_limits<double>::quiet_NaN());
+                             });
+                       },
+                       0ULL},
+        TimestampParam{"negative_float_timestamp_returns_zero",
+                       [] {
+                         return packQuoteMsgWithTimestamp(
+                             "AAPL", 100.0, 1, 101.0, 1,
+                             [](msgpack::packer<msgpack::sbuffer> &pk) {
+                               pk.pack(-1000.0);
+                             });
+                       },
                        0ULL}),
     [](const ::testing::TestParamInfo<TimestampParam> &info) {
       return info.param.description;
     });
+
+TEST_F(MsgpackDecoderTest, NaNFloatSizeDropsEvent) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(5);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("p");
+  pk.pack(100.0);
+  pk.pack("s");
+  pk.pack(std::numeric_limits<double>::quiet_NaN());
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, NaNFloatAskSizeDropsQuote) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(7);
+  pk.pack("T");
+  pk.pack("q");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("bp");
+  pk.pack(150.0);
+  pk.pack("bs");
+  pk.pack(static_cast<uint64_t>(100));
+  pk.pack("ap");
+  pk.pack(151.0);
+  pk.pack("as");
+  pk.pack(std::numeric_limits<double>::quiet_NaN());
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, NestedMapValuesIgnored) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(6);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("p");
+  pk.pack(100.0);
+  pk.pack("s");
+  pk.pack(static_cast<uint64_t>(10));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+  pk.pack("extra");
+  pk.pack_map(2);
+  pk.pack("T");
+  pk.pack("q");
+  pk.pack("bp");
+  pk.pack(999.0);
+
+  decode(std::string(buf.data(), buf.size()));
+
+  ASSERT_EQ(captured_.size(), 1UL);
+  EXPECT_EQ(captured_[0].first.eventType, 2ULL);
+  EXPECT_EQ(captured_[0].first.p1, 1000000ULL);
+}
+
+TEST_F(MsgpackDecoderTest, UnknownFieldKeysIgnored) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(7);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("p");
+  pk.pack(100.0);
+  pk.pack("s");
+  pk.pack(static_cast<uint64_t>(10));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+  pk.pack("xx");
+  pk.pack("exchange");
+  pk.pack("cond");
+  pk.pack("normal");
+
+  decode(std::string(buf.data(), buf.size()));
+
+  ASSERT_EQ(captured_.size(), 1UL);
+  EXPECT_EQ(captured_[0].first.eventType, 2ULL);
+  EXPECT_EQ(captured_[0].first.p1, 1000000ULL);
+}
+
+TEST_F(MsgpackDecoderTest, ExtOnNonTimestampFieldIgnored) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(5);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("p");
+  uint8_t data[4] = {0, 0, 0, 42};
+  pk.pack_ext(4, -1);
+  pk.pack_ext_body(reinterpret_cast<const char *>(data), 4);
+  pk.pack("s");
+  pk.pack(static_cast<uint64_t>(10));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(12345));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  ASSERT_EQ(captured_.size(), 1UL);
+  EXPECT_EQ(captured_[0].first.p1, 0ULL);
+  EXPECT_EQ(captured_[0].first.timestamp, 12345ULL);
+}
