@@ -405,17 +405,34 @@ trap handle_signal INT TERM
 print_status "Rich-on-Paper Trading System Starting..."
 print_status "Project root: $PROJECT_ROOT"
 
+SOCKET_PATH="/tmp/market_data.sock"
+
 ./build/paper_money &
 ENGINE_PID=$!
 
-sleep 2
+startup_timeout_s=30
+elapsed=0
+while [ $elapsed -lt $startup_timeout_s ]; do
+    if [ -S "$SOCKET_PATH" ]; then
+        break
+    fi
 
-if ! kill -0 $ENGINE_PID 2>/dev/null; then
-    print_error "Trading engine failed to start!"
-    print_error "Check the error messages above and verify:"
-    echo "  1. Alpaca API credentials are correct"
-    echo "  2. Network connectivity is available"
-    echo "  3. All dependencies are properly linked"
+    if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+        print_error "Trading engine failed to start!"
+        print_error "Check the error messages above and verify:"
+        echo "  1. Alpaca API credentials are correct"
+        echo "  2. Network connectivity is available"
+        echo "  3. All dependencies are properly linked"
+        exit 1
+    fi
+
+    sleep 1
+    elapsed=$((elapsed + 1))
+done
+
+if [ ! -S "$SOCKET_PATH" ]; then
+    print_error "Trading engine did not become ready within ${startup_timeout_s}s"
+    kill "$ENGINE_PID" 2>/dev/null
     exit 1
 fi
 

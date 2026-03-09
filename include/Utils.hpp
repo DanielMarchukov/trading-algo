@@ -3,7 +3,6 @@
 #include <chrono>
 #include <cstdint>
 #include <cstring>
-#include <filesystem>
 #include <string>
 
 #if defined(__linux__) || defined(__gnu_linux__)
@@ -31,15 +30,11 @@
 }
 
 [[nodiscard]] inline std::string getZmqMarketDataAddress() {
-#ifdef _WIN32
+#if defined(_WIN32)
   return "tcp://127.0.0.1:5555";
+#elif defined(__linux__) || defined(__APPLE__)
+  return "ipc:///tmp/market_data.sock";
 #else
-  auto temp = std::filesystem::temp_directory_path();
-  auto sock_path = temp / "market_data.sock";
-  std::error_code ec;
-  if (std::filesystem::exists(sock_path, ec)) {
-    std::filesystem::remove(sock_path, ec);
-  }
-  return "ipc://" + sock_path.string();
+#error Unsupported platform
 #endif
 }

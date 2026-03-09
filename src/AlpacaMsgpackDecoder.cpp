@@ -10,6 +10,8 @@ constexpr uint64_t kScalingFactor = 10000;
 constexpr std::size_t kSymbolCapacity = 8;
 constexpr double kMaxScaledPrice =
     static_cast<double>(std::numeric_limits<uint64_t>::max());
+// 2^64 as double — any value >= this overflows uint64_t on cast.
+const double kUint64UpperBound = std::ldexp(1.0, 64);
 
 void copySymbol(char (&dest)[8], const char *src, uint32_t len) {
   std::memset(dest, 0, kSymbolCapacity);
@@ -342,7 +344,7 @@ struct AlpacaVisitor : msgpack::null_visitor {
     }
     switch (current_field) {
     case FieldId::kTimestamp:
-      if (!std::isfinite(v) || v < 0.0) {
+      if (!std::isfinite(v) || v < 0.0 || v >= kUint64UpperBound) {
         timestamp = 0;
       } else {
         timestamp = static_cast<uint64_t>(v);
@@ -353,7 +355,7 @@ struct AlpacaVisitor : msgpack::null_visitor {
       p1_raw = v;
       break;
     case FieldId::kBidSize:
-      if (!std::isfinite(v) || v < 0.0) {
+      if (!std::isfinite(v) || v < 0.0 || v >= kUint64UpperBound) {
         invalid_item = true;
       } else {
         s1_raw = static_cast<uint64_t>(v);
@@ -363,7 +365,7 @@ struct AlpacaVisitor : msgpack::null_visitor {
       p2_raw = v;
       break;
     case FieldId::kAskSize:
-      if (!std::isfinite(v) || v < 0.0) {
+      if (!std::isfinite(v) || v < 0.0 || v >= kUint64UpperBound) {
         invalid_item = true;
       } else {
         s2_raw = static_cast<uint64_t>(v);
@@ -406,5 +408,11 @@ void AlpacaMsgpackDecoder::decodeRaw(std::span<const char> data,
   visitor.on_auth_success = &on_auth_success_;
   visitor.arrived_at = arrived_at;
 
-  msgpack::parse(data.data(), data.size(), visitor);
+  try {
+    msgpack::parse(data.data(), data.size(), visitor);
+  } catch (...) {
+    // msgpack::parse() can throw on severely malformed input despite
+    // SAX visitor callbacks. Swallow here to avoid crashing the
+    // data pipeline — the malformed frame is simply dropped.
+  }
 }

@@ -12,6 +12,11 @@
 
 void pin_thread_to_core(std::thread &t, uint32_t core_id) {
 #if defined(__linux__) || defined(__gnu_linux__)
+  if (core_id >= CPU_SETSIZE) {
+    std::cerr << "Error: core_id " << core_id << " exceeds CPU_SETSIZE ("
+              << CPU_SETSIZE << ")\n";
+    return;
+  }
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(core_id, &cpuset);
@@ -31,12 +36,16 @@ void pin_thread_to_core(std::thread &t, uint32_t core_id) {
               << std::endl;
   }
 #elif defined(__APPLE__)
+  // THREAD_AFFINITY_POLICY is only a scheduling hint (same-tag threads
+  // share L2 cache). It does not pin to a specific core, and on Apple
+  // Silicon it is effectively a no-op.
   thread_affinity_policy_data_t policy = {static_cast<integer_t>(core_id)};
   thread_port_t mach_thread = pthread_mach_thread_np(t.native_handle());
   if (thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY,
                         (thread_policy_t)&policy,
                         THREAD_AFFINITY_POLICY_COUNT) != KERN_SUCCESS) {
-    std::cerr << "Error calling thread_policy_set" << std::endl;
+    std::cerr << "Warning: thread_policy_set affinity hint failed for core "
+              << core_id << std::endl;
   }
 #else
   (void)t;

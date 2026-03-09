@@ -1,9 +1,11 @@
 #include "ZmqMarketEventSink.hpp"
 #include <algorithm>
+#include <filesystem>
 #include <iostream>
 
 namespace {
 constexpr std::size_t kSymbolCapacity = 8;
+constexpr std::string_view kIpcPrefix = "ipc://";
 } // namespace
 
 ZmqMarketEventSink::ZmqMarketEventSink(zmq::context_t &context,
@@ -12,6 +14,11 @@ ZmqMarketEventSink::ZmqMarketEventSink(zmq::context_t &context,
       zmq_pub_(context, zmq::socket_type::pub) {}
 
 void ZmqMarketEventSink::start() {
+  if (zmq_address_.starts_with(kIpcPrefix)) {
+    auto sock_path = zmq_address_.substr(kIpcPrefix.size());
+    std::error_code ec;
+    std::filesystem::remove(sock_path, ec);
+  }
   zmq_pub_.set(zmq::sockopt::sndhwm, 1000000);
   zmq_pub_.set(zmq::sockopt::linger, 0);
   zmq_pub_.bind(zmq_address_);
@@ -29,6 +36,7 @@ void ZmqMarketEventSink::publish(const MarketEvent &event,
   if (!res.has_value()) {
     return;
   }
-  zmq_pub_.send(zmq::buffer(&event, sizeof(MarketEvent)),
-                zmq::send_flags::dontwait);
+  auto res2 = zmq_pub_.send(zmq::buffer(&event, sizeof(MarketEvent)),
+                            zmq::send_flags::dontwait);
+  (void)res2;
 }

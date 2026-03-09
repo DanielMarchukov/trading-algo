@@ -83,7 +83,7 @@ You should see output like:
 ```bash
 Starting trading engine...
 FillListener started
-MarketDataPipeline started
+MarketPublisher started
 ZmqMarketEventSink: bound to tcp://127.0.0.1:5555
 AlpacaWebSocketSource: pinned to CPU core 1
 Pinned OrderGateway thread to CPU Core 0

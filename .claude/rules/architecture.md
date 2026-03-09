@@ -104,4 +104,4 @@ Target (closed loop):
 
 [1]: https://docs.alpaca.markets/docs/websocket-streaming
 [2]: https://docs.alpaca.markets/docs/trading-api
-[3]: https://github.com/nicegraf/ixwebsocket
+[3]: https://github.com/machinezone/IXWebSocket

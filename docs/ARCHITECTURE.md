@@ -120,7 +120,7 @@ Legend:
 ### Market Event Consumer (C++)
 
 - **Template-based design** for compile-time strategy injection
-- **Per-symbol threads** with CPU affinity (Core 1, 2, 3...)
+- **Per-symbol threads** with CPU affinity (Core 2, 3, 4...)
 - **Zero-copy processing** of market events
 - **Direct function calls** (no virtual dispatch)
 
