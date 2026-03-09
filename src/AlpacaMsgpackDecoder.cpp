@@ -1,5 +1,6 @@
 #include "AlpacaMsgpackDecoder.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <msgpack.hpp>
 
@@ -7,6 +8,8 @@ namespace {
 
 constexpr uint64_t kScalingFactor = 10000;
 constexpr std::size_t kSymbolCapacity = 8;
+constexpr double kMaxScaledPrice =
+    static_cast<double>(std::numeric_limits<uint64_t>::max());
 
 void copySymbol(char (&dest)[8], const char *src, uint32_t len) {
   std::memset(dest, 0, kSymbolCapacity);
@@ -14,6 +17,11 @@ void copySymbol(char (&dest)[8], const char *src, uint32_t len) {
   if (n > 0) {
     std::memcpy(dest, src, n);
   }
+}
+
+[[nodiscard]] bool isSafePrice(double raw) {
+  return std::isfinite(raw) && raw >= 0.0 &&
+         raw * kScalingFactor < kMaxScaledPrice;
 }
 
 uint64_t decodeTimestampExt(const char *data, uint32_t ext_size) {
@@ -77,12 +85,12 @@ enum class FieldId : uint8_t {
 };
 
 struct AlpacaVisitor : msgpack::null_visitor {
-  using EmitCallback =
-      std::function<void(const MarketEvent &, std::string_view)>;
+  using RawEmitFn = AlpacaMsgpackDecoder::RawEmitFn;
   using AuthSuccessCallback = std::function<void()>;
 
   MarketEvent *event_buffer;
-  const EmitCallback *emit;
+  RawEmitFn emit_fn;
+  void *emit_ctx;
   const AuthSuccessCallback *on_auth_success;
   uint64_t arrived_at;
 
@@ -102,6 +110,7 @@ struct AlpacaVisitor : msgpack::null_visitor {
   double p2_raw = 0.0;
   uint64_t s2_raw = 0;
   bool has_timestamp = false;
+  bool invalid_item = false;
 
   void resetItem() {
     msg_type_len = 0;
@@ -112,10 +121,15 @@ struct AlpacaVisitor : msgpack::null_visitor {
     p2_raw = 0.0;
     s2_raw = 0;
     has_timestamp = false;
+    invalid_item = false;
     current_field = FieldId::kNone;
   }
 
   void emitItem() {
+    if (invalid_item) {
+      return;
+    }
+
     std::string_view mt(msg_type, msg_type_len);
     std::string_view sym(symbol_buf, symbol_len);
 
@@ -131,7 +145,7 @@ struct AlpacaVisitor : msgpack::null_visitor {
     }
 
     if (mt == "q") {
-      if (p1_raw < 0.0 || p2_raw < 0.0) {
+      if (!isSafePrice(p1_raw) || !isSafePrice(p2_raw)) {
         return;
       }
       event_buffer->eventType = 1;
@@ -140,7 +154,7 @@ struct AlpacaVisitor : msgpack::null_visitor {
       event_buffer->p2 = static_cast<uint64_t>(p2_raw * kScalingFactor);
       event_buffer->s2 = s2_raw;
     } else if (mt == "t") {
-      if (p1_raw < 0.0) {
+      if (!isSafePrice(p1_raw)) {
         return;
       }
       event_buffer->eventType = 2;
@@ -155,7 +169,7 @@ struct AlpacaVisitor : msgpack::null_visitor {
     copySymbol(event_buffer->symbol, symbol_buf, symbol_len);
     event_buffer->timestamp = has_timestamp ? timestamp : 0;
     event_buffer->arrivedAt = arrived_at;
-    (*emit)(*event_buffer, sym);
+    emit_fn(emit_ctx, *event_buffer, sym);
   }
 
   bool start_array(uint32_t) {
@@ -303,9 +317,19 @@ struct AlpacaVisitor : msgpack::null_visitor {
     if (map_depth != 1 || in_key) {
       return true;
     }
-    if (current_field == FieldId::kTimestamp) {
+    switch (current_field) {
+    case FieldId::kTimestamp:
       timestamp = 0;
       has_timestamp = true;
+      break;
+    case FieldId::kBidPrice:
+    case FieldId::kBidSize:
+    case FieldId::kAskPrice:
+    case FieldId::kAskSize:
+      invalid_item = true;
+      break;
+    default:
+      break;
     }
     return true;
   }
@@ -318,20 +342,32 @@ struct AlpacaVisitor : msgpack::null_visitor {
     }
     switch (current_field) {
     case FieldId::kTimestamp:
-      timestamp = v < 0.0 ? 0 : static_cast<uint64_t>(v);
+      if (!std::isfinite(v) || v < 0.0) {
+        timestamp = 0;
+      } else {
+        timestamp = static_cast<uint64_t>(v);
+      }
       has_timestamp = true;
       break;
     case FieldId::kBidPrice:
       p1_raw = v;
       break;
     case FieldId::kBidSize:
-      s1_raw = v < 0.0 ? 0 : static_cast<uint64_t>(v);
+      if (!std::isfinite(v) || v < 0.0) {
+        invalid_item = true;
+      } else {
+        s1_raw = static_cast<uint64_t>(v);
+      }
       break;
     case FieldId::kAskPrice:
       p2_raw = v;
       break;
     case FieldId::kAskSize:
-      s2_raw = v < 0.0 ? 0 : static_cast<uint64_t>(v);
+      if (!std::isfinite(v) || v < 0.0) {
+        invalid_item = true;
+      } else {
+        s2_raw = static_cast<uint64_t>(v);
+      }
       break;
     default:
       break;
@@ -360,12 +396,13 @@ void AlpacaMsgpackDecoder::setOnAuthSuccess(AuthSuccessCallback cb) {
   on_auth_success_ = std::move(cb);
 }
 
-void AlpacaMsgpackDecoder::decode(std::span<const char> data,
-                                  uint64_t arrived_at,
-                                  const EmitCallback &emit) {
+void AlpacaMsgpackDecoder::decodeRaw(std::span<const char> data,
+                                     uint64_t arrived_at, RawEmitFn emit_fn,
+                                     void *emit_ctx) {
   AlpacaVisitor visitor;
   visitor.event_buffer = &event_buffer_;
-  visitor.emit = &emit;
+  visitor.emit_fn = emit_fn;
+  visitor.emit_ctx = emit_ctx;
   visitor.on_auth_success = &on_auth_success_;
   visitor.arrived_at = arrived_at;
 

@@ -1,6 +1,6 @@
 # Architecture Rules
 
-Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [uWebSockets GitHub][3]
+Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [ixwebsocket GitHub][3]
 
 ## Process Boundaries
 
@@ -104,4 +104,4 @@ Target (closed loop):
 
 [1]: https://docs.alpaca.markets/docs/websocket-streaming
 [2]: https://docs.alpaca.markets/docs/trading-api
-[3]: https://github.com/uNetworking/uWebSockets
+[3]: https://github.com/nicegraf/ixwebsocket

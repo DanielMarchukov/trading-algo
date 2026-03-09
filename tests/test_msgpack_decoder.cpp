@@ -3,6 +3,7 @@
 #include "MsgpackTestHelpers.hpp"
 #include <cstring>
 #include <gtest/gtest.h>
+#include <limits>
 #include <span>
 #include <string>
 #include <vector>
@@ -21,8 +22,6 @@ protected:
                     });
   }
 };
-
-// --- Parameterized event parsing tests ---
 
 struct MarketEventParam {
   const char *description;
@@ -78,8 +77,6 @@ INSTANTIATE_TEST_SUITE_P(
     [](const ::testing::TestParamInfo<MarketEventParam> &info) {
       return info.param.description;
     });
-
-// --- Edge case tests ---
 
 TEST_F(MsgpackDecoderTest, IgnoresEmptyArray) {
   msgpack::sbuffer buf;
@@ -328,8 +325,6 @@ TEST_F(MsgpackDecoderTest, TimestampMissingDefaultsToZero) {
   EXPECT_EQ(captured_[0].first.timestamp, 0ULL);
 }
 
-// --- Auth success callback ---
-
 TEST_F(MsgpackDecoderTest, AuthSuccessCallbackFires) {
   bool auth_called = false;
   decoder_.setOnAuthSuccess([&]() { auth_called = true; });
@@ -392,6 +387,69 @@ TEST_F(MsgpackDecoderTest, NegativePriceDropsEvent) {
   pk.pack("AAPL");
   pk.pack("p");
   pk.pack(-1.0);
+  pk.pack("s");
+  pk.pack(static_cast<uint64_t>(10));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, NegativeSizeDropsEvent) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(5);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("p");
+  pk.pack(100.0);
+  pk.pack("s");
+  pk.pack(static_cast<int64_t>(-5));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, NaNPriceDropsEvent) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(5);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("p");
+  pk.pack(std::numeric_limits<double>::quiet_NaN());
+  pk.pack("s");
+  pk.pack(static_cast<uint64_t>(10));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, InfinityPriceDropsEvent) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(5);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("p");
+  pk.pack(std::numeric_limits<double>::infinity());
   pk.pack("s");
   pk.pack(static_cast<uint64_t>(10));
   pk.pack("t");

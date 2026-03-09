@@ -19,11 +19,11 @@ concept MarketDataSourceLike = requires(T t) {
 };
 
 template <typename T>
-concept MarketDataDecoderLike = requires(
-    T t, std::span<const char> data, uint64_t arrived_at,
-    const std::function<void(const MarketEvent &, std::string_view)> &emit) {
-  { t.decode(data, arrived_at, emit) } -> std::same_as<void>;
-};
+concept MarketDataDecoderLike =
+    requires(T t, std::span<const char> data, uint64_t arrived_at,
+             void (*emit)(const MarketEvent &, std::string_view)) {
+      { t.decode(data, arrived_at, emit) } -> std::same_as<void>;
+    };
 
 template <typename T>
 concept MarketEventSinkLike =
@@ -40,7 +40,11 @@ public:
   MarketDataPipeline(SourceType source, DecoderType decoder, SinkType sink)
       : source_(std::move(source)), decoder_(std::move(decoder)),
         sink_(std::move(sink)) {
-    if constexpr (requires { source_.sendSubscribe(); }) {
+    if constexpr (requires {
+                    source_.sendSubscribe();
+                    decoder_.setOnAuthSuccess(
+                        std::declval<std::function<void()>>());
+                  }) {
       decoder_.setOnAuthSuccess([this]() { source_.sendSubscribe(); });
     }
 

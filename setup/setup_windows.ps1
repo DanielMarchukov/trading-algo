@@ -269,8 +269,14 @@ if (!$env:APCA_API_KEY_ID -or !$env:APCA_API_SECRET_KEY) {
 }
 
 $script:EngineProcess = $null
+$script:ShutdownComplete = $false
 
 function Stop-TradingSystem {
+    if ($script:ShutdownComplete) {
+        return
+    }
+    $script:ShutdownComplete = $true
+
     Write-Status "Shutting down trading system..."
 
     if ($script:EngineProcess -and !$script:EngineProcess.HasExited) {
@@ -316,8 +322,10 @@ try {
         Start-Sleep -Seconds 1
 
         if ($script:EngineProcess.HasExited) {
-            Write-Error-Message "Trading engine crashed!"
-            break
+            $rawExitCode = $script:EngineProcess.ExitCode
+            $exitCode = if ($rawExitCode -ne 0) { $rawExitCode } else { 1 }
+            Write-Error-Message "Trading engine exited unexpectedly with code $rawExitCode."
+            exit $exitCode
         }
     }
 } finally {

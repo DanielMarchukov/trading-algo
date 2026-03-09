@@ -323,7 +323,11 @@ fi
 
 SOCKET_PATH="/tmp/market_data.sock"
 if [ -S "$SOCKET_PATH" ]; then
-    print_status "Cleaning up existing socket file: $SOCKET_PATH"
+    if ss -xl 2>/dev/null | grep -Fq "$SOCKET_PATH"; then
+        print_error "Socket already in use by another instance: $SOCKET_PATH"
+        exit 1
+    fi
+    print_status "Cleaning up stale socket file: $SOCKET_PATH"
     rm -f "$SOCKET_PATH"
 fi
 
