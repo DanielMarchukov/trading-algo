@@ -102,7 +102,6 @@ function Install-ChocoPackage {
 Install-ChocoPackage "git"
 Install-ChocoPackage "cmake" "--installargs 'ADD_CMAKE_TO_PATH=System'"
 Install-ChocoPackage "ninja"
-Install-ChocoPackage "python312"
 
 # Check for Visual Studio Build Tools
 $vsInstalled = $false
@@ -154,20 +153,6 @@ if (!(Test-Path "CMakeLists.txt")) {
     exit 1
 }
 
-# Set up Python virtual environment
-if (Test-Path "env") {
-    Write-Skip "Python virtual environment already exists"
-} else {
-    Write-Status "Creating Python virtual environment..."
-    python -m venv env
-}
-
-# Activate virtual environment and install/update dependencies
-Write-Status "Installing/updating Python dependencies..."
-& ".\env\Scripts\Activate.ps1"
-python -m pip install --upgrade pip --quiet
-pip install -r data-ingestion\requirements.txt --quiet
-
 # Handle build directory
 $buildExists = Test-Path "build"
 $vcpkgExists = Test-Path "vcpkg_installed"
@@ -218,16 +203,7 @@ if (-not $buildExists) {
     Write-Skip "Build directory exists - skipping build. Delete 'build' folder to force rebuild."
 }
 
-# Always run tests for verification
 Write-Status "Running tests to verify setup..."
-Write-Status "Running Python tests..."
-$pythonTestsFailed = $false
-try {
-    pytest data-ingestion\src\ -v
-} catch {
-    Write-Warning-Message "Some Python tests failed - this is expected if API keys are not set"
-    $pythonTestsFailed = $true
-}
 
 Write-Status "Running C++ tests..."
 Push-Location build
@@ -257,14 +233,12 @@ $runScriptPath = Join-Path $setupDir "run_trading_system.ps1"
 #   From project root: .\setup\run_trading_system.ps1
 #   Or: cd setup && .\run_trading_system.ps1
 
-# Get the project root (parent of setup folder)
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot = if ($scriptDir -match "setup$") { Split-Path -Parent $scriptDir } else { $scriptDir }
 Push-Location $projectRoot
 
 $ErrorActionPreference = "Stop"
 
-# Color functions
 function Write-Status {
     param($Message)
     Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] " -ForegroundColor Green -NoNewline
@@ -277,20 +251,12 @@ function Write-Error-Message {
     Write-Host $Message
 }
 
-# Check prerequisites
-if (!(Test-Path "env")) {
-    Write-Error-Message "Python virtual environment not found. Run setup\setup_windows.ps1 first."
-    Pop-Location
-    exit 1
-}
-
 if (!(Test-Path "build\Debug\paper_money.exe") -and !(Test-Path "build\Release\paper_money.exe")) {
     Write-Error-Message "C++ binary not found. Run setup\setup_windows.ps1 first."
     Pop-Location
     exit 1
 }
 
-# Check for API credentials
 if (!$env:APCA_API_KEY_ID -or !$env:APCA_API_SECRET_KEY) {
     Write-Error-Message "Alpaca API credentials not set!"
     Write-Host "Please set the following environment variables:"
@@ -302,21 +268,19 @@ if (!$env:APCA_API_KEY_ID -or !$env:APCA_API_SECRET_KEY) {
     exit 1
 }
 
-# Store process objects
-$script:PublisherProcess = $null
 $script:EngineProcess = $null
+$script:ShutdownComplete = $false
 
-# Cleanup function
 function Stop-TradingSystem {
+    if ($script:ShutdownComplete) {
+        return
+    }
+    $script:ShutdownComplete = $true
+
     Write-Status "Shutting down trading system..."
 
-    if ($script:PublisherProcess -and !$script:PublisherProcess.HasExited) {
-        Write-Status "Stopping Python publisher..."
-        Stop-Process -Id $script:PublisherProcess.Id -Force -ErrorAction SilentlyContinue
-    }
-
     if ($script:EngineProcess -and !$script:EngineProcess.HasExited) {
-        Write-Status "Stopping C++ engine..."
+        Write-Status "Stopping trading engine..."
         Stop-Process -Id $script:EngineProcess.Id -Force -ErrorAction SilentlyContinue
     }
 
@@ -324,33 +288,11 @@ function Stop-TradingSystem {
     Pop-Location
 }
 
-# Set up Ctrl+C handling
 [Console]::TreatControlCAsInput = $false
 $null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action { Stop-TradingSystem }
 
 try {
-    # Start Python publisher
-    Write-Status "Starting Python market data publisher..."
-    $publisherStartInfo = New-Object System.Diagnostics.ProcessStartInfo
-    $publisherStartInfo.FileName = ".\env\Scripts\python.exe"
-    $publisherStartInfo.Arguments = "data-ingestion\src\publisher.py"
-    $publisherStartInfo.UseShellExecute = $false
-    $publisherStartInfo.WorkingDirectory = $projectRoot
-
-    $script:PublisherProcess = [System.Diagnostics.Process]::Start($publisherStartInfo)
-
-    # Wait for publisher to initialize
-    Write-Status "Waiting for publisher to initialize..."
-    Start-Sleep -Seconds 3
-
-    if ($script:PublisherProcess.HasExited) {
-        Write-Error-Message "Python publisher failed to start! Check API credentials."
-        Pop-Location
-        exit 1
-    }
-
-    # Start C++ trading engine
-    Write-Status "Starting C++ trading engine..."
+    Write-Status "Starting trading engine..."
     $enginePath = if (Test-Path "build\Debug\paper_money.exe") {
         "build\Debug\paper_money.exe"
     } else {
@@ -364,32 +306,28 @@ try {
 
     $script:EngineProcess = [System.Diagnostics.Process]::Start($engineStartInfo)
 
-    # Wait to check if engine started
     Start-Sleep -Seconds 2
 
     if ($script:EngineProcess.HasExited) {
-        Write-Error-Message "C++ trading engine failed to start!"
+        $rawExitCode = $script:EngineProcess.ExitCode
+        $exitCode = if ($rawExitCode -ne 0) { $rawExitCode } else { 1 }
+        Write-Error-Message "Trading engine failed to start (exit code $rawExitCode)."
         Stop-TradingSystem
-        exit 1
+        exit $exitCode
     }
 
     Write-Status "Trading system is running!"
-    Write-Status "Publisher PID: $($script:PublisherProcess.Id)"
     Write-Status "Engine PID: $($script:EngineProcess.Id)"
     Write-Status "Press Ctrl+C to stop..."
 
-    # Monitor processes
     while ($true) {
         Start-Sleep -Seconds 1
 
-        if ($script:PublisherProcess.HasExited) {
-            Write-Error-Message "Python publisher crashed!"
-            break
-        }
-
         if ($script:EngineProcess.HasExited) {
-            Write-Error-Message "C++ trading engine crashed!"
-            break
+            $rawExitCode = $script:EngineProcess.ExitCode
+            $exitCode = if ($rawExitCode -ne 0) { $rawExitCode } else { 1 }
+            Write-Error-Message "Trading engine exited unexpectedly with code $rawExitCode."
+            exit $exitCode
         }
     }
 } finally {
@@ -452,10 +390,6 @@ $testBatPath = Join-Path $setupDir "run_tests.bat"
 @echo off
 echo Running all tests...
 cd /d "%~dp0\.."
-call env\Scripts\activate.bat
-echo.
-echo Python tests:
-pytest data-ingestion\src\ -v
 echo.
 echo C++ tests:
 cd build
@@ -481,9 +415,6 @@ Write-Status "Setup completed successfully!"
 Write-Status "============================================"
 Write-Host ""
 
-if ($pythonTestsFailed) {
-    Write-Warning-Message "Some Python tests failed - set API credentials and run again"
-}
 if ($cppTestsFailed) {
     Write-Error-Message "C++ tests failed - please check the errors above"
 }

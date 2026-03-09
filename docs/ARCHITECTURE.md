@@ -14,11 +14,11 @@ low-latency trading engine.
 
 ## System Overview
 
-The trading engine is designed as a multiprocess system with clear separation of concerns:
+The trading engine is designed as a single-process, multi-threaded system with clear separation of concerns:
 
 1. **Hot Path Components** (latency-critical):
 
-   - Market Data Ingestion and normalization (Python)
+   - Market Data Pipeline (AlpacaWebSocketSource → AlpacaMsgpackDecoder → ZmqMarketEventSink)
    - Market Data Consumer (C++)
    - Trading Strategy execution
    - Risk Management checks
@@ -34,21 +34,21 @@ The trading engine is designed as a multiprocess system with clear separation of
 ### Current Architecture
 
 ```text
-                               +----------------------------------+
-                               |     Python Data Publisher        |
-                               |         (Core 0)                 |
-                               |----------------------------------|
-                               | • Alpaca WebSocket Client        |
-                               | • Normalizes to 64-byte struct   |
-                               | • ZMQ PUB Socket                 |
-                               +----------------------------------+
-                                              |
-                                              | 64-byte MarketEvent
-                                              | [ZMQ IPC: ipc:///tmp/market_data.sock]
-                                              | [Windows: tcp://127.0.0.1:5555]
-                                              ↓
 ╔════════════════════════════════════════════════════════════════════════════════════════╗
 ║                                C++ TRADING ENGINE PROCESS                              ║
+║                                                                                        ║
+║  ┌──────────────────────────────────────┐                                              ║
+║  │   MarketDataPipeline (Core 1)        │                                              ║
+║  │──────────────────────────────────────│                                              ║
+║  │ • AlpacaWebSocketSource (msgpack)    │                                              ║
+║  │ • AlpacaMsgpackDecoder (SAX visitor) │                                              ║
+║  │ • ZmqMarketEventSink (ZMQ PUB)      │                                              ║
+║  └──────────────────┬───────────────────┘                                              ║
+║                     |                                                                  ║
+║                     | 64-byte MarketEvent                                              ║
+║                     | [ZMQ IPC: ipc:///tmp/market_data.sock]                           ║
+║                     | [Windows: tcp://127.0.0.1:5555]                                  ║
+║                     ↓                                                                  ║
 ║                                                                                        ║
 ║  ┌─────────────────────────────────┐          ┌──────────────────────────────────────┐ ║
 ║  │   TradingEngine (Main Thread)   │          │   OrderGateway (Worker Thread)       │ ║
@@ -56,7 +56,7 @@ The trading engine is designed as a multiprocess system with clear separation of
 ║  │ • Creates all components        │          │ • Polls LockFreeMPSCQueue<Order>       │ ║
 ║  │ • Launches threads              │          │ • Makes REST API calls to Alpaca     │ ║
 ║  │ • Handles signals (SIGINT/TERM) │          │ • Pinned to Core 0                   │ ║
-║  │ • Manages shutdown              │          │ • TODO: Fill listener not impl yet   │ ║
+║  │ • Manages shutdown              │          │                                      │ ║
 ║  └─────────────┬───────────────────┘          └──────────────────────────────────────┘ ║
 ║                │                                            ↑                          ║
 ║                │ Creates & owns (std::shared_ptr)           │ Reads orders             ║
@@ -110,17 +110,17 @@ Legend:
 
 ## Component Design
 
-### Market Data Publisher (Python)
+### Market Data Pipeline (C++)
 
 - **Purpose**: Connect to Alpaca WebSocket API and normalize market data
-- **Design**: Single-threaded with asyncio for WebSocket handling
-- **Output**: 64-byte packed struct via ZeroMQ PUB socket
-- **CPU Affinity**: Pinned to Core 0
+- **Design**: Three-stage pipeline — AlpacaWebSocketSource, AlpacaMsgpackDecoder (SAX visitor), ZmqMarketEventSink
+- **Output**: 64-byte MarketEvent struct via ZeroMQ PUB socket
+- **CPU Affinity**: Pinned to Core 1
 
 ### Market Event Consumer (C++)
 
 - **Template-based design** for compile-time strategy injection
-- **Per-symbol threads** with CPU affinity (Core 1, 2, 3...)
+- **Per-symbol threads** with CPU affinity (Core 2, 3, 4...)
 - **Zero-copy processing** of market events
 - **Direct function calls** (no virtual dispatch)
 
@@ -168,22 +168,18 @@ static_assert(sizeof(MarketEvent) == 64);
 
 ## Key Design Decisions
 
-### 1. Python for Data Ingestion
+### 1. C++ for Data Ingestion
 
-**Decision**: Use Python for market data ingestion instead of C++
+**Decision**: Use C++ for market data ingestion (MarketDataPipeline)
 
 **Rationale**:
 
-- Alpaca's Python SDK is better maintained than C++ alternatives
-- Rapid prototyping and iteration
-- WebSocket handling is simpler in Python
-- Performance impact is minimal (network I/O bound)
+- Single binary — no Python runtime, no cross-language overhead
+- Exception-free SAX-style msgpack decoding
+- Same build/test/CI pipeline as the rest of the engine
+- Thread pinning and cache-line alignment for consistent latency
 
-**Trade-offs**:
-
-- Additional serialization overhead
-- Cross-language complexity
-- Separate process management
+**Libraries**: ixwebsocket (WebSocket client), msgpack-cxx (SAX-style visitor parsing)
 
 ### 2. ZeroMQ for IPC
 
@@ -285,12 +281,6 @@ class MarketEventConsumer {
    - Use memory-mapped files for persistence
    - Target: \<2μs IPC latency
 
-1. **C++ Market Data Ingestion**
-
-   - Migrate to Databento C++ client
-   - Direct TCP connection to exchange
-   - Remove Python serialization overhead
-
 1. **Custom Memory Allocators**
 
    - Pool allocators for fixed-size objects
@@ -321,7 +311,7 @@ class MarketEventConsumer {
 
 ### Current Performance
 
-This isn't benchmarked oficially yet; TBD.
+This isn't benchmarked officially yet; TBD.
 
 ### Target Performance
 

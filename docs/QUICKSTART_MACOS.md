@@ -74,12 +74,12 @@ Execute the run script:
 You should see output like:
 
 ```bash
-[2024-01-15 10:30:45] Starting Python market data publisher...
-[2024-01-15 10:30:48] Starting C++ trading engine...
-[2024-01-15 10:30:49] Trading system is running!
-[2024-01-15 10:30:49] Publisher PID: 12345
-[2024-01-15 10:30:49] Engine PID: 12346
-[2024-01-15 10:30:49] Press Ctrl+C to stop...
+Starting trading engine...
+FillListener started
+MarketPublisher started
+ZmqMarketEventSink: bound to ipc://<tempdir>/market_data.sock
+AlpacaWebSocketSource: pinned to CPU core 1
+Pinned OrderGateway thread to CPU Core 0
 ```
 
 ## Step 5: Verify It's Working
@@ -166,11 +166,11 @@ open /Applications/Xcode.app/Contents/Applications/Instruments.app
 
 ## macOS-Specific Notes
 
-1. **Firewall**: macOS will prompt to allow network connections for both Python and the trading engine. Click "Allow"
-   for both
+1. **Firewall**: macOS will prompt to allow network connections for the trading engine. Click "Allow"
 1. **CPU Affinity**: macOS handles thread affinity differently than Linux. The engine will still attempt to pin threads
    but with macOS-specific APIs.
-1. **IPC Sockets**: The engine uses Unix domain sockets at `/tmp/market_data.sock`. This is allowed by default on macOS.
+1. **IPC Sockets**: The engine uses Unix domain sockets at `<tempdir>/market_data.sock` (resolved via
+   `std::filesystem::temp_directory_path()`). This is allowed by default on macOS.
 
 ## Next Steps
 
@@ -180,18 +180,6 @@ open /Applications/Xcode.app/Contents/Applications/Instruments.app
 - Read [Architecture Documentation](ARCHITECTURE.md) to understand the system
 
 ## Manual Operation (For Developers)
-
-If you prefer to run components separately:
-
-**Terminal 1 - Python Publisher**:
-
-```bash
-source env/bin/activate
-source .env
-python data-ingestion/src/publisher.py
-```
-
-**Terminal 2 - C++ Trading Engine**:
 
 ```bash
 source .env

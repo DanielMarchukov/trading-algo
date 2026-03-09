@@ -12,34 +12,8 @@ repos:
       - id: check-toml
       - id: mixed-line-ending
 
-  - repo: https://github.com/psf/black
-    rev: 25.11.0
-    hooks:
-      - id: black
-        language_version: python3.14
-        files: ^data-ingestion/
-
-  - repo: https://github.com/pycqa/isort
-    rev: 6.0.1
-    hooks:
-      - id: isort
-        language_version: python3.14
-        files: ^data-ingestion/
-        args: ["--profile", "black"]
-
-  # Bandit disabled until it supports Python 3.14
-  # See: https://github.com/PyCQA/bandit/issues/1219
-  # - repo: https://github.com/pycqa/bandit
-  #   rev: 1.8.6
-  #   hooks:
-  #     - id: bandit
-  #       language_version: python3.13
-  #       files: ^data-ingestion/
-  #       args: ["-c", "pyproject.toml"]
-  #       additional_dependencies: ["toml"]
-
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v20.1.8
+    rev: v19.1.7
     hooks:
       - id: clang-format
         files: \.(cpp|hpp|h|c|cc|cxx)$

@@ -133,25 +133,6 @@ for package in "${PACKAGES[@]}"; do
 	fi
 done
 
-# Install Python 3.12
-print_status "Checking Python installation..."
-if command -v python3.12 &>/dev/null; then
-	python_version=$(python3.12 --version 2>&1)
-	print_skip "Python 3.12 already installed: $python_version"
-else
-	print_status "Installing Python 3.12..."
-	if ! is_package_installed "software-properties-common"; then
-		sudo apt-get install -y software-properties-common
-	fi
-
-	if ! grep -q "deadsnakes/ppa" /etc/apt/sources.list.d/*.list 2>/dev/null; then
-		sudo add-apt-repository -y ppa:deadsnakes/ppa
-		sudo apt-get update
-	fi
-
-	sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
-fi
-
 # Install C++ library dependencies
 print_status "Checking and installing C++ library dependencies..."
 CPP_PACKAGES=(
@@ -208,44 +189,6 @@ fi
 
 export VCPKG_ROOT="$VCPKG_ROOT"
 
-# Setup Python virtual environment
-print_status "Setting up project environment..."
-
-if [ ! -d "env" ]; then
-	print_status "Creating Python virtual environment..."
-	python3.12 -m venv env
-else
-	print_skip "Python virtual environment already exists"
-fi
-
-print_status "Checking Python dependencies..."
-source env/bin/activate
-
-current_pip_version=$(pip --version | awk '{print $2}')
-latest_pip_version=$(pip index versions pip 2>/dev/null | grep -oP 'Available versions: \K[0-9.]+' | head -1)
-
-if [ "$current_pip_version" != "$latest_pip_version" ]; then
-	print_status "Upgrading pip from $current_pip_version to $latest_pip_version..."
-	pip install --upgrade pip
-else
-	print_skip "pip is already up to date ($current_pip_version)"
-fi
-
-if [ -f "data-ingestion/requirements.txt" ]; then
-	req_hash=$(sha256sum data-ingestion/requirements.txt | awk '{print $1}')
-	hash_file=".requirements.hash"
-
-	if [ -f "$hash_file" ] && [ "$(cat $hash_file)" == "$req_hash" ]; then
-		print_skip "Python dependencies are up to date"
-	else
-		print_status "Installing/updating Python dependencies..."
-		pip install -r data-ingestion/requirements.txt
-		echo "$req_hash" >"$hash_file"
-	fi
-else
-	print_error "requirements.txt not found!"
-fi
-
 # Handle existing build artifacts
 if [ -d "build" ] || [ -d "vcpkg_installed" ]; then
 	print_warning "Build artifacts found. Options:"
@@ -293,13 +236,6 @@ fi
 if [ "$1" != "--skip-tests" ]; then
 	print_status "Running tests to verify setup..."
 
-	print_status "Running Python tests..."
-	if pytest data-ingestion/src/ -v; then
-		print_status "Python tests passed!"
-	else
-		print_warning "Some Python tests failed - this is expected if API keys are not set"
-	fi
-
 	print_status "Running C++ tests..."
 	if cd build && ctest --output-on-failure; then
 		print_status "C++ tests passed!"
@@ -326,10 +262,6 @@ create_file_if_needed() {
 	fi
 }
 
-# Create run_trading_system.sh with proper signal handling
-print_status "Creating helper scripts in setup directory..."
-
-# Create run_trading_system.sh with proper signal handling
 print_status "Creating helper scripts in setup directory..."
 
 create_run_script() {
@@ -341,9 +273,6 @@ create_run_script() {
 #!/bin/bash
 #
 # run_trading_system.sh - Start the Rich-on-Paper trading system
-#
-# This script starts both the Python data publisher and C++ trading engine
-# in the correct order with proper error handling and signal management.
 #
 # Location: setup/run_trading_system.sh
 # Usage from project root: ./setup/run_trading_system.sh
@@ -367,7 +296,6 @@ print_warning() {
     echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Determine project root directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "$SCRIPT_DIR" == */setup ]]; then
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -375,21 +303,13 @@ else
     PROJECT_ROOT="$SCRIPT_DIR"
 fi
 
-# Change to project root
 cd "$PROJECT_ROOT"
 
-# Check prerequisites
-if [ ! -d "env" ]; then
-    print_error "Python virtual environment not found. Run setup/setup_ubuntu.sh first."
-    exit 1
-fi
-
-if [ ! -d "build" ] || [ ! -f "build/paper_money" ]; then
+if [ ! -f "build/paper_money" ]; then
     print_error "C++ binary not found. Run setup/setup_ubuntu.sh first."
     exit 1
 fi
 
-# Check for required environment variables
 if [ -z "$APCA_API_KEY_ID" ] || [ -z "$APCA_API_SECRET_KEY" ]; then
     print_error "Alpaca API credentials not set!"
     echo "Please set the following environment variables:"
@@ -401,22 +321,20 @@ if [ -z "$APCA_API_KEY_ID" ] || [ -z "$APCA_API_SECRET_KEY" ]; then
     exit 1
 fi
 
-# Clean up any existing socket files
-TEMP_DIR=$(python3 -c "import tempfile; print(tempfile.gettempdir())")
-SOCKET_PATH="$TEMP_DIR/market_data.sock"
+SOCKET_PATH="/tmp/market_data.sock"
 if [ -S "$SOCKET_PATH" ]; then
-    print_status "Cleaning up existing socket file: $SOCKET_PATH"
+    if ss -xl 2>/dev/null | grep -Fq "$SOCKET_PATH"; then
+        print_error "Socket already in use by another instance: $SOCKET_PATH"
+        exit 1
+    fi
+    print_status "Cleaning up stale socket file: $SOCKET_PATH"
     rm -f "$SOCKET_PATH"
 fi
 
-# Global variables for process tracking
-PUBLISHER_PID=""
 ENGINE_PID=""
 CLEANUP_STARTED=false
 
-# Cleanup function with proper signal handling
 cleanup() {
-    # Prevent multiple cleanup calls (race condition protection)
     if [ "$CLEANUP_STARTED" = true ]; then
         return 0
     fi
@@ -424,146 +342,91 @@ cleanup() {
 
     print_status "Shutting down trading system..."
 
-    # Stop Python publisher if running
-    if [ ! -z "$PUBLISHER_PID" ] && kill -0 $PUBLISHER_PID 2>/dev/null; then
-        print_status "Stopping Python publisher (PID: $PUBLISHER_PID)..."
-        kill -TERM $PUBLISHER_PID 2>/dev/null || true
-
-        # Wait for graceful shutdown (up to 5 seconds)
-        local count=0
-        while [ $count -lt 25 ] && kill -0 $PUBLISHER_PID 2>/dev/null; do
-            sleep 0.2
-            count=$((count + 1))
-        done
-
-        # Force kill if still running
-        if kill -0 $PUBLISHER_PID 2>/dev/null; then
-            print_warning "Force killing Python publisher after timeout..."
-            kill -9 $PUBLISHER_PID 2>/dev/null || true
-        fi
-    fi
-
-    # Stop C++ engine if running
     if [ ! -z "$ENGINE_PID" ] && kill -0 $ENGINE_PID 2>/dev/null; then
-        print_status "Stopping C++ trading engine (PID: $ENGINE_PID)..."
+        print_status "Stopping trading engine (PID: $ENGINE_PID)..."
         kill -TERM $ENGINE_PID 2>/dev/null || true
 
-        # Wait for graceful shutdown (up to 10 seconds)
         local count=0
         while [ $count -lt 50 ] && kill -0 $ENGINE_PID 2>/dev/null; do
             sleep 0.2
             count=$((count + 1))
         done
 
-        # Force kill if still running
         if kill -0 $ENGINE_PID 2>/dev/null; then
-            print_warning "Force killing C++ trading engine after timeout..."
+            print_warning "Force killing trading engine after timeout..."
             kill -9 $ENGINE_PID 2>/dev/null || true
         fi
     fi
 
-    # Clean up socket file
     if [ -S "$SOCKET_PATH" ]; then
-        print_status "Cleaning up socket file: $SOCKET_PATH"
         rm -f "$SOCKET_PATH" || true
     fi
 
     print_status "Cleanup complete"
 }
 
-# Set trap for cleanup - only on EXIT to avoid double handling
 trap cleanup EXIT
 
-# Custom signal handler for SIGINT/SIGTERM that just sets a flag
 shutdown_requested=false
 handle_signal() {
     if [ "$shutdown_requested" = false ]; then
         shutdown_requested=true
         print_status "Shutdown requested..."
-        exit 0  # This will trigger the EXIT trap
+        exit 0
     fi
 }
 
-# Set traps for signals
 trap handle_signal INT TERM
 
 print_status "Rich-on-Paper Trading System Starting..."
 print_status "Project root: $PROJECT_ROOT"
-print_status "Socket path: $SOCKET_PATH"
 
-# Start Python publisher
-print_status "Starting Python market data publisher..."
-source env/bin/activate
-python data-ingestion/src/publisher.py &
-PUBLISHER_PID=$!
-
-# Wait for publisher to initialize and bind to socket
-print_status "Waiting for publisher to initialize..."
-sleep 4
-
-# Check if publisher is still running
-if ! kill -0 $PUBLISHER_PID 2>/dev/null; then
-    print_error "Python publisher failed to start!"
-    print_error "Check the error messages above and verify:"
-    echo "  1. Alpaca API credentials are correct"
-    echo "  2. Network connectivity is available"
-    echo "  3. No permission issues with socket creation"
-    exit 1
-fi
-
-# Verify socket was created
-if [ ! -S "$SOCKET_PATH" ]; then
-    print_warning "Socket file not found at expected location: $SOCKET_PATH"
-    print_warning "Publisher may still be starting up..."
-    sleep 2
-fi
-
-# Start C++ trading engine
-print_status "Starting C++ trading engine..."
 ./build/paper_money &
 ENGINE_PID=$!
 
-# Wait a moment to check if engine started successfully
-sleep 3
+startup_timeout_s=30
+elapsed=0
+while [ $elapsed -lt $startup_timeout_s ]; do
+    if [ -S "$SOCKET_PATH" ]; then
+        break
+    fi
 
-# Check if engine is still running
-if ! kill -0 $ENGINE_PID 2>/dev/null; then
-    print_error "C++ trading engine failed to start!"
-    print_error "Check the error messages above and verify:"
-    echo "  1. ZMQ socket is available"
-    echo "  2. No port conflicts"
-    echo "  3. All dependencies are properly linked"
+    if ! kill -0 "$ENGINE_PID" 2>/dev/null; then
+        print_error "Trading engine failed to start!"
+        print_error "Check the error messages above and verify:"
+        echo "  1. Alpaca API credentials are correct"
+        echo "  2. Network connectivity is available"
+        echo "  3. All dependencies are properly linked"
+        exit 1
+    fi
+
+    sleep 1
+    elapsed=$((elapsed + 1))
+done
+
+if [ ! -S "$SOCKET_PATH" ]; then
+    print_error "Trading engine did not become ready within ${startup_timeout_s}s"
+    kill "$ENGINE_PID" 2>/dev/null
     exit 1
 fi
 
 print_status "============================================"
 print_status "Trading system is running successfully!"
 print_status "============================================"
-print_status "Publisher PID: $PUBLISHER_PID"
 print_status "Engine PID: $ENGINE_PID"
-print_status "Socket: $SOCKET_PATH"
 print_status ""
-print_status "Monitor the output for market data and trading activity."
 print_status "Press Ctrl+C to stop the system gracefully."
 print_status ""
 
-# Main monitoring loop
 while true; do
     sleep 1
 
-    # Check if shutdown was requested
     if [ "$shutdown_requested" = true ]; then
         break
     fi
 
-    # Check if processes are still running
-    if ! kill -0 $PUBLISHER_PID 2>/dev/null; then
-        print_error "Python publisher crashed! Check logs for details."
-        break
-    fi
-
     if ! kill -0 $ENGINE_PID 2>/dev/null; then
-        print_error "C++ trading engine crashed! Check logs for details."
+        print_error "Trading engine crashed! Check logs for details."
         break
     fi
 done
@@ -603,7 +466,6 @@ TEST_SCRIPT_CONTENT='#!/bin/bash
 
 set -e
 
-# Determine project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ "$SCRIPT_DIR" == */setup ]]; then
     PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -613,11 +475,6 @@ fi
 
 cd "$PROJECT_ROOT"
 
-echo "Running Python tests..."
-source env/bin/activate
-pytest data-ingestion/src/ -v
-
-echo ""
 echo "Running C++ tests..."
 cd build
 ctest --output-on-failure

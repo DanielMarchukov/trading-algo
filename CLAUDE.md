@@ -2,8 +2,7 @@
 
 ## Project Overview
 
-Ultra-low-latency paper-trading engine. C++23 core, Python data ingestion, Alpaca Markets integration. Target: sub-50μs
-hot path.
+Ultra-low-latency paper-trading engine. Pure C++23, Alpaca Markets integration. Target: sub-50μs hot path.
 
 This is a **greenfield project**, not yet live. Refactors and breaking changes are welcome when they improve the design.
 No backwards compatibility constraints.
@@ -19,11 +18,8 @@ cmake -B build -S . \
 # Build
 cmake --build build
 
-# Test (C++)
+# Test
 cd build && ctest --output-on-failure
-
-# Test (Python)
-pytest data-ingestion/src/ -v
 ```
 
 ## Critical: Low-Latency by Default
@@ -52,12 +48,6 @@ When unsure if something is hot path: if it runs between ZMQ recv and order_queu
 - `[[nodiscard]]` on functions returning values
 - Parenthesize `(std::min)` / `(std::max)` for MSVC compat
 - Platform guards: `#if defined(_WIN32)` / `__linux__` / `__APPLE__`
-
-## Python Conventions
-
-- Python 3.14, formatted with black (88 chars), sorted with isort
-- asyncio for I/O, struct.Struct for binary packing
-- Wire format must match C++ `MarketEvent` exactly (64 bytes)
 
 ## Project Management
 

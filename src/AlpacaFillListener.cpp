@@ -1,4 +1,5 @@
 #include "AlpacaFillListener.hpp"
+#include "ThreadPinning.hpp"
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -6,8 +7,6 @@
 #include <optional>
 #include <stdexcept>
 #include <thread>
-
-void pin_thread_to_core(std::thread &t, uint32_t core_id);
 
 namespace {
 

@@ -31,9 +31,8 @@ This script will:
 
 - Install Chocolatey package manager
 - Install Visual Studio 2022 Build Tools
-- Install Python 3.12, CMake, Ninja, and Git
+- Install CMake, Ninja, and Git
 - Set up vcpkg package manager
-- Create Python virtual environment
 - Build the C++ trading engine
 - Run tests to verify installation
 
@@ -82,12 +81,12 @@ $env:APCA_API_SECRET_KEY = "your_actual_secret_here"
 You should see output like:
 
 ```bash
-[2024-01-15 10:30:45] Starting Python market data publisher...
-[2024-01-15 10:30:48] Starting C++ trading engine...
-[2024-01-15 10:30:49] Trading system is running!
-[2024-01-15 10:30:49] Publisher PID: 12345
-[2024-01-15 10:30:49] Engine PID: 12346
-[2024-01-15 10:30:49] Press Ctrl+C to stop...
+Starting trading engine...
+FillListener started
+MarketPublisher started
+ZmqMarketEventSink: bound to tcp://127.0.0.1:5555
+AlpacaWebSocketSource: pinned to CPU core 1
+Pinned OrderGateway thread to CPU Core 0
 ```
 
 ## Step 5: Verify It's Working
@@ -97,7 +96,7 @@ You should see:
 1. Market data being received (check the console output)
 1. Orders being placed to Alpaca's paper trading API
 1. No error messages
-1. Windows Firewall may prompt - allow both Python.exe and paper_money.exe
+1. Windows Firewall may prompt — allow paper_money.exe
 
 To stop the system, press `Ctrl+C`.
 
@@ -157,10 +156,7 @@ Windows doesn't support Unix domain sockets, so the system uses TCP:
 
 When first running, Windows Firewall will prompt. You must:
 
-1. Allow `python.exe` through the firewall
-1. Allow `paper_money.exe` through the firewall
-
-Without these permissions, the components cannot communicate.
+- Allow `paper_money.exe` through the firewall
 
 ### Performance Monitoring
 
@@ -168,13 +164,13 @@ Without these permissions, the components cannot communicate.
 
    - Press `Ctrl+Shift+Esc`
    - Go to "Details" tab
-   - Find `paper_money.exe` and `python.exe`
+   - Find `paper_money.exe`
 
 1. **PowerShell Monitoring**:
 
 ```powershell
 while ($true) {
-    Get-Process paper_money, python -ErrorAction SilentlyContinue |
+    Get-Process paper_money -ErrorAction SilentlyContinue |
     Select-Object Name, CPU, WorkingSet, Id
     Start-Sleep -Seconds 1
     Clear-Host
@@ -209,18 +205,6 @@ start build\RichOnPaper.sln
 - Read [Architecture Documentation](ARCHITECTURE.md) to understand the system
 
 ## Manual Operation (For Developers)
-
-If you prefer to run components separately:
-
-**Terminal 1 - Python Publisher**:
-
-```powershell
-.\env\Scripts\Activate.ps1
-. .\setup\env.ps1
-python data-ingestion\src\publisher.py
-```
-
-**Terminal 2 - C++ Trading Engine**:
 
 ```powershell
 . .\setup\env.ps1

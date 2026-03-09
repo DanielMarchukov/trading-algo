@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AlpacaPipeline.hpp"
 #include "IRestClient.hpp"
 #include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
@@ -14,8 +15,6 @@
 #include <vector>
 
 class IFillListener;
-
-void pin_thread_to_core(std::thread &t, uint32_t core_id);
 
 class TradingEngine {
 public:
@@ -50,4 +49,5 @@ private:
   std::thread order_gateway_thread_;
   std::vector<ConsumerThread> consumer_threads_;
   std::unique_ptr<IFillListener> fill_listener_;
+  std::unique_ptr<AlpacaPipeline> market_publisher_;
 };
