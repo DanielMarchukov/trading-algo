@@ -460,6 +460,105 @@ TEST_F(MsgpackDecoderTest, InfinityPriceDropsEvent) {
   EXPECT_TRUE(captured_.empty());
 }
 
+TEST_F(MsgpackDecoderTest, NegativeBidSizeDropsQuote) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(7);
+  pk.pack("T");
+  pk.pack("q");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("bp");
+  pk.pack(150.0);
+  pk.pack("bs");
+  pk.pack(static_cast<int64_t>(-1));
+  pk.pack("ap");
+  pk.pack(151.0);
+  pk.pack("as");
+  pk.pack(static_cast<uint64_t>(200));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, NegativeAskPriceDropsQuote) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(7);
+  pk.pack("T");
+  pk.pack("q");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("bp");
+  pk.pack(150.0);
+  pk.pack("bs");
+  pk.pack(static_cast<uint64_t>(100));
+  pk.pack("ap");
+  pk.pack(static_cast<int64_t>(-1));
+  pk.pack("as");
+  pk.pack(static_cast<uint64_t>(200));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, NegativeAskSizeDropsQuote) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(7);
+  pk.pack("T");
+  pk.pack("q");
+  pk.pack("S");
+  pk.pack("AAPL");
+  pk.pack("bp");
+  pk.pack(150.0);
+  pk.pack("bs");
+  pk.pack(static_cast<uint64_t>(100));
+  pk.pack("ap");
+  pk.pack(151.0);
+  pk.pack("as");
+  pk.pack(static_cast<int64_t>(-1));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  EXPECT_TRUE(captured_.empty());
+}
+
+TEST_F(MsgpackDecoderTest, Float32PriceDecodesCorrectly) {
+  msgpack::sbuffer buf;
+  msgpack::packer<msgpack::sbuffer> pk(&buf);
+  pk.pack_array(1);
+  pk.pack_map(5);
+  pk.pack("T");
+  pk.pack("t");
+  pk.pack("S");
+  pk.pack("MSFT");
+  pk.pack("p");
+  pk.pack(static_cast<float>(100.5f));
+  pk.pack("s");
+  pk.pack(static_cast<uint64_t>(50));
+  pk.pack("t");
+  pk.pack(static_cast<uint64_t>(0));
+
+  decode(std::string(buf.data(), buf.size()));
+
+  ASSERT_EQ(captured_.size(), 1UL);
+  EXPECT_EQ(captured_[0].first.eventType, 2ULL);
+  EXPECT_EQ(captured_[0].first.p1, 1005000ULL);
+  EXPECT_EQ(captured_[0].first.s1, 50ULL);
+}
+
 struct TimestampParam {
   const char *description;
   std::function<std::string()> build_raw;

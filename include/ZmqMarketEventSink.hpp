@@ -12,7 +12,7 @@ public:
   ~ZmqMarketEventSink() = default;
 
   ZmqMarketEventSink(ZmqMarketEventSink &&) = default;
-  ZmqMarketEventSink &operator=(ZmqMarketEventSink &&) = default;
+  ZmqMarketEventSink &operator=(ZmqMarketEventSink &&) = delete;
   ZmqMarketEventSink(const ZmqMarketEventSink &) = delete;
   ZmqMarketEventSink &operator=(const ZmqMarketEventSink &) = delete;
 

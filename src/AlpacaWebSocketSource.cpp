@@ -15,7 +15,7 @@ AlpacaWebSocketSource::AlpacaWebSocketSource(std::string api_key,
                                              std::vector<std::string> symbols,
                                              std::atomic<bool> &is_running)
     : api_key_(std::move(api_key)), api_secret_(std::move(api_secret)),
-      symbols_(std::move(symbols)), is_running_(is_running),
+      symbols_(std::move(symbols)), is_running_(&is_running),
       ws_(std::make_unique<ix::WebSocket>()) {}
 
 AlpacaWebSocketSource::~AlpacaWebSocketSource() { stop(); }
@@ -49,7 +49,7 @@ void AlpacaWebSocketSource::stop() {
 }
 
 void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
-  if (!is_running_.load()) {
+  if (!is_running_->load()) {
     return;
   }
 

@@ -36,7 +36,7 @@ private:
   std::string api_key_;
   std::string api_secret_;
   std::vector<std::string> symbols_;
-  std::atomic<bool> &is_running_;
+  std::atomic<bool> *is_running_;
 
   std::unique_ptr<ix::WebSocket> ws_;
   std::thread thread_;

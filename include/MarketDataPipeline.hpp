@@ -5,18 +5,16 @@
 #include <atomic>
 #include <concepts>
 #include <cstdint>
-#include <functional>
 #include <span>
 #include <string_view>
 
 template <typename T>
-concept MarketDataSourceLike = requires(T t) {
-  { t.start() } -> std::same_as<void>;
-  { t.stop() } -> std::same_as<void>;
-  {
-    t.setOnData(std::declval<std::function<void(std::span<const char>)>>())
-  } -> std::same_as<void>;
-};
+concept MarketDataSourceLike =
+    requires(T t, void (*cb)(std::span<const char>)) {
+      { t.start() } -> std::same_as<void>;
+      { t.stop() } -> std::same_as<void>;
+      { t.setOnData(cb) } -> std::same_as<void>;
+    };
 
 template <typename T>
 concept MarketDataDecoderLike =
@@ -42,8 +40,7 @@ public:
         sink_(std::move(sink)) {
     if constexpr (requires {
                     source_.sendSubscribe();
-                    decoder_.setOnAuthSuccess(
-                        std::declval<std::function<void()>>());
+                    decoder_.setOnAuthSuccess(std::declval<void (*)()>());
                   }) {
       decoder_.setOnAuthSuccess([this]() { source_.sendSubscribe(); });
     }

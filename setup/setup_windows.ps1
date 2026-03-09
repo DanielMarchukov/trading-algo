@@ -309,9 +309,11 @@ try {
     Start-Sleep -Seconds 2
 
     if ($script:EngineProcess.HasExited) {
-        Write-Error-Message "Trading engine failed to start!"
+        $rawExitCode = $script:EngineProcess.ExitCode
+        $exitCode = if ($rawExitCode -ne 0) { $rawExitCode } else { 1 }
+        Write-Error-Message "Trading engine failed to start (exit code $rawExitCode)."
         Stop-TradingSystem
-        exit 1
+        exit $exitCode
     }
 
     Write-Status "Trading system is running!"
