@@ -9,8 +9,6 @@
 #include <span>
 #include <string_view>
 
-// --- Pipeline stage concepts ---
-
 template <typename T>
 concept MarketDataSourceLike = requires(T t) {
   { t.start() } -> std::same_as<void>;
@@ -35,8 +33,6 @@ concept MarketEventSinkLike =
       { t.publish(event, symbol) } -> std::same_as<void>;
     };
 
-// --- Pipeline: composes Source -> Decoder -> Sink via templates ---
-
 template <MarketDataSourceLike SourceType, MarketDataDecoderLike DecoderType,
           MarketEventSinkLike SinkType>
 class MarketDataPipeline {
@@ -44,12 +40,10 @@ public:
   MarketDataPipeline(SourceType source, DecoderType decoder, SinkType sink)
       : source_(std::move(source)), decoder_(std::move(decoder)),
         sink_(std::move(sink)) {
-    // Wire auth-success callback if the source supports it
     if constexpr (requires { source_.sendSubscribe(); }) {
       decoder_.setOnAuthSuccess([this]() { source_.sendSubscribe(); });
     }
 
-    // Wire data path: source -> decoder -> sink
     source_.setOnData([this](std::span<const char> data) {
       const uint64_t arrived_at = nowNanos();
       decoder_.decode(
@@ -60,7 +54,6 @@ public:
     });
   }
 
-  // Pipeline must not be moved after construction (captured this)
   MarketDataPipeline(MarketDataPipeline &&) = delete;
   MarketDataPipeline &operator=(MarketDataPipeline &&) = delete;
   MarketDataPipeline(const MarketDataPipeline &) = delete;

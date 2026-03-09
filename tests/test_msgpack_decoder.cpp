@@ -149,7 +149,6 @@ TEST_F(MsgpackDecoderTest, HandlesMultipleEventsInBatch) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(&buf);
   pk.pack_array(2);
-  // Quote
   pk.pack_map(7);
   pk.pack("T");
   pk.pack("q");
@@ -165,7 +164,6 @@ TEST_F(MsgpackDecoderTest, HandlesMultipleEventsInBatch) {
   pk.pack(static_cast<uint64_t>(200));
   pk.pack("t");
   pk.pack(static_cast<uint64_t>(0));
-  // Trade
   pk.pack_map(5);
   pk.pack("T");
   pk.pack("t");
@@ -342,7 +340,6 @@ TEST_F(MsgpackDecoderTest, AuthSuccessCallbackFires) {
 }
 
 TEST_F(MsgpackDecoderTest, AuthSuccessWithoutCallbackDoesNotCrash) {
-  // No setOnAuthSuccess called — decode should not crash
   decode(packAuthResponse(true));
   EXPECT_TRUE(captured_.empty());
 }
@@ -354,7 +351,6 @@ TEST_F(MsgpackDecoderTest, SuccessAtNonZeroIndexSkipsCallback) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(&buf);
   pk.pack_array(2);
-  // First: valid trade
   pk.pack_map(5);
   pk.pack("T");
   pk.pack("t");
@@ -366,7 +362,6 @@ TEST_F(MsgpackDecoderTest, SuccessAtNonZeroIndexSkipsCallback) {
   pk.pack(static_cast<uint64_t>(1));
   pk.pack("t");
   pk.pack(static_cast<uint64_t>(0));
-  // Second: success at i=1
   pk.pack_map(1);
   pk.pack("T");
   pk.pack("success");
@@ -386,7 +381,7 @@ TEST_F(MsgpackDecoderTest, AuthErrorDoesNotTriggerCallback) {
   EXPECT_TRUE(captured_.empty());
 }
 
-TEST_F(MsgpackDecoderTest, NegativePriceCastsToUint64) {
+TEST_F(MsgpackDecoderTest, NegativePriceDropsEvent) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(&buf);
   pk.pack_array(1);
@@ -404,12 +399,8 @@ TEST_F(MsgpackDecoderTest, NegativePriceCastsToUint64) {
 
   decode(std::string(buf.data(), buf.size()));
 
-  // Negative double * kScalingFactor cast to uint64_t wraps around
-  ASSERT_EQ(captured_.size(), 1UL);
-  // Don't assert exact value — just verify no crash
+  EXPECT_TRUE(captured_.empty());
 }
-
-// --- Timestamp decoding parameterized tests ---
 
 struct TimestampParam {
   const char *description;
@@ -441,7 +432,7 @@ INSTANTIATE_TEST_SUITE_P(
                              });
                        },
                        5000000000ULL},
-        TimestampParam{"negative_integer",
+        TimestampParam{"negative_integer_returns_zero",
                        [] {
                          return packQuoteMsgWithTimestamp(
                              "AAPL", 100.0, 1, 101.0, 1,
@@ -449,7 +440,7 @@ INSTANTIATE_TEST_SUITE_P(
                                pk.pack(static_cast<int64_t>(-1));
                              });
                        },
-                       UINT64_MAX},
+                       0ULL},
         TimestampParam{"float_timestamp",
                        [] {
                          return packQuoteMsgWithTimestamp(

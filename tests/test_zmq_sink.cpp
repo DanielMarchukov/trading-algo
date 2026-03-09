@@ -11,22 +11,38 @@ protected:
   void SetUp() override {
     zmq_address_ = "inproc://test_sink_" +
                    std::to_string(reinterpret_cast<uintptr_t>(this));
+    sync_address_ = "inproc://test_sync_" +
+                    std::to_string(reinterpret_cast<uintptr_t>(this));
 
     sink_ = std::make_unique<ZmqMarketEventSink>(context_, zmq_address_);
     sink_->start();
+
+    sync_server_ = zmq::socket_t(context_, zmq::socket_type::pair);
+    sync_server_.set(zmq::sockopt::rcvtimeo, 1000);
+    sync_server_.bind(sync_address_);
 
     sub_ = zmq::socket_t(context_, zmq::socket_type::sub);
     sub_.set(zmq::sockopt::rcvtimeo, 500);
     sub_.set(zmq::sockopt::subscribe, "");
     sub_.connect(zmq_address_);
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    zmq::socket_t sync_client(context_, zmq::socket_type::pair);
+    sync_client.connect(sync_address_);
+    sync_client.send(zmq::str_buffer("ready"), zmq::send_flags::none);
+
+    zmq::message_t ack;
+    auto r = sync_server_.recv(ack, zmq::recv_flags::none);
+    ASSERT_TRUE(r.has_value());
   }
 
   void TearDown() override {
+    sync_server_.close();
     sub_.close();
     sink_.reset();
   }
+
+  static_assert(sizeof(MarketEvent) == 64,
+                "MarketEvent wire format must remain 64 bytes");
 
   [[nodiscard]] bool recvEvent(MarketEvent &event, std::string &topic_out) {
     zmq::message_t topic;
@@ -47,8 +63,10 @@ protected:
 
   zmq::context_t context_{1};
   std::string zmq_address_;
+  std::string sync_address_;
   std::unique_ptr<ZmqMarketEventSink> sink_;
   zmq::socket_t sub_;
+  zmq::socket_t sync_server_;
 };
 
 TEST_F(ZmqSinkTest, PublishesQuoteEvent) {

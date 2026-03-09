@@ -3,9 +3,7 @@
 #include <cstdlib>
 
 RiskManager::RiskManager(PositionManager *position_manager)
-    : position_manager_(position_manager) {
-  // TODO: Load parameters from some config.
-}
+    : position_manager_(position_manager) {}
 
 bool RiskManager::onNewOrder(const Order &order) {
   if (!position_manager_) [[unlikely]] {

@@ -83,9 +83,9 @@ You should see output like:
 ```bash
 Starting trading engine...
 FillListener started
-MarketPublisher started
-MarketPublisher: ZMQ PUB bound to tcp://127.0.0.1:5555
-Pinned MarketPublisher thread to CPU Core 1
+MarketDataPipeline started
+ZmqMarketEventSink: bound to tcp://127.0.0.1:5555
+AlpacaWebSocketSource: pinned to CPU core 1
 Pinned OrderGateway thread to CPU Core 0
 ```
 
@@ -96,7 +96,7 @@ You should see:
 1. Market data being received (check the console output)
 1. Orders being placed to Alpaca's paper trading API
 1. No error messages
-1. Windows Firewall may prompt - allow both Python.exe and paper_money.exe
+1. Windows Firewall may prompt — allow paper_money.exe
 
 To stop the system, press `Ctrl+C`.
 
@@ -156,7 +156,7 @@ Windows doesn't support Unix domain sockets, so the system uses TCP:
 
 When first running, Windows Firewall will prompt. You must:
 
-1. Allow `paper_money.exe` through the firewall
+- Allow `paper_money.exe` through the firewall
 
 ### Performance Monitoring
 
@@ -164,13 +164,13 @@ When first running, Windows Firewall will prompt. You must:
 
    - Press `Ctrl+Shift+Esc`
    - Go to "Details" tab
-   - Find `paper_money.exe` and `python.exe`
+   - Find `paper_money.exe`
 
 1. **PowerShell Monitoring**:
 
 ```powershell
 while ($true) {
-    Get-Process paper_money, python -ErrorAction SilentlyContinue |
+    Get-Process paper_money -ErrorAction SilentlyContinue |
     Select-Object Name, CPU, WorkingSet, Id
     Start-Sleep -Seconds 1
     Clear-Host

@@ -74,8 +74,8 @@ You should see output like:
 Starting trading engine...
 FillListener started
 MarketPublisher started
-MarketPublisher: ZMQ PUB bound to ipc:///tmp/market_data.sock
-Pinned MarketPublisher thread to CPU Core 1
+ZmqMarketEventSink: bound to ipc://<tempdir>/market_data.sock
+AlpacaWebSocketSource: pinned to CPU core 1
 Pinned OrderGateway thread to CPU Core 0
 ```
 

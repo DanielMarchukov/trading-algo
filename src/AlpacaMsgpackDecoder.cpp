@@ -1,7 +1,6 @@
 #include "AlpacaMsgpackDecoder.hpp"
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <msgpack.hpp>
 
 namespace {
@@ -9,73 +8,351 @@ namespace {
 constexpr uint64_t kScalingFactor = 10000;
 constexpr std::size_t kSymbolCapacity = 8;
 
-[[nodiscard]] uint64_t
-decodeTimestampNanos(const msgpack::object &obj) noexcept {
-  if (obj.type == msgpack::type::POSITIVE_INTEGER) {
-    return obj.via.u64;
+void copySymbol(char (&dest)[8], const char *src, uint32_t len) {
+  std::memset(dest, 0, kSymbolCapacity);
+  const auto n = (std::min)(static_cast<std::size_t>(len), kSymbolCapacity);
+  if (n > 0) {
+    std::memcpy(dest, src, n);
   }
-  if (obj.type == msgpack::type::NEGATIVE_INTEGER) {
-    return static_cast<uint64_t>(obj.via.i64);
-  }
-  if (obj.type == msgpack::type::FLOAT32 ||
-      obj.type == msgpack::type::FLOAT64) {
-    return static_cast<uint64_t>(obj.via.f64);
-  }
-  if (obj.type == msgpack::type::EXT) {
-    const auto &ext = obj.via.ext;
-    if (ext.type() != -1) {
-      return 0;
-    }
-    const auto *data = reinterpret_cast<const uint8_t *>(ext.data());
-    uint32_t size = ext.size;
+}
 
-    if (size == 4) {
-      uint32_t sec_be = 0;
-      std::memcpy(&sec_be, data, 4);
+uint64_t decodeTimestampExt(const char *data, uint32_t ext_size) {
+  const auto *d = reinterpret_cast<const uint8_t *>(data);
+  uint32_t body_size = ext_size - 1;
+  int8_t ext_type = static_cast<int8_t>(data[0]);
+  const uint8_t *body = d + 1;
+
+  if (ext_type != -1) {
+    return 0;
+  }
+
+  if (body_size == 4) {
+    uint32_t sec_be = 0;
+    std::memcpy(&sec_be, body, 4);
 #if defined(_WIN32)
-      uint32_t sec = _byteswap_ulong(sec_be);
+    uint32_t sec = _byteswap_ulong(sec_be);
 #else
-      uint32_t sec = __builtin_bswap32(sec_be);
+    uint32_t sec = __builtin_bswap32(sec_be);
 #endif
-      return static_cast<uint64_t>(sec) * 1'000'000'000ULL;
-    }
-    if (size == 8) {
-      uint64_t val_be = 0;
-      std::memcpy(&val_be, data, 8);
+    return static_cast<uint64_t>(sec) * 1'000'000'000ULL;
+  }
+  if (body_size == 8) {
+    uint64_t val_be = 0;
+    std::memcpy(&val_be, body, 8);
 #if defined(_WIN32)
-      uint64_t val = _byteswap_uint64(val_be);
+    uint64_t val = _byteswap_uint64(val_be);
 #else
-      uint64_t val = __builtin_bswap64(val_be);
+    uint64_t val = __builtin_bswap64(val_be);
 #endif
-      uint32_t nsec30 = static_cast<uint32_t>(val >> 34);
-      uint64_t sec34 = val & 0x3FFFFFFFFULL;
-      return sec34 * 1'000'000'000ULL + nsec30;
-    }
-    if (size == 12) {
-      uint32_t nsec_be = 0;
-      std::memcpy(&nsec_be, data, 4);
-      uint64_t sec_be64 = 0;
-      std::memcpy(&sec_be64, data + 4, 8);
+    uint32_t nsec30 = static_cast<uint32_t>(val >> 34);
+    uint64_t sec34 = val & 0x3FFFFFFFFULL;
+    return sec34 * 1'000'000'000ULL + nsec30;
+  }
+  if (body_size == 12) {
+    uint32_t nsec_be = 0;
+    std::memcpy(&nsec_be, body, 4);
+    uint64_t sec_be64 = 0;
+    std::memcpy(&sec_be64, body + 4, 8);
 #if defined(_WIN32)
-      uint32_t nsec = _byteswap_ulong(nsec_be);
-      uint64_t sec = _byteswap_uint64(sec_be64);
+    uint32_t nsec = _byteswap_ulong(nsec_be);
+    uint64_t sec = _byteswap_uint64(sec_be64);
 #else
-      uint32_t nsec = __builtin_bswap32(nsec_be);
-      uint64_t sec = __builtin_bswap64(sec_be64);
+    uint32_t nsec = __builtin_bswap32(nsec_be);
+    uint64_t sec = __builtin_bswap64(sec_be64);
 #endif
-      return sec * 1'000'000'000ULL + nsec;
-    }
+    return sec * 1'000'000'000ULL + nsec;
   }
   return 0;
 }
 
-void copySymbol(char (&dest)[8], std::string_view src) {
-  std::memset(dest, 0, kSymbolCapacity);
-  const auto len = (std::min)(src.size(), kSymbolCapacity);
-  if (len > 0) {
-    std::memcpy(dest, src.data(), len);
+enum class FieldId : uint8_t {
+  kNone,
+  kType,
+  kSymbol,
+  kTimestamp,
+  kBidPrice,
+  kBidSize,
+  kAskPrice,
+  kAskSize
+};
+
+struct AlpacaVisitor : msgpack::null_visitor {
+  using EmitCallback =
+      std::function<void(const MarketEvent &, std::string_view)>;
+  using AuthSuccessCallback = std::function<void()>;
+
+  MarketEvent *event_buffer;
+  const EmitCallback *emit;
+  const AuthSuccessCallback *on_auth_success;
+  uint64_t arrived_at;
+
+  uint32_t array_depth = 0;
+  uint32_t array_index = 0;
+  uint32_t map_depth = 0;
+  bool in_key = false;
+  FieldId current_field = FieldId::kNone;
+
+  char msg_type[8] = {};
+  uint32_t msg_type_len = 0;
+  char symbol_buf[8] = {};
+  uint32_t symbol_len = 0;
+  uint64_t timestamp = 0;
+  double p1_raw = 0.0;
+  uint64_t s1_raw = 0;
+  double p2_raw = 0.0;
+  uint64_t s2_raw = 0;
+  bool has_timestamp = false;
+
+  void resetItem() {
+    msg_type_len = 0;
+    symbol_len = 0;
+    timestamp = 0;
+    p1_raw = 0.0;
+    s1_raw = 0;
+    p2_raw = 0.0;
+    s2_raw = 0;
+    has_timestamp = false;
+    current_field = FieldId::kNone;
   }
-}
+
+  void emitItem() {
+    std::string_view mt(msg_type, msg_type_len);
+    std::string_view sym(symbol_buf, symbol_len);
+
+    if (mt == "success") {
+      if (array_index == 0 && on_auth_success && *on_auth_success) {
+        (*on_auth_success)();
+      }
+      return;
+    }
+
+    if (mt.empty() || sym.empty()) {
+      return;
+    }
+
+    if (mt == "q") {
+      if (p1_raw < 0.0 || p2_raw < 0.0) {
+        return;
+      }
+      event_buffer->eventType = 1;
+      event_buffer->p1 = static_cast<uint64_t>(p1_raw * kScalingFactor);
+      event_buffer->s1 = s1_raw;
+      event_buffer->p2 = static_cast<uint64_t>(p2_raw * kScalingFactor);
+      event_buffer->s2 = s2_raw;
+    } else if (mt == "t") {
+      if (p1_raw < 0.0) {
+        return;
+      }
+      event_buffer->eventType = 2;
+      event_buffer->p1 = static_cast<uint64_t>(p1_raw * kScalingFactor);
+      event_buffer->s1 = s1_raw;
+      event_buffer->p2 = 0;
+      event_buffer->s2 = 0;
+    } else {
+      return;
+    }
+
+    copySymbol(event_buffer->symbol, symbol_buf, symbol_len);
+    event_buffer->timestamp = has_timestamp ? timestamp : 0;
+    event_buffer->arrivedAt = arrived_at;
+    (*emit)(*event_buffer, sym);
+  }
+
+  bool start_array(uint32_t) {
+    ++array_depth;
+    array_index = 0;
+    return true;
+  }
+
+  bool start_array_item() { return true; }
+
+  bool end_array_item() {
+    if (array_depth == 1) {
+      ++array_index;
+    }
+    return true;
+  }
+
+  bool end_array() {
+    --array_depth;
+    return true;
+  }
+
+  bool start_map(uint32_t) {
+    ++map_depth;
+    if (array_depth == 1 && map_depth == 1) {
+      resetItem();
+    }
+    return true;
+  }
+
+  bool start_map_key() {
+    in_key = true;
+    current_field = FieldId::kNone;
+    return true;
+  }
+
+  bool end_map_key() {
+    in_key = false;
+    return true;
+  }
+
+  bool start_map_value() { return true; }
+
+  bool end_map_value() {
+    current_field = FieldId::kNone;
+    return true;
+  }
+
+  bool end_map() {
+    if (array_depth == 1 && map_depth == 1) {
+      emitItem();
+    }
+    --map_depth;
+    return true;
+  }
+
+  bool visit_str(const char *v, uint32_t size) {
+    if (map_depth != 1) {
+      return true;
+    }
+
+    if (in_key) {
+      if (size == 1) {
+        switch (v[0]) {
+        case 'T':
+          current_field = FieldId::kType;
+          break;
+        case 'S':
+          current_field = FieldId::kSymbol;
+          break;
+        case 't':
+          current_field = FieldId::kTimestamp;
+          break;
+        case 'p':
+          current_field = FieldId::kBidPrice;
+          break;
+        case 's':
+          current_field = FieldId::kBidSize;
+          break;
+        default:
+          current_field = FieldId::kNone;
+          break;
+        }
+      } else if (size == 2) {
+        if (v[0] == 'b' && v[1] == 'p') {
+          current_field = FieldId::kBidPrice;
+        } else if (v[0] == 'b' && v[1] == 's') {
+          current_field = FieldId::kBidSize;
+        } else if (v[0] == 'a' && v[1] == 'p') {
+          current_field = FieldId::kAskPrice;
+        } else if (v[0] == 'a' && v[1] == 's') {
+          current_field = FieldId::kAskSize;
+        } else {
+          current_field = FieldId::kNone;
+        }
+      } else {
+        current_field = FieldId::kNone;
+      }
+      return true;
+    }
+
+    switch (current_field) {
+    case FieldId::kType:
+      msg_type_len = (std::min)(size, static_cast<uint32_t>(sizeof(msg_type)));
+      std::memcpy(msg_type, v, msg_type_len);
+      break;
+    case FieldId::kSymbol:
+      symbol_len = (std::min)(size, static_cast<uint32_t>(sizeof(symbol_buf)));
+      std::memcpy(symbol_buf, v, symbol_len);
+      break;
+    default:
+      break;
+    }
+    return true;
+  }
+
+  bool visit_positive_integer(uint64_t v) {
+    if (map_depth != 1 || in_key) {
+      return true;
+    }
+    switch (current_field) {
+    case FieldId::kTimestamp:
+      timestamp = v;
+      has_timestamp = true;
+      break;
+    case FieldId::kBidPrice:
+      p1_raw = static_cast<double>(v);
+      break;
+    case FieldId::kBidSize:
+      s1_raw = v;
+      break;
+    case FieldId::kAskPrice:
+      p2_raw = static_cast<double>(v);
+      break;
+    case FieldId::kAskSize:
+      s2_raw = v;
+      break;
+    default:
+      break;
+    }
+    return true;
+  }
+
+  bool visit_negative_integer(int64_t) {
+    if (map_depth != 1 || in_key) {
+      return true;
+    }
+    if (current_field == FieldId::kTimestamp) {
+      timestamp = 0;
+      has_timestamp = true;
+    }
+    return true;
+  }
+
+  bool visit_float32(float v) { return visit_float64(static_cast<double>(v)); }
+
+  bool visit_float64(double v) {
+    if (map_depth != 1 || in_key) {
+      return true;
+    }
+    switch (current_field) {
+    case FieldId::kTimestamp:
+      timestamp = v < 0.0 ? 0 : static_cast<uint64_t>(v);
+      has_timestamp = true;
+      break;
+    case FieldId::kBidPrice:
+      p1_raw = v;
+      break;
+    case FieldId::kBidSize:
+      s1_raw = v < 0.0 ? 0 : static_cast<uint64_t>(v);
+      break;
+    case FieldId::kAskPrice:
+      p2_raw = v;
+      break;
+    case FieldId::kAskSize:
+      s2_raw = v < 0.0 ? 0 : static_cast<uint64_t>(v);
+      break;
+    default:
+      break;
+    }
+    return true;
+  }
+
+  bool visit_ext(const char *v, uint32_t size) {
+    if (map_depth != 1 || in_key) {
+      return true;
+    }
+    if (current_field == FieldId::kTimestamp && size >= 2) {
+      timestamp = decodeTimestampExt(v, size);
+      has_timestamp = true;
+    }
+    return true;
+  }
+
+  void parse_error(size_t, size_t) {}
+  void insufficient_bytes(size_t, size_t) {}
+};
 
 } // namespace
 
@@ -86,112 +363,11 @@ void AlpacaMsgpackDecoder::setOnAuthSuccess(AuthSuccessCallback cb) {
 void AlpacaMsgpackDecoder::decode(std::span<const char> data,
                                   uint64_t arrived_at,
                                   const EmitCallback &emit) {
-  try {
-    msgpack::object_handle oh = msgpack::unpack(data.data(), data.size());
-    const msgpack::object &root = oh.get();
+  AlpacaVisitor visitor;
+  visitor.event_buffer = &event_buffer_;
+  visitor.emit = &emit;
+  visitor.on_auth_success = &on_auth_success_;
+  visitor.arrived_at = arrived_at;
 
-    if (root.type != msgpack::type::ARRAY) {
-      return;
-    }
-
-    for (uint32_t i = 0; i < root.via.array.size; ++i) {
-      const msgpack::object &item = root.via.array.ptr[i];
-      if (item.type != msgpack::type::MAP) {
-        continue;
-      }
-
-      std::string_view msg_type;
-      std::string_view symbol;
-      const msgpack::object *ts_obj = nullptr;
-      double p1_raw = 0.0;
-      uint64_t s1_raw = 0;
-      double p2_raw = 0.0;
-      uint64_t s2_raw = 0;
-
-      for (uint32_t k = 0; k < item.via.map.size; ++k) {
-        const auto &kv = item.via.map.ptr[k];
-        if (kv.key.type != msgpack::type::STR) {
-          continue;
-        }
-
-        std::string_view key(kv.key.via.str.ptr, kv.key.via.str.size);
-
-        if (key == "T" && kv.val.type == msgpack::type::STR) {
-          msg_type = std::string_view(kv.val.via.str.ptr, kv.val.via.str.size);
-        } else if (key == "S" && kv.val.type == msgpack::type::STR) {
-          symbol = std::string_view(kv.val.via.str.ptr, kv.val.via.str.size);
-        } else if (key == "t") {
-          ts_obj = &kv.val;
-        } else if (key == "bp" || key == "p") {
-          if (kv.val.type == msgpack::type::FLOAT32 ||
-              kv.val.type == msgpack::type::FLOAT64) {
-            p1_raw = kv.val.via.f64;
-          } else if (kv.val.type == msgpack::type::POSITIVE_INTEGER) {
-            p1_raw = static_cast<double>(kv.val.via.u64);
-          }
-        } else if (key == "bs" || key == "s") {
-          if (kv.val.type == msgpack::type::POSITIVE_INTEGER) {
-            s1_raw = kv.val.via.u64;
-          } else if (kv.val.type == msgpack::type::FLOAT32 ||
-                     kv.val.type == msgpack::type::FLOAT64) {
-            s1_raw = static_cast<uint64_t>(kv.val.via.f64);
-          }
-        } else if (key == "ap") {
-          if (kv.val.type == msgpack::type::FLOAT32 ||
-              kv.val.type == msgpack::type::FLOAT64) {
-            p2_raw = kv.val.via.f64;
-          } else if (kv.val.type == msgpack::type::POSITIVE_INTEGER) {
-            p2_raw = static_cast<double>(kv.val.via.u64);
-          }
-        } else if (key == "as") {
-          if (kv.val.type == msgpack::type::POSITIVE_INTEGER) {
-            s2_raw = kv.val.via.u64;
-          } else if (kv.val.type == msgpack::type::FLOAT32 ||
-                     kv.val.type == msgpack::type::FLOAT64) {
-            s2_raw = static_cast<uint64_t>(kv.val.via.f64);
-          }
-        }
-      }
-
-      // Auth/subscribe success has no symbol — handle before symbol check
-      if (msg_type == "success") {
-        if (i == 0 && on_auth_success_) {
-          on_auth_success_();
-        }
-        continue;
-      }
-
-      if (msg_type.empty() || symbol.empty()) {
-        continue;
-      }
-
-      if (msg_type == "q") {
-        event_buffer_.eventType = 1;
-        event_buffer_.p1 = static_cast<uint64_t>(p1_raw * kScalingFactor);
-        event_buffer_.s1 = s1_raw;
-        event_buffer_.p2 = static_cast<uint64_t>(p2_raw * kScalingFactor);
-        event_buffer_.s2 = s2_raw;
-      } else if (msg_type == "t") {
-        event_buffer_.eventType = 2;
-        event_buffer_.p1 = static_cast<uint64_t>(p1_raw * kScalingFactor);
-        event_buffer_.s1 = s1_raw;
-        event_buffer_.p2 = 0;
-        event_buffer_.s2 = 0;
-      } else {
-        continue;
-      }
-
-      copySymbol(event_buffer_.symbol, symbol);
-      event_buffer_.timestamp =
-          ts_obj != nullptr ? decodeTimestampNanos(*ts_obj) : 0;
-      event_buffer_.arrivedAt = arrived_at;
-
-      emit(event_buffer_, symbol);
-    }
-  } catch (const std::exception &e) {
-    std::cerr << "AlpacaMsgpackDecoder: decode error: " << e.what()
-              << std::endl;
-  } catch (...) {
-    std::cerr << "AlpacaMsgpackDecoder: decode unknown error" << std::endl;
-  }
+  msgpack::parse(data.data(), data.size(), visitor);
 }

@@ -20,7 +20,12 @@ void pin_thread_to_core(std::thread &t, uint32_t core_id) {
     std::cerr << "Error calling pthread_setaffinity_np\n";
   }
 #elif defined(_WIN32)
-  if (const DWORD_PTR mask = 1LL << core_id;
+  if (core_id >= 64) {
+    std::cerr << "Error: core_id " << core_id
+              << " exceeds 64-bit affinity mask limit" << std::endl;
+    return;
+  }
+  if (const DWORD_PTR mask = 1ULL << core_id;
       SetThreadAffinityMask(t.native_handle(), mask) == 0) {
     std::cerr << "Error calling SetThreadAffinityMask: " << GetLastError()
               << std::endl;
@@ -36,7 +41,7 @@ void pin_thread_to_core(std::thread &t, uint32_t core_id) {
 #else
   (void)t;
   (void)core_id;
-  std::cout << "Warning: CPU pinning not supported on this platform."
+  std::cerr << "Warning: CPU pinning not supported on this platform."
             << std::endl;
 #endif
 }

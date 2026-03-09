@@ -20,7 +20,7 @@ public:
               const EmitCallback &emit);
 
 private:
-  MarketEvent event_buffer_{};
+  alignas(64) MarketEvent event_buffer_{};
   AuthSuccessCallback on_auth_success_;
 };
 

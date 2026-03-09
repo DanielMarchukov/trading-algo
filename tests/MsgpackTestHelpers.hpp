@@ -7,7 +7,7 @@
 
 namespace test_helpers {
 
-inline std::string packQuoteMsgWithTimestamp(
+[[nodiscard]] inline std::string packQuoteMsgWithTimestamp(
     const char *sym, double bp, int64_t bs, double ap, int64_t as,
     std::function<void(msgpack::packer<msgpack::sbuffer> &)> pack_ts) {
   msgpack::sbuffer buf;
@@ -31,8 +31,8 @@ inline std::string packQuoteMsgWithTimestamp(
   return std::string(buf.data(), buf.size());
 }
 
-inline std::string packQuoteMsg(const char *sym, double bp, int64_t bs,
-                                double ap, int64_t as) {
+[[nodiscard]] inline std::string
+packQuoteMsg(const char *sym, double bp, int64_t bs, double ap, int64_t as) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(&buf);
   pk.pack_array(1);
@@ -54,7 +54,8 @@ inline std::string packQuoteMsg(const char *sym, double bp, int64_t bs,
   return std::string(buf.data(), buf.size());
 }
 
-inline std::string packTradeMsg(const char *sym, double price, int64_t size) {
+[[nodiscard]] inline std::string packTradeMsg(const char *sym, double price,
+                                              int64_t size) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(&buf);
   pk.pack_array(1);
@@ -72,7 +73,7 @@ inline std::string packTradeMsg(const char *sym, double price, int64_t size) {
   return std::string(buf.data(), buf.size());
 }
 
-inline std::string packAuthResponse(bool success) {
+[[nodiscard]] inline std::string packAuthResponse(bool success) {
   msgpack::sbuffer buf;
   msgpack::packer<msgpack::sbuffer> pk(&buf);
   pk.pack_array(1);

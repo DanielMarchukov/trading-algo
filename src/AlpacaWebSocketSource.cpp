@@ -26,10 +26,6 @@ void AlpacaWebSocketSource::setOnData(DataCallback cb) {
 
 void AlpacaWebSocketSource::start() {
   ws_->setUrl(std::string(kDataStreamUrl) + "?encoding=msgpack");
-  // TODO: Enable TCP_NODELAY to disable Nagle's algorithm (up to 200ms
-  // delay). The installed ixwebsocket version does not expose
-  // setTcpNoDelay(). Upgrade ixwebsocket or set TCP_NODELAY on the raw
-  // fd in the Open callback once a newer version is available.
   ws_->setExtraHeaders(
       ix::WebSocketHttpHeaders{{"Content-Type", "application/msgpack"}});
   ws_->setMinWaitBetweenReconnectionRetries(kMinReconnectMs);

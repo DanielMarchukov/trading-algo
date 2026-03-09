@@ -20,7 +20,7 @@ multi-platform support, and continuous integration.
 
 - **C++23**: Trading engine with template metaprogramming and compile-time optimizations
 - **ZeroMQ**: High-performance IPC/TCP messaging between components
-- **msgpack-cxx**: Zero-copy msgpack decoding for Alpaca WebSocket market data
+- **msgpack-cxx**: SAX-style msgpack decoding for Alpaca WebSocket market data
 - **vcpkg**: Cross-platform C++ dependency management
 - **CMake**: Build system with modern CMake practices
 - **Google Test**: Comprehensive unit and integration testing

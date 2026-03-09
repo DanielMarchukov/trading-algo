@@ -18,15 +18,17 @@ void ZmqMarketEventSink::start() {
   std::cout << "ZmqMarketEventSink: bound to " << zmq_address_ << std::endl;
 }
 
-void ZmqMarketEventSink::stop() {
-  // ZMQ socket cleanup handled by destructor
-}
+void ZmqMarketEventSink::stop() {}
 
 void ZmqMarketEventSink::publish(const MarketEvent &event,
                                  std::string_view symbol) {
   const auto topic_len = (std::min)(symbol.size(), kSymbolCapacity);
-  zmq_pub_.send(zmq::buffer(symbol.data(), topic_len),
-                zmq::send_flags::sndmore);
+  auto res =
+      zmq_pub_.send(zmq::buffer(symbol.data(), topic_len),
+                    zmq::send_flags::sndmore | zmq::send_flags::dontwait);
+  if (!res.has_value()) {
+    return;
+  }
   zmq_pub_.send(zmq::buffer(&event, sizeof(MarketEvent)),
                 zmq::send_flags::dontwait);
 }

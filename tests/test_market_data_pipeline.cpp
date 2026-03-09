@@ -8,8 +8,6 @@
 #include <string_view>
 #include <vector>
 
-// --- Test doubles ---
-
 class TestSource {
 public:
   void start() { started_ = true; }
@@ -19,7 +17,6 @@ public:
   }
   void sendSubscribe() { subscribe_called_ = true; }
 
-  // Test helper: inject raw data
   void injectData(const std::string &data) {
     if (on_data_) {
       on_data_(std::span<const char>(data.data(), data.size()));
@@ -50,7 +47,6 @@ public:
     last_arrived_at_ = arrived_at;
     last_data_ = std::string(data.data(), data.size());
 
-    // Emit a test event for each decode call
     MarketEvent event{};
     event.eventType = 1;
     std::memcpy(event.symbol, "TEST", 4);
@@ -89,8 +85,6 @@ static_assert(MarketDataSourceLike<TestSource>);
 static_assert(MarketDataDecoderLike<TestDecoder>);
 static_assert(MarketEventSinkLike<TestSink>);
 
-// --- Pipeline tests ---
-
 using TestPipeline = MarketDataPipeline<TestSource, TestDecoder, TestSink>;
 
 class MarketDataPipelineTest : public ::testing::Test {};
@@ -103,7 +97,6 @@ TEST_F(MarketDataPipelineTest, ConstructsAndStartsStops) {
 }
 
 TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
-  // Shared state captures post-move pipeline activity
   struct DataFlowState {
     bool data_decoded = false;
     bool event_published = false;
@@ -112,12 +105,8 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
   };
   auto state = std::make_shared<DataFlowState>();
 
-  // Source that exports its on_data callback via shared_ptr
   auto inject = std::make_shared<std::function<void(std::span<const char>)>>();
-  TestSource source;
-  // Replace setOnData to capture into shared inject pointer
-  // — but TestSource already stores a callback. We need the
-  //   pipeline constructor to wire it, so we use a thin wrapper.
+
   struct InjectableSource {
     std::shared_ptr<std::function<void(std::span<const char>)>> inject_;
     void start() {}
@@ -192,8 +181,6 @@ TEST_F(MarketDataPipelineTest, AuthSuccessCallbackWiresDecoderToSource) {
     void sendSubscribe() { state_->subscribe_called = true; }
   };
 
-  // Decoder that exports the auth callback via shared_ptr so we can
-  // invoke it after the decoder is moved into the pipeline
   struct AuthDecoder {
     using EmitCallback =
         std::function<void(const MarketEvent &, std::string_view)>;
@@ -225,7 +212,6 @@ TEST_F(MarketDataPipelineTest, AuthSuccessCallbackWiresDecoderToSource) {
   MarketDataPipeline<SubscribeSource, AuthDecoder, NoopSink> pipeline(
       std::move(source), std::move(decoder), std::move(sink));
 
-  // Pipeline constructor wired setOnAuthSuccess -> sendSubscribe
   ASSERT_TRUE(*trigger);
   (*trigger)();
 

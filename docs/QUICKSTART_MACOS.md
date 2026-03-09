@@ -77,8 +77,8 @@ You should see output like:
 Starting trading engine...
 FillListener started
 MarketPublisher started
-MarketPublisher: ZMQ PUB bound to ipc:///tmp/market_data.sock
-Pinned MarketPublisher thread to CPU Core 1
+ZmqMarketEventSink: bound to ipc://<tempdir>/market_data.sock
+AlpacaWebSocketSource: pinned to CPU core 1
 Pinned OrderGateway thread to CPU Core 0
 ```
 
@@ -166,11 +166,11 @@ open /Applications/Xcode.app/Contents/Applications/Instruments.app
 
 ## macOS-Specific Notes
 
-1. **Firewall**: macOS will prompt to allow network connections for both Python and the trading engine. Click "Allow"
-   for both
+1. **Firewall**: macOS will prompt to allow network connections for the trading engine. Click "Allow"
 1. **CPU Affinity**: macOS handles thread affinity differently than Linux. The engine will still attempt to pin threads
    but with macOS-specific APIs.
-1. **IPC Sockets**: The engine uses Unix domain sockets at `/tmp/market_data.sock`. This is allowed by default on macOS.
+1. **IPC Sockets**: The engine uses Unix domain sockets at `<tempdir>/market_data.sock` (resolved via
+   `std::filesystem::temp_directory_path()`). This is allowed by default on macOS.
 
 ## Next Steps
 

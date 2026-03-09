@@ -35,6 +35,11 @@
   return "tcp://127.0.0.1:5555";
 #else
   auto temp = std::filesystem::temp_directory_path();
-  return "ipc://" + (temp / "market_data.sock").string();
+  auto sock_path = temp / "market_data.sock";
+  std::error_code ec;
+  if (std::filesystem::exists(sock_path, ec)) {
+    std::filesystem::remove(sock_path, ec);
+  }
+  return "ipc://" + sock_path.string();
 #endif
 }

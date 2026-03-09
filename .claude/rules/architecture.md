@@ -11,8 +11,9 @@ Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [uW
 ## Thread Model
 
 - Core 0 (housekeeping): OrderGateway, FillListener, OS interrupts, main thread — all cold-path I/O-bound work
-- Core 1 (data path): AlpacaMarketPublisher thread (managed by TradingEngine) — receives market data from Alpaca
-  WebSocket, decodes msgpack, publishes MarketEvent structs via ZMQ
+- Core 1 (data path): MarketDataPipeline thread (AlpacaWebSocketSource → AlpacaMsgpackDecoder → ZmqMarketEventSink) —
+  receives market data from Alpaca WebSocket, decodes msgpack via SAX-style visitor, publishes MarketEvent structs via
+  ZMQ
 - Cores 2+ (hot path): per-symbol MarketEventConsumer threads, one per core, pinned at startup
 - No thread may block another thread on the hot path
 
@@ -48,13 +49,13 @@ Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [uW
 - msgpack mode: append `?encoding=msgpack` to URL
 - Trades: `{"T":"t","S":"AAPL","p":150.25,"s":100,"t":"..."}`
 - Quotes: `{"T":"q","S":"AAPL","bp":150.20,"bs":200,"ap":150.30,...}`
-- Handled by `AlpacaMarketPublisher` (ixwebsocket + msgpack-cxx)
+- Handled by `MarketDataPipeline` (AlpacaWebSocketSource + AlpacaMsgpackDecoder + ZmqMarketEventSink)
 
 ### Library Choices
 
-- **ixwebsocket** (vcpkg): Used by both AlpacaFillListener and AlpacaMarketPublisher for WebSocket connections.
-- **msgpack-cxx** (vcpkg, header-only): Decodes Alpaca market data stream. One zone allocation per batch — documented
-  for future zero-copy optimization.
+- **ixwebsocket** (vcpkg): Used by AlpacaFillListener and AlpacaWebSocketSource for WebSocket connections.
+- **msgpack-cxx** (vcpkg, header-only): Decodes Alpaca market data stream. Uses SAX-style `msgpack::parse()` visitor —
+  exception-free, zero allocation on the hot path.
 - **simdjson**: 4x faster than RapidJSON for parsing REST responses. Use for any JSON parsing that becomes
   latency-sensitive.
 

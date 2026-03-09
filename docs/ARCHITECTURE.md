@@ -18,7 +18,7 @@ The trading engine is designed as a single-process, multi-threaded system with c
 
 1. **Hot Path Components** (latency-critical):
 
-   - Market Data Publisher (C++ — AlpacaMarketPublisher)
+   - Market Data Pipeline (AlpacaWebSocketSource → AlpacaMsgpackDecoder → ZmqMarketEventSink)
    - Market Data Consumer (C++)
    - Trading Strategy execution
    - Risk Management checks
@@ -38,11 +38,11 @@ The trading engine is designed as a single-process, multi-threaded system with c
 ║                                C++ TRADING ENGINE PROCESS                              ║
 ║                                                                                        ║
 ║  ┌──────────────────────────────────────┐                                              ║
-║  │   AlpacaMarketPublisher (Core 1)     │                                              ║
+║  │   MarketDataPipeline (Core 1)        │                                              ║
 ║  │──────────────────────────────────────│                                              ║
-║  │ • Alpaca WebSocket Client (msgpack)  │                                              ║
-║  │ • Decodes to 64-byte MarketEvent     │                                              ║
-║  │ • ZMQ PUB Socket                     │                                              ║
+║  │ • AlpacaWebSocketSource (msgpack)    │                                              ║
+║  │ • AlpacaMsgpackDecoder (SAX visitor) │                                              ║
+║  │ • ZmqMarketEventSink (ZMQ PUB)      │                                              ║
 ║  └──────────────────┬───────────────────┘                                              ║
 ║                     |                                                                  ║
 ║                     | 64-byte MarketEvent                                              ║
@@ -56,7 +56,7 @@ The trading engine is designed as a single-process, multi-threaded system with c
 ║  │ • Creates all components        │          │ • Polls LockFreeMPSCQueue<Order>       │ ║
 ║  │ • Launches threads              │          │ • Makes REST API calls to Alpaca     │ ║
 ║  │ • Handles signals (SIGINT/TERM) │          │ • Pinned to Core 0                   │ ║
-║  │ • Manages shutdown              │          │ • TODO: Fill listener not impl yet   │ ║
+║  │ • Manages shutdown              │          │                                      │ ║
 ║  └─────────────┬───────────────────┘          └──────────────────────────────────────┘ ║
 ║                │                                            ↑                          ║
 ║                │ Creates & owns (std::shared_ptr)           │ Reads orders             ║
@@ -110,10 +110,10 @@ Legend:
 
 ## Component Design
 
-### Market Data Publisher (C++)
+### Market Data Pipeline (C++)
 
 - **Purpose**: Connect to Alpaca WebSocket API and normalize market data
-- **Design**: Dedicated thread with ixwebsocket + msgpack-cxx decoding
+- **Design**: Three-stage pipeline — AlpacaWebSocketSource, AlpacaMsgpackDecoder (SAX visitor), ZmqMarketEventSink
 - **Output**: 64-byte MarketEvent struct via ZeroMQ PUB socket
 - **CPU Affinity**: Pinned to Core 1
 
@@ -170,16 +170,16 @@ static_assert(sizeof(MarketEvent) == 64);
 
 ### 1. C++ for Data Ingestion
 
-**Decision**: Use C++ for market data ingestion (AlpacaMarketPublisher)
+**Decision**: Use C++ for market data ingestion (MarketDataPipeline)
 
 **Rationale**:
 
 - Single binary — no Python runtime, no cross-language overhead
-- Direct msgpack decoding with zero-copy where possible
+- Exception-free SAX-style msgpack decoding
 - Same build/test/CI pipeline as the rest of the engine
 - Thread pinning and cache-line alignment for consistent latency
 
-**Libraries**: ixwebsocket (WebSocket client), msgpack-cxx (header-only msgpack decoding)
+**Libraries**: ixwebsocket (WebSocket client), msgpack-cxx (SAX-style visitor parsing)
 
 ### 2. ZeroMQ for IPC
 
@@ -311,7 +311,7 @@ class MarketEventConsumer {
 
 ### Current Performance
 
-This isn't benchmarked oficially yet; TBD.
+This isn't benchmarked officially yet; TBD.
 
 ### Target Performance
 

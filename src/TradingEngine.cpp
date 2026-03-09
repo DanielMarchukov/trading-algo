@@ -73,6 +73,13 @@ void TradingEngine::launch_gateway() {
 }
 
 void TradingEngine::launch_consumers() {
+  const uint32_t max_cores = std::thread::hardware_concurrency();
+  if (max_cores > 0 && symbols_.size() + 2 > max_cores) {
+    std::cerr << "Warning: " << symbols_.size()
+              << " symbols + 2 reserved cores exceeds " << max_cores
+              << " available cores; thread pinning will wrap" << std::endl;
+  }
+
   for (uint32_t i = 0; i < symbols_.size(); ++i) {
     const auto &symbol = symbols_[i];
     auto callback = [this](const Order &order) {
@@ -89,8 +96,9 @@ void TradingEngine::launch_consumers() {
                      consumer.get()),
          std::move(consumer)});
 
-    pin_thread_to_core(consumer_threads_.back().thread, i + 2);
-    std::cout << "Pinned thread for " << symbol << " to CPU Core " << (i + 2)
+    uint32_t core_id = max_cores > 0 ? (i + 2) % max_cores : i + 2;
+    pin_thread_to_core(consumer_threads_.back().thread, core_id);
+    std::cout << "Pinned thread for " << symbol << " to CPU Core " << core_id
               << std::endl;
   }
 }
@@ -102,10 +110,8 @@ void TradingEngine::main_loop() const {
 }
 
 void TradingEngine::shutdown() {
-  // 1. Stop the market publisher first (stop producing data)
   market_publisher_->stop();
 
-  // 2. Stop consumers (they drain remaining events) and join their threads
   for (auto &[thread, consumer] : consumer_threads_) {
     if (thread.joinable()) {
       thread.join();
@@ -113,10 +119,8 @@ void TradingEngine::shutdown() {
   }
   consumer_threads_.clear();
 
-  // 3. Stop the fill listener
   fill_listener_->stop();
 
-  // 4. Stop and join the order gateway
   if (order_gateway_thread_.joinable()) {
     order_gateway_thread_.join();
   }

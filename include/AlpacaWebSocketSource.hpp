@@ -20,7 +20,7 @@ public:
   ~AlpacaWebSocketSource();
 
   AlpacaWebSocketSource(AlpacaWebSocketSource &&) = default;
-  AlpacaWebSocketSource &operator=(AlpacaWebSocketSource &&) = default;
+  AlpacaWebSocketSource &operator=(AlpacaWebSocketSource &&) = delete;
   AlpacaWebSocketSource(const AlpacaWebSocketSource &) = delete;
   AlpacaWebSocketSource &operator=(const AlpacaWebSocketSource &) = delete;
 
