@@ -3,6 +3,7 @@ Testing
 compile_commands.json
 _deps
 build/
+build-asan/
 .cache/
 env/
 .pytest_cache/

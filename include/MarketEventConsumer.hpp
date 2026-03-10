@@ -3,7 +3,6 @@
 #include "MarketEvent.hpp"
 #include "RiskManager.hpp"
 #include "Strategy.hpp"
-#include <algorithm>
 #include <atomic>
 #include <cstring>
 #include <exception>
@@ -23,13 +22,17 @@ public:
         order_callback_(order_callback),
         strategy_(std::make_unique<StrategyType>()),
         risk_manager_(risk_manager) {
+    if (symbol.size() > 8) {
+      throw std::invalid_argument(
+          "MarketEventConsumer symbol must be <= 8 bytes");
+    }
     std::memset(symbol_, 0, sizeof(symbol_));
-    const auto n = (std::min)(symbol.size(), std::size_t{8});
-    std::memcpy(symbol_, symbol.data(), n);
+    std::memcpy(symbol_, symbol.data(), symbol.size());
 
     try {
       subscriber_.set(zmq::sockopt::rcvtimeo, 100);
-      subscriber_.set(zmq::sockopt::subscribe, std::string_view(symbol_, n));
+      subscriber_.set(zmq::sockopt::subscribe,
+                      std::string_view(symbol_, symbol.size()));
       subscriber_.connect(address);
     } catch (const zmq::error_t &e) {
       std::cerr << "MarketEventConsumer for " << symbol_

@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 class IFillListener;
@@ -21,6 +22,9 @@ struct OrderQueuePusher {
   LockFreeMPSCQueue<Order> *queue;
   void operator()(const Order &order) const { queue->push(order); }
 };
+
+static_assert(std::is_trivially_copyable_v<OrderQueuePusher>,
+              "OrderQueuePusher must be trivially copyable for hot-path use");
 
 using ConsumerType =
     MarketEventConsumer<SimpleMarketMakingStrategy, OrderQueuePusher>;

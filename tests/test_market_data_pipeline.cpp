@@ -10,16 +10,20 @@
 
 class TestSource {
 public:
+  using RawDataFn = void (*)(void *, std::span<const char>);
+
   void start() { started_ = true; }
   void stop() { stopped_ = true; }
-  void setOnData(std::function<void(std::span<const char>)> cb) {
-    on_data_ = std::move(cb);
+  void setOnData(RawDataFn fn, void *ctx) {
+    on_data_fn_ = fn;
+    on_data_ctx_ = ctx;
   }
   void sendSubscribe() { subscribe_called_ = true; }
 
   void injectData(const std::string &data) {
-    if (on_data_) {
-      on_data_(std::span<const char>(data.data(), data.size()));
+    if (on_data_fn_) {
+      on_data_fn_(on_data_ctx_,
+                  std::span<const char>(data.data(), data.size()));
     }
   }
 
@@ -28,7 +32,8 @@ public:
   bool subscribe_called_ = false;
 
 private:
-  std::function<void(std::span<const char>)> on_data_;
+  RawDataFn on_data_fn_ = nullptr;
+  void *on_data_ctx_ = nullptr;
 };
 
 class TestDecoder {
@@ -105,15 +110,21 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
   };
   auto state = std::make_shared<DataFlowState>();
 
-  auto inject = std::make_shared<std::function<void(std::span<const char>)>>();
+  struct ExternalCallback {
+    void (*fn)(void *, std::span<const char>) = nullptr;
+    void *ctx = nullptr;
+  };
+  auto inject = std::make_shared<ExternalCallback>();
 
   struct InjectableSource {
-    std::shared_ptr<std::function<void(std::span<const char>)>> inject_;
+    using RawDataFn = void (*)(void *, std::span<const char>);
+    std::shared_ptr<ExternalCallback> inject_;
     void start() {}
     void stop() {}
-    void setOnData(std::function<void(std::span<const char>)> cb) {
+    void setOnData(RawDataFn fn, void *ctx) {
       if (inject_) {
-        *inject_ = std::move(cb);
+        inject_->fn = fn;
+        inject_->ctx = ctx;
       }
     }
     void sendSubscribe() {}
@@ -157,7 +168,8 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
   pipeline.start();
 
   std::string test_data = "test_payload";
-  (*inject)(std::span<const char>(test_data.data(), test_data.size()));
+  inject->fn(inject->ctx,
+             std::span<const char>(test_data.data(), test_data.size()));
 
   EXPECT_TRUE(state->data_decoded);
   EXPECT_TRUE(state->event_published);
@@ -174,10 +186,11 @@ TEST_F(MarketDataPipelineTest, AuthSuccessCallbackWiresDecoderToSource) {
   auto state = std::make_shared<SharedState>();
 
   struct SubscribeSource {
+    using RawDataFn = void (*)(void *, std::span<const char>);
     std::shared_ptr<SharedState> state_;
     void start() {}
     void stop() {}
-    void setOnData(std::function<void(std::span<const char>)>) {}
+    void setOnData(RawDataFn, void *) {}
     void sendSubscribe() { state_->subscribe_called = true; }
   };
 

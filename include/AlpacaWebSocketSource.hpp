@@ -2,18 +2,16 @@
 
 #include "MarketDataPipeline.hpp"
 #include <atomic>
-#include <functional>
 #include <ixwebsocket/IXWebSocket.h>
 #include <memory>
 #include <span>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 class AlpacaWebSocketSource {
 public:
-  using DataCallback = std::function<void(std::span<const char>)>;
+  using RawDataFn = void (*)(void *, std::span<const char>);
 
   AlpacaWebSocketSource(std::string api_key, std::string api_secret,
                         std::vector<std::string> symbols,
@@ -25,8 +23,9 @@ public:
   AlpacaWebSocketSource(const AlpacaWebSocketSource &) = delete;
   AlpacaWebSocketSource &operator=(const AlpacaWebSocketSource &) = delete;
 
-  template <typename Fn> void setOnData(Fn &&cb) {
-    on_data_ = std::forward<Fn>(cb);
+  void setOnData(RawDataFn fn, void *ctx) {
+    on_data_fn_ = fn;
+    on_data_ctx_ = ctx;
   }
 
   void start();
@@ -44,7 +43,8 @@ private:
 
   std::unique_ptr<ix::WebSocket> ws_;
   std::thread thread_;
-  DataCallback on_data_;
+  RawDataFn on_data_fn_ = nullptr;
+  void *on_data_ctx_ = nullptr;
 };
 
 static_assert(MarketDataSourceLike<AlpacaWebSocketSource>,

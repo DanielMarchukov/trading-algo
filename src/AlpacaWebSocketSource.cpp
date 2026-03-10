@@ -60,8 +60,9 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
     break;
 
   case ix::WebSocketMessageType::Message:
-    if (on_data_) {
-      on_data_(std::span<const char>(msg->str.data(), msg->str.size()));
+    if (on_data_fn_) {
+      on_data_fn_(on_data_ctx_,
+                  std::span<const char>(msg->str.data(), msg->str.size()));
     }
     break;
 
