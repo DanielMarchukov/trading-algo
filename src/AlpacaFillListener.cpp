@@ -1,4 +1,5 @@
 #include "AlpacaFillListener.hpp"
+#include "PendingOrderTracker.hpp"
 #include "ThreadPinning.hpp"
 #include <algorithm>
 #include <cstring>
@@ -161,9 +162,10 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
 AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
                                        std::atomic<bool> &is_running,
                                        const std::string &api_key,
-                                       const std::string &api_secret)
-    : position_manager_(position_manager), is_running_(is_running),
-      api_key_(api_key), api_secret_(api_secret) {
+                                       const std::string &api_secret,
+                                       PendingOrderTracker *pending_tracker)
+    : position_manager_(position_manager), pending_tracker_(pending_tracker),
+      is_running_(is_running), api_key_(api_key), api_secret_(api_secret) {
   if (position_manager_ == nullptr) {
     throw std::invalid_argument(
         "AlpacaFillListener: position_manager must not be null");
@@ -289,6 +291,14 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     fill.quantity = fill_event.quantity;
     fill.price = fill_event.price;
     position_manager_->onFill(fill);
+    if (pending_tracker_) {
+      SymbolKey key{};
+      std::memcpy(key.value, fill_event.symbol, kSymbolCapacity);
+      std::string_view order_id(
+          fill_event.alpaca_order_id,
+          strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
+      pending_tracker_->onOrderCompleted(key, fill_event.side, order_id);
+    }
     std::cout << "FillListener: Fill processed ("
               << std::string_view(fill_event.symbol,
                                   strnlen(fill_event.symbol, kSymbolCapacity))
@@ -303,6 +313,14 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     order.side = cancel_event.side;
     order.type = OrderType::Market;
     position_manager_->onOrderCancelled(order);
+    if (pending_tracker_) {
+      SymbolKey key{};
+      std::memcpy(key.value, cancel_event.symbol, kSymbolCapacity);
+      std::string_view order_id(
+          cancel_event.alpaca_order_id,
+          strnlen(cancel_event.alpaca_order_id, kOrderIdCapacity));
+      pending_tracker_->onOrderCompleted(key, cancel_event.side, order_id);
+    }
     std::cout << "FillListener: Cancel processed ("
               << std::string_view(cancel_event.symbol,
                                   strnlen(cancel_event.symbol, kSymbolCapacity))
