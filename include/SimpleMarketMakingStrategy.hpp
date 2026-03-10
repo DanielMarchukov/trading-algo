@@ -11,7 +11,8 @@ class SimpleMarketMakingStrategy {
 public:
   SimpleMarketMakingStrategy() : last_trade_price_(0) {}
 
-  [[nodiscard]] std::optional<Order> onMarketEvent(const MarketEvent &event) {
+  [[nodiscard]] std::optional<Order>
+  onMarketEvent(const MarketEvent &event) noexcept {
     if (event.eventType != 2) [[unlikely]] {
       return std::nullopt;
     }

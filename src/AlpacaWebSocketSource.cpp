@@ -20,10 +20,6 @@ AlpacaWebSocketSource::AlpacaWebSocketSource(std::string api_key,
 
 AlpacaWebSocketSource::~AlpacaWebSocketSource() { stop(); }
 
-void AlpacaWebSocketSource::setOnData(DataCallback cb) {
-  on_data_ = std::move(cb);
-}
-
 void AlpacaWebSocketSource::start() {
   if (thread_.joinable()) {
     return;
@@ -64,8 +60,9 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
     break;
 
   case ix::WebSocketMessageType::Message:
-    if (on_data_) {
-      on_data_(std::span<const char>(msg->str.data(), msg->str.size()));
+    if (on_data_fn_) {
+      on_data_fn_(on_data_ctx_,
+                  std::span<const char>(msg->str.data(), msg->str.size()));
     }
     break;
 

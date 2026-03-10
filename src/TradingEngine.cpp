@@ -82,19 +82,14 @@ void TradingEngine::launch_consumers() {
 
   for (uint32_t i = 0; i < symbols_.size(); ++i) {
     const auto &symbol = symbols_[i];
-    auto callback = [this](const Order &order) {
-      this->order_queue_->push(order);
-    };
+    OrderQueuePusher callback{order_queue_.get()};
 
-    auto consumer =
-        std::make_unique<MarketEventConsumer<SimpleMarketMakingStrategy>>(
-            context_, ipc_address_, symbol, is_running_, callback,
-            risk_manager_.get());
+    auto consumer = std::make_unique<ConsumerType>(
+        context_, ipc_address_, symbol, is_running_, callback,
+        risk_manager_.get());
 
     consumer_threads_.push_back(
-        {std::thread(&MarketEventConsumer<SimpleMarketMakingStrategy>::run,
-                     consumer.get()),
-         std::move(consumer)});
+        {std::thread(&ConsumerType::run, consumer.get()), std::move(consumer)});
 
     uint32_t core_id = max_cores > 0 ? (i + 2) % max_cores : i + 2;
     pin_thread_to_core(consumer_threads_.back().thread, core_id);

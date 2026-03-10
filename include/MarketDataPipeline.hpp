@@ -2,27 +2,34 @@
 
 #include "MarketEvent.hpp"
 #include "Utils.hpp"
-#include <atomic>
 #include <concepts>
 #include <cstdint>
-#include <functional>
 #include <span>
 #include <string_view>
 #include <utility>
 
+namespace detail {
+struct EmitProbe {
+  void operator()(const MarketEvent &, std::string_view) const;
+};
+struct AuthProbe {
+  void operator()() const;
+};
+} // namespace detail
+
 template <typename T>
 concept MarketDataSourceLike =
-    requires(T t, std::function<void(std::span<const char>)> cb) {
+    requires(T t, void (*cb)(void *, std::span<const char>), void *ctx) {
       { t.start() } -> std::same_as<void>;
       { t.stop() } -> std::same_as<void>;
-      { t.setOnData(std::move(cb)) } -> std::same_as<void>;
+      { t.setOnData(cb, ctx) } -> std::same_as<void>;
     };
 
 template <typename T>
 concept MarketDataDecoderLike =
     requires(T t, std::span<const char> data, uint64_t arrived_at,
-             std::function<void(const MarketEvent &, std::string_view)> emit) {
-      { t.decode(data, arrived_at, std::move(emit)) } -> std::same_as<void>;
+             detail::EmitProbe emit) {
+      { t.decode(data, arrived_at, emit) } -> std::same_as<void>;
     };
 
 template <typename T>
@@ -42,19 +49,12 @@ public:
         sink_(std::move(sink)) {
     if constexpr (requires {
                     source_.sendSubscribe();
-                    decoder_.setOnAuthSuccess(std::declval<void (*)()>());
+                    decoder_.setOnAuthSuccess(detail::AuthProbe{});
                   }) {
       decoder_.setOnAuthSuccess([this]() { source_.sendSubscribe(); });
     }
 
-    source_.setOnData([this](std::span<const char> data) {
-      const uint64_t arrived_at = nowNanos();
-      decoder_.decode(
-          data, arrived_at,
-          [this](const MarketEvent &event, std::string_view symbol) {
-            sink_.publish(event, symbol);
-          });
-    });
+    source_.setOnData(&onSourceData, this);
   }
 
   MarketDataPipeline(MarketDataPipeline &&) = delete;
@@ -75,6 +75,16 @@ public:
   }
 
 private:
+  static void onSourceData(void *ctx, std::span<const char> data) {
+    auto *self = static_cast<MarketDataPipeline *>(ctx);
+    const uint64_t arrived_at = nowNanos();
+    self->decoder_.decode(
+        data, arrived_at,
+        [self](const MarketEvent &event, std::string_view symbol) {
+          self->sink_.publish(event, symbol);
+        });
+  }
+
   SourceType source_;
   DecoderType decoder_;
   SinkType sink_;

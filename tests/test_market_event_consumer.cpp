@@ -19,7 +19,7 @@
 
 class MockStrategy {
 public:
-  std::optional<Order> onMarketEvent(const MarketEvent &event) {
+  std::optional<Order> onMarketEvent(const MarketEvent &event) noexcept {
     if (event.eventType == 2) {
       Order order{};
       order.id = 1;
@@ -30,6 +30,20 @@ public:
     }
     return std::nullopt;
   }
+};
+
+struct TestOrderCallback {
+  int *count;
+  void operator()(const Order & /*order*/) const { (*count)++; }
+};
+
+struct NoopOrderCallback {
+  void operator()(const Order & /*order*/) const {}
+};
+
+struct PromiseOrderCallback {
+  std::promise<Order> *promise;
+  void operator()(const Order &order) const { promise->set_value(order); }
 };
 
 class MarketEventConsumerTest : public ::testing::Test {
@@ -53,14 +67,14 @@ protected:
 
 class EmptyStrategy {
 public:
-  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) {
+  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) noexcept {
     return std::nullopt;
   }
 };
 
 class RejectedOrderStrategy {
 public:
-  std::optional<Order> onMarketEvent(const MarketEvent &event) {
+  std::optional<Order> onMarketEvent(const MarketEvent &event) noexcept {
     if (event.eventType == 2) {
       Order order{};
       order.id = 1;
@@ -77,7 +91,7 @@ class CountingStrategy {
 public:
   static std::atomic<int> invocation_count;
 
-  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) {
+  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) noexcept {
     invocation_count.fetch_add(1, std::memory_order_relaxed);
     return std::nullopt;
   }
@@ -90,12 +104,12 @@ TEST_F(MarketEventConsumerTest, HandlesStrategyReturningNoOrders) {
   std::atomic is_running(true);
   int callback_count = 0;
 
-  auto callback = [&](const Order & /*order*/) { callback_count++; };
+  TestOrderCallback callback{&callback_count};
 
   try {
-    MarketEventConsumer<EmptyStrategy> consumer(context, ipc_address, "TEST",
-                                                is_running, callback,
-                                                risk_manager_.get());
+    MarketEventConsumer<EmptyStrategy, TestOrderCallback> consumer(
+        context, ipc_address, "TEST", is_running, callback,
+        risk_manager_.get());
 
     SUCCEED();
   } catch (const std::exception &e) {
@@ -108,10 +122,10 @@ TEST_F(MarketEventConsumerTest, HandlesRiskManagerRejection) {
   std::atomic is_running(true);
   int callback_count = 0;
 
-  auto callback = [&](const Order & /*order*/) { callback_count++; };
+  TestOrderCallback callback{&callback_count};
 
   try {
-    MarketEventConsumer<RejectedOrderStrategy> consumer(
+    MarketEventConsumer<RejectedOrderStrategy, TestOrderCallback> consumer(
         context, ipc_address, "TEST", is_running, callback,
         risk_manager_.get());
 
@@ -126,12 +140,23 @@ TEST_F(MarketEventConsumerTest, HandlesRiskManagerRejection) {
 TEST_F(MarketEventConsumerTest, ConstructorThrowsOnInvalidAddress) {
   zmq::context_t context(1);
   std::atomic is_running(true);
-  auto callback = [](const Order & /*order*/) {};
+  NoopOrderCallback callback;
 
-  EXPECT_THROW(MarketEventConsumer<EmptyStrategy>(context, "invalid://address",
-                                                  "TEST", is_running, callback,
-                                                  risk_manager_.get()),
+  EXPECT_THROW((MarketEventConsumer<EmptyStrategy, NoopOrderCallback>(
+                   context, "invalid://address", "TEST", is_running, callback,
+                   risk_manager_.get())),
                zmq::error_t);
+}
+
+TEST_F(MarketEventConsumerTest, ConstructorRejectsSymbolExceeding8Bytes) {
+  zmq::context_t context(1);
+  std::atomic is_running(true);
+  NoopOrderCallback callback;
+
+  EXPECT_THROW((MarketEventConsumer<EmptyStrategy, NoopOrderCallback>(
+                   context, ipc_address, "TOOLONGSYM", is_running, callback,
+                   risk_manager_.get())),
+               std::invalid_argument);
 }
 
 TEST_F(MarketEventConsumerTest, CallsStrategyAndReceivesOrders) {
@@ -142,13 +167,15 @@ TEST_F(MarketEventConsumerTest, CallsStrategyAndReceivesOrders) {
   std::atomic is_test_running(true);
   std::promise<Order> promise;
   auto future = promise.get_future();
-  auto test_callback = [&](const Order &order) { promise.set_value(order); };
-  MarketEventConsumer<MockStrategy> consumer(context, ipc_address, "TEST",
-                                             is_test_running, test_callback,
-                                             risk_manager_.get());
+  PromiseOrderCallback test_callback{&promise};
+
+  MarketEventConsumer<MockStrategy, PromiseOrderCallback> consumer(
+      context, ipc_address, "TEST", is_test_running, test_callback,
+      risk_manager_.get());
 
   ThreadGuard consumer_thread_guard{
-      std::thread(&MarketEventConsumer<MockStrategy>::run, &consumer)};
+      std::thread(&MarketEventConsumer<MockStrategy, PromiseOrderCallback>::run,
+                  &consumer)};
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   MarketEvent sent_event{};
@@ -186,13 +213,14 @@ TEST_F(MarketEventConsumerTest, SkipsMismatchedPayloadSize) {
   CountingStrategy::invocation_count.store(0, std::memory_order_relaxed);
 
   std::atomic is_running(true);
-  auto callback = [](const Order &) {};
+  NoopOrderCallback callback;
 
-  MarketEventConsumer<CountingStrategy> consumer(
+  MarketEventConsumer<CountingStrategy, NoopOrderCallback> consumer(
       context, ipc_address, "TEST", is_running, callback, risk_manager_.get());
 
-  ThreadGuard consumer_thread_guard{
-      std::thread(&MarketEventConsumer<CountingStrategy>::run, &consumer)};
+  ThreadGuard consumer_thread_guard{std::thread(
+      &MarketEventConsumer<CountingStrategy, NoopOrderCallback>::run,
+      &consumer)};
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 

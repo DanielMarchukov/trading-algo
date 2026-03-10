@@ -4,6 +4,7 @@
 #include "IRestClient.hpp"
 #include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
+#include "Order.hpp"
 #include "OrderGateway.hpp"
 #include "PositionManager.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
@@ -12,9 +13,28 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 class IFillListener;
+
+struct OrderQueuePusher {
+  LockFreeMPSCQueue<Order> *queue;
+  void operator()(const Order &order) const { queue->push(order); }
+};
+
+static_assert(std::is_trivially_copyable_v<OrderQueuePusher>,
+              "OrderQueuePusher must be trivially copyable for hot-path use");
+
+using ConsumerType =
+    MarketEventConsumer<SimpleMarketMakingStrategy, OrderQueuePusher>;
+
+static_assert(sizeof(OrderQueuePusher) == sizeof(void *),
+              "OrderQueuePusher should be pointer-sized");
+static_assert(alignof(ConsumerType) == 64,
+              "ConsumerType must be cache-line aligned for hot-path use");
+static_assert(sizeof(ConsumerType) % 64 == 0,
+              "ConsumerType size must be a multiple of the cache line");
 
 class TradingEngine {
 public:
@@ -29,7 +49,7 @@ public:
 private:
   struct ConsumerThread {
     std::thread thread;
-    std::unique_ptr<MarketEventConsumer<SimpleMarketMakingStrategy>> consumer;
+    std::unique_ptr<ConsumerType> consumer;
   };
 
   void setup_signal_handler();
