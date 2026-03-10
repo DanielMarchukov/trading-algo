@@ -1,15 +1,18 @@
 #include "OrderGateway.hpp"
+#include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 
 OrderGateway::OrderGateway(std::atomic<bool> &is_running,
                            LockFreeMPSCQueue<Order> *order_queue,
                            std::unique_ptr<IRestClient> rest_client,
-                           PositionManager *position_manager)
+                           PositionManager *position_manager,
+                           PendingOrderTracker *pending_tracker)
     : is_running_(is_running), order_queue_(order_queue),
-      rest_client_(std::move(rest_client)),
-      position_manager_(position_manager) {
+      rest_client_(std::move(rest_client)), position_manager_(position_manager),
+      pending_tracker_(pending_tracker) {
   if (order_queue_ == nullptr) {
     throw std::invalid_argument("OrderGateway: order_queue must not be null");
   }
@@ -22,12 +25,53 @@ OrderGateway::OrderGateway(std::atomic<bool> &is_running,
   }
 }
 
-void OrderGateway::executeOrder(const Order &order) const {
+void OrderGateway::executeOrder(const Order &order) {
+  SymbolKey key{};
+  std::memcpy(key.value, order.symbol, sizeof(key.value));
+
+  if (pending_tracker_) {
+    auto prev_id = pending_tracker_->getExistingOrder(key, order.side);
+    if (prev_id) {
+      bool cancel_accepted = false;
+      try {
+        auto cancel_result = rest_client_->cancelOrder(prev_id->view());
+        if (cancel_result) {
+          std::cerr << "OrderGateway: Canceled previous order "
+                    << prev_id->view() << std::endl;
+          cancel_accepted = true;
+        } else {
+          const auto code = cancel_result.error().status_code;
+          std::cerr << "OrderGateway: Cancel returned HTTP " << code << " for "
+                    << prev_id->view() << ": " << cancel_result.error().message
+                    << std::endl;
+          if (code == 422) {
+            cancel_accepted = true;
+          }
+        }
+      } catch (const std::exception &e) {
+        std::cerr << "OrderGateway: Exception canceling order "
+                  << prev_id->view() << ": " << e.what() << std::endl;
+      } catch (...) {
+        std::cerr << "OrderGateway: Unknown error canceling order "
+                  << prev_id->view() << std::endl;
+      }
+      if (!cancel_accepted) {
+        std::cerr << "OrderGateway: Skipping new order — cancel for "
+                  << prev_id->view() << " did not reach Alpaca" << std::endl;
+        position_manager_->onOrderCancelled(order);
+        return;
+      }
+    }
+  }
+
   try {
     auto result = rest_client_->placeOrder(order);
     if (result) {
       std::cerr << "OrderGateway: Placed order " << result->client_order_id
                 << " status=" << result->status << std::endl;
+      if (pending_tracker_) {
+        pending_tracker_->recordOrder(key, order.side, result->client_order_id);
+      }
     } else {
       std::cerr << "OrderGateway: Rejected (HTTP " << result.error().status_code
                 << "): " << result.error().message << std::endl;

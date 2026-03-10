@@ -11,6 +11,11 @@ public:
   placeOrder(const Order & /*order*/) override {
     return OrderAck{"mock-id", "accepted"};
   }
+
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    return {};
+  }
 };
 
 class TradingEngineTest : public ::testing::Test {

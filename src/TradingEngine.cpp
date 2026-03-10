@@ -26,10 +26,11 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
     position_manager_->registerSymbol(symbol);
   }
   risk_manager_ = std::make_unique<RiskManager>(position_manager_.get());
+  pending_tracker_ = std::make_unique<PendingOrderTracker>();
   order_queue_ = std::make_unique<LockFreeMPSCQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(
       is_running_, order_queue_.get(), std::move(rest_client),
-      position_manager_.get());
+      position_manager_.get(), pending_tracker_.get());
 
   const char *api_key = std::getenv("APCA_API_KEY_ID");
   const char *api_secret = std::getenv("APCA_API_SECRET_KEY");
@@ -38,7 +39,8 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
         "APCA_API_KEY_ID and APCA_API_SECRET_KEY must be set");
   }
   fill_listener_ = std::make_unique<AlpacaFillListener>(
-      position_manager_.get(), is_running_, api_key, api_secret);
+      position_manager_.get(), is_running_, api_key, api_secret,
+      pending_tracker_.get());
 
   ipc_address_ = getZmqMarketDataAddress();
 

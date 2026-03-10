@@ -60,3 +60,18 @@ AlpacaRestClient::placeOrder(const Order &order) {
   return OrderAck{response.value("id", ""),
                   response.value("status", "unknown")};
 }
+
+std::expected<void, OrderError>
+AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
+  const cpr::Response r = cpr::Delete(
+      cpr::Url{base_url_ + "/v2/orders/" + std::string(alpaca_order_id)},
+      cpr::Header{{"APCA-API-KEY-ID", api_key_},
+                  {"APCA-API-SECRET-KEY", api_secret_}});
+
+  if (r.status_code == 204) {
+    return {};
+  }
+
+  return std::unexpected(
+      OrderError{r.status_code, "Error canceling order: " + r.text});
+}

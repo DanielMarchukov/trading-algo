@@ -21,4 +21,7 @@ public:
 
   [[nodiscard]] virtual std::expected<OrderAck, OrderError>
   placeOrder(const Order &order) = 0;
+
+  [[nodiscard]] virtual std::expected<void, OrderError>
+  cancelOrder(std::string_view alpaca_order_id) = 0;
 };

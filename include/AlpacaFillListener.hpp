@@ -14,11 +14,13 @@
 struct FillEvent {
   char symbol[8];
   OrderSide side;
+  bool is_partial;
   int64_t quantity;
   double price;
+  char alpaca_order_id[48];
 };
 
-static_assert(sizeof(FillEvent) == 32, "FillEvent must be 32 bytes");
+static_assert(sizeof(FillEvent) == 80, "FillEvent must be 80 bytes");
 static_assert(alignof(FillEvent) == 8, "FillEvent must be 8-byte aligned");
 static_assert(std::is_trivially_copyable_v<FillEvent>,
               "FillEvent must be trivially copyable");
@@ -27,9 +29,10 @@ struct CancelEvent {
   char symbol[8];
   OrderSide side;
   int64_t quantity;
+  char alpaca_order_id[48];
 };
 
-static_assert(sizeof(CancelEvent) == 24, "CancelEvent must be 24 bytes");
+static_assert(sizeof(CancelEvent) == 72, "CancelEvent must be 72 bytes");
 static_assert(alignof(CancelEvent) == 8, "CancelEvent must be 8-byte aligned");
 static_assert(std::is_trivially_copyable_v<CancelEvent>,
               "CancelEvent must be trivially copyable");
@@ -38,13 +41,17 @@ using TradeUpdate = std::variant<std::monostate, FillEvent, CancelEvent>;
 
 [[nodiscard]] TradeUpdate parseTradingUpdate(const nlohmann::json &parsed);
 
+class PendingOrderTracker;
+
 class AlpacaFillListener : public IFillListener {
   friend class FillListenerTest;
+  friend class FillListenerTrackerTest;
 
 public:
   AlpacaFillListener(PositionManager *position_manager,
                      std::atomic<bool> &is_running, const std::string &api_key,
-                     const std::string &api_secret);
+                     const std::string &api_secret,
+                     PendingOrderTracker *pending_tracker = nullptr);
 
   ~AlpacaFillListener() override;
 
@@ -58,6 +65,7 @@ private:
   void handleTradeUpdate(const std::string &json);
 
   PositionManager *position_manager_;
+  PendingOrderTracker *pending_tracker_;
   std::atomic<bool> &is_running_;
   std::string api_key_;
   std::string api_secret_;

@@ -1,4 +1,5 @@
 #include "AlpacaFillListener.hpp"
+#include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
 #include <cstring>
@@ -60,6 +61,7 @@ struct FillParseParam {
   const char *side_str;
   const char *qty;
   const char *price;
+  const char *order_id;
   OrderSide expected_side;
   int64_t expected_qty;
   double expected_price;
@@ -69,13 +71,13 @@ class FillParseTest : public FillListenerTest,
                       public ::testing::WithParamInterface<FillParseParam> {};
 
 TEST_P(FillParseTest, ParsesFillFields) {
-  const auto &[event_type, symbol, side_str, qty, price, expected_side,
-               expected_qty, expected_price] = GetParam();
-  const std::string json = R"({"stream":"trade_updates","data":{"event":")" +
-                           std::string(event_type) + R"(","qty":")" + qty +
-                           R"(","price":")" + price +
-                           R"(","order":{"symbol":")" + symbol +
-                           R"(","side":")" + side_str + R"("}}})";
+  const auto &[event_type, symbol, side_str, qty, price, order_id,
+               expected_side, expected_qty, expected_price] = GetParam();
+  const std::string json =
+      R"({"stream":"trade_updates","data":{"event":")" +
+      std::string(event_type) + R"(","qty":")" + qty + R"(","price":")" +
+      price + R"(","order":{"symbol":")" + symbol + R"(","side":")" + side_str +
+      R"(","id":")" + order_id + R"("}}})";
   const auto update = parse(json);
 
   ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
@@ -87,24 +89,39 @@ TEST_P(FillParseTest, ParsesFillFields) {
   EXPECT_EQ(fill.side, expected_side);
   EXPECT_EQ(fill.quantity, expected_qty);
   EXPECT_DOUBLE_EQ(fill.price, expected_price);
+  EXPECT_EQ(std::string_view(
+                fill.alpaca_order_id,
+                strnlen(fill.alpaca_order_id, sizeof(fill.alpaca_order_id))),
+            order_id);
+  EXPECT_EQ(fill.is_partial, std::string(event_type) == "partial_fill");
 }
 
 INSTANTIATE_TEST_SUITE_P(
     FillTypes, FillParseTest,
     ::testing::Values(FillParseParam{"fill", "AAPL", "buy", "100", "150.25",
+                                     "b0929f79-27a5-480f-9b94-e2f123456789",
                                      OrderSide::Buy, 100, 150.25},
                       FillParseParam{"partial_fill", "GOOGL", "sell", "50",
-                                     "200.00", OrderSide::Sell, 50, 200.0}));
+                                     "200.00",
+                                     "c1234567-89ab-cdef-0123-456789abcdef",
+                                     OrderSide::Sell, 50, 200.0}));
 
-class CancelEventTypeTest : public FillListenerTest,
-                            public ::testing::WithParamInterface<const char *> {
+struct CancelParseParam {
+  const char *event_type;
+  const char *order_id;
 };
 
+class CancelEventTypeTest
+    : public FillListenerTest,
+      public ::testing::WithParamInterface<CancelParseParam> {};
+
 TEST_P(CancelEventTypeTest, ProducesCancelEvent) {
+  const auto &[event_type, order_id] = GetParam();
   const std::string json =
       R"({"stream":"trade_updates","data":{"event":")" +
-      std::string(GetParam()) +
-      R"(","order":{"symbol":"AAPL","side":"buy","qty":"100","filled_qty":"0"}}})";
+      std::string(event_type) +
+      R"(","order":{"symbol":"AAPL","side":"buy","qty":"100","filled_qty":"0","id":")" +
+      order_id + R"("}}})";
   const auto update = parse(json);
 
   ASSERT_TRUE(std::holds_alternative<CancelEvent>(update));
@@ -115,10 +132,37 @@ TEST_P(CancelEventTypeTest, ProducesCancelEvent) {
             "AAPL");
   EXPECT_EQ(cancel.side, OrderSide::Buy);
   EXPECT_EQ(cancel.quantity, 100);
+  EXPECT_EQ(std::string_view(cancel.alpaca_order_id,
+                             strnlen(cancel.alpaca_order_id,
+                                     sizeof(cancel.alpaca_order_id))),
+            order_id);
 }
 
-INSTANTIATE_TEST_SUITE_P(EventTypes, CancelEventTypeTest,
-                         ::testing::Values("canceled", "expired", "rejected"));
+INSTANTIATE_TEST_SUITE_P(
+    EventTypes, CancelEventTypeTest,
+    ::testing::Values(
+        CancelParseParam{"canceled", "aaa11111-2222-3333-4444-555566667777"},
+        CancelParseParam{"expired", "bbb11111-2222-3333-4444-555566667777"},
+        CancelParseParam{"rejected", "ccc11111-2222-3333-4444-555566667777"}));
+
+TEST_F(FillListenerTest, FillWithMissingOrderIdProducesEmptyId) {
+  const auto update = parse(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "fill",
+      "qty": "50",
+      "price": "100.00",
+      "order": {"symbol": "AAPL", "side": "buy"}
+    }
+  })");
+
+  ASSERT_TRUE(std::holds_alternative<FillEvent>(update));
+  const auto &fill = std::get<FillEvent>(update);
+  EXPECT_EQ(std::string_view(
+                fill.alpaca_order_id,
+                strnlen(fill.alpaca_order_id, sizeof(fill.alpaca_order_id))),
+            "");
+}
 
 TEST_F(FillListenerTest, CancelAfterPartialFillUsesRemainingQty) {
   const auto update = parse(R"({
@@ -129,7 +173,8 @@ TEST_F(FillListenerTest, CancelAfterPartialFillUsesRemainingQty) {
         "symbol": "AAPL",
         "side": "buy",
         "qty": "100",
-        "filled_qty": "60"
+        "filled_qty": "60",
+        "id": "partial-cancel-id"
       }
     }
   })");
@@ -443,4 +488,95 @@ TEST_F(FillListenerTest, StopDuringActiveProcessingCompletesCorrectly) {
   const int64_t pending = position_manager_->getPendingPosition("AAPL");
   EXPECT_EQ(filled + pending, num_fills);
   EXPECT_EQ(filled, processed.load(std::memory_order_relaxed));
+}
+
+class FillListenerTrackerTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    position_manager_ = std::make_unique<PositionManager>();
+    position_manager_->registerSymbol("AAPL");
+    tracker_ = std::make_unique<PendingOrderTracker>();
+    listener_ = std::make_unique<AlpacaFillListener>(
+        position_manager_.get(), is_running_, "test_key", "test_secret",
+        tracker_.get());
+  }
+
+  void callHandleTradeUpdate(const std::string &json) {
+    listener_->handleTradeUpdate(json);
+  }
+
+  std::unique_ptr<PositionManager> position_manager_;
+  std::unique_ptr<PendingOrderTracker> tracker_;
+  std::atomic<bool> is_running_{true};
+  std::unique_ptr<AlpacaFillListener> listener_;
+};
+
+TEST_F(FillListenerTrackerTest, FillNotifiesTracker) {
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "fill-order-id");
+
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  callHandleTradeUpdate(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "fill",
+      "qty": "100",
+      "price": "150.25",
+      "order": {"symbol": "AAPL", "side": "buy", "id": "fill-order-id"}
+    }
+  })");
+
+  EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+TEST_F(FillListenerTrackerTest, PartialFillDoesNotClearTracker) {
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "partial-order-id");
+
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  callHandleTradeUpdate(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "partial_fill",
+      "qty": "50",
+      "price": "150.25",
+      "order": {"symbol": "AAPL", "side": "buy", "id": "partial-order-id"}
+    }
+  })");
+
+  EXPECT_TRUE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+TEST_F(FillListenerTrackerTest, CancelNotifiesTracker) {
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "cancel-order-id");
+
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  callHandleTradeUpdate(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "canceled",
+      "order": {
+        "symbol": "AAPL",
+        "side": "buy",
+        "qty": "100",
+        "filled_qty": "0",
+        "id": "cancel-order-id"
+      }
+    }
+  })");
+
+  EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
 }

@@ -10,11 +10,14 @@ Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [ix
 
 ## Thread Model
 
-- Core 0 (housekeeping): OrderGateway, FillListener, OS interrupts, main thread — all cold-path I/O-bound work
-- Core 1 (data path): MarketDataPipeline thread (AlpacaWebSocketSource → AlpacaMsgpackDecoder → ZmqMarketEventSink) —
-  receives market data from Alpaca WebSocket, decodes msgpack via SAX-style visitor, publishes MarketEvent structs via
-  ZMQ
-- Cores 2+ (hot path): per-symbol MarketEventConsumer threads, one per core, pinned at startup
+The hot path is **network-to-network** — from WebSocket market data reception to REST order submission. See
+`low-latency.md` for the full 8-step pipeline definition.
+
+- Core 0 (outer hot path + cold path): OrderGateway (order execution), FillListener (fill processing — cold path), OS
+  interrupts, main thread
+- Core 1 (inner hot path — ingestion): MarketDataPipeline thread (AlpacaWebSocketSource -> AlpacaMsgpackDecoder ->
+  ZmqMarketEventSink) — receives market data, decodes msgpack, publishes MarketEvent structs via ZMQ
+- Cores 2+ (inner hot path — strategy): per-symbol MarketEventConsumer threads, one per core, pinned at startup
 - No thread may block another thread on the hot path
 
 ## Alpaca Integration
@@ -61,10 +64,11 @@ Sources: [Alpaca WebSocket streaming docs][1], [Alpaca trading API docs][2], [ix
 
 ## Component Ownership
 
-- `TradingEngine` owns everything via `std::unique_ptr` / `std::shared_ptr`
+- `TradingEngine` owns everything via `std::unique_ptr`
 - `PositionManager` is shared (read by hot path, written by fill listener) — use TBB `concurrent_hash_map` (current
   approach is correct)
-- `RiskManager` holds `shared_ptr<PositionManager>` for read access
+- `RiskManager` holds raw `PositionManager *` for read access — non-owning, lifetime guaranteed by TradingEngine.
+  `std::shared_ptr` is **banned on the hot path** (10-20ns atomic refcount overhead per access)
 - Order queue is shared between consumer threads (producers) and OrderGateway (consumer)
 
 ## Dependency Direction
