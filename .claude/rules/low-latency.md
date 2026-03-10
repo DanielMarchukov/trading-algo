@@ -30,7 +30,8 @@ the **outer hot path** — network I/O is unavoidable but everything up to and a
   section)
 - No `std::shared_ptr` — atomic refcount is 10-20ns per access. Use raw non-owning pointers with documented lifetime.
 - No mutex locks — use atomics and lock-free structures. Note: oneTBB `concurrent_hash_map::const_accessor` holds a
-  shared reader lock (blocks writers until released) — acceptable for cold-path reads but not truly lock-free
+  shared reader lock (blocks writers until released) — not truly lock-free. Acceptable on the outer hot path where
+  network I/O dominates, but avoid on the inner hot path
 - No syscalls (no logging, no I/O, no `std::cout`)
 - No exceptions on the normal path — exceptions add 10-20% overhead. Use error codes or `std::expected`
 - All functions should be `noexcept` where they do not use exceptions internally
