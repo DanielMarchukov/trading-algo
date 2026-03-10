@@ -458,9 +458,11 @@ TEST_F(CancelBeforeReplaceTest, PlacesOrderEvenWhenCancelFails422) {
   EXPECT_EQ(place_count, 2);
 }
 
-TEST_F(CancelBeforeReplaceTest, PlacesOrderEvenWhenCancelThrows) {
+TEST_F(CancelBeforeReplaceTest, SkipsNewOrderWhenCancelThrows) {
   std::atomic is_running(false);
   LockFreeMPSCQueue<Order> order_queue;
+
+  position_manager_.registerSymbol("AAPL");
 
   Order order1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
   Order order2 = test_helpers::createOrder("AAPL", OrderSide::Buy, 200, 0);
@@ -473,7 +475,8 @@ TEST_F(CancelBeforeReplaceTest, PlacesOrderEvenWhenCancelThrows) {
                        &position_manager_, &tracker_);
   gateway.run();
 
-  EXPECT_EQ(raw_client->place_ids.size(), 2u);
+  // First order placed, second skipped because cancel threw
+  EXPECT_EQ(raw_client->place_ids.size(), 1u);
 }
 
 TEST_F(CancelBeforeReplaceTest, TracksDifferentSidesIndependently) {

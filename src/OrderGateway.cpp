@@ -32,12 +32,15 @@ void OrderGateway::executeOrder(const Order &order) {
   if (pending_tracker_) {
     auto prev_id = pending_tracker_->getExistingOrder(key, order.side);
     if (prev_id) {
+      bool cancel_accepted = false;
       try {
         auto cancel_result = rest_client_->cancelOrder(prev_id->view());
         if (cancel_result) {
           std::cerr << "OrderGateway: Canceled previous order "
                     << prev_id->view() << std::endl;
+          cancel_accepted = true;
         } else {
+          cancel_accepted = true;
           std::cerr << "OrderGateway: Cancel returned HTTP "
                     << cancel_result.error().status_code << " for "
                     << prev_id->view() << ": " << cancel_result.error().message
@@ -49,6 +52,12 @@ void OrderGateway::executeOrder(const Order &order) {
       } catch (...) {
         std::cerr << "OrderGateway: Unknown error canceling order "
                   << prev_id->view() << std::endl;
+      }
+      if (!cancel_accepted) {
+        std::cerr << "OrderGateway: Skipping new order — cancel for "
+                  << prev_id->view() << " did not reach Alpaca" << std::endl;
+        position_manager_->onOrderCancelled(order);
+        return;
       }
     }
   }
