@@ -12,7 +12,7 @@
 
 struct OrderSlotKey {
   SymbolKey symbol;
-  OrderSide side;
+  OrderSide side{};
 
   [[nodiscard]] bool operator==(const OrderSlotKey &other) const {
     return symbol == other.symbol && side == other.side;

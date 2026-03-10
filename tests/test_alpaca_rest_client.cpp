@@ -101,12 +101,8 @@ class StubHttpServer {
 public:
   explicit StubHttpServer(int status_code,
                           std::string response_body = R"({"id":"ord-123"})")
-      : status_code_(status_code), response_body_(std::move(response_body)) {
-#ifdef _WIN32
-    WSADATA wsa{};
-    WSAStartup(MAKEWORD(2, 2), &wsa);
-#endif
-    server_fd_ = socket(AF_INET, SOCK_STREAM, 0);
+      : status_code_(status_code), response_body_(std::move(response_body)),
+        server_fd_(initSocket()), port_(0) {
     int opt = 1;
     setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR,
                reinterpret_cast<const char *>(&opt), sizeof(opt));
@@ -114,6 +110,7 @@ public:
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     addr.sin_port = 0;
+    // NOLINTNEXTLINE(bugprone-unused-return-value,clang-analyzer-unix.StdCLibraryFunctions)
     bind(server_fd_, reinterpret_cast<sockaddr *>(&addr), sizeof(addr));
     listen(server_fd_, 1);
     socklen_t len = sizeof(addr);
@@ -148,6 +145,7 @@ public:
     char buf[4096]{};
     int total = 0;
     while (total < 4095) {
+      // NOLINTNEXTLINE(clang-analyzer-unix.StdCLibraryFunctions)
       auto n = recv(client, buf + total, 4095 - total, 0);
       if (n <= 0)
         break;
@@ -188,10 +186,18 @@ public:
   }
 
 private:
-  SocketType server_fd_;
-  int port_;
+  static SocketType initSocket() {
+#ifdef _WIN32
+    WSADATA wsa{};
+    WSAStartup(MAKEWORD(2, 2), &wsa);
+#endif
+    return socket(AF_INET, SOCK_STREAM, 0);
+  }
+
   int status_code_;
   std::string response_body_;
+  SocketType server_fd_;
+  int port_;
 };
 
 Order make_order(const char *symbol, OrderSide side, OrderType type,

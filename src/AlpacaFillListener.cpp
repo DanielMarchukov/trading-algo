@@ -52,7 +52,7 @@ void copyOrderId(char (&dest)[48], const std::string &src) {
       return val.get<int64_t>();
     }
   } catch (const std::exception &e) {
-    std::cerr << "FillListener: parseQty failed: " << e.what() << std::endl;
+    std::cerr << "FillListener: parseQty failed: " << e.what() << '\n';
   }
   return std::nullopt;
 }
@@ -66,7 +66,7 @@ void copyOrderId(char (&dest)[48], const std::string &src) {
       return val.get<double>();
     }
   } catch (const std::exception &e) {
-    std::cerr << "FillListener: parsePrice failed: " << e.what() << std::endl;
+    std::cerr << "FillListener: parsePrice failed: " << e.what() << '\n';
   }
   return std::nullopt;
 }
@@ -173,7 +173,7 @@ AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
   }
 }
 
-AlpacaFillListener::~AlpacaFillListener() { stop(); }
+AlpacaFillListener::~AlpacaFillListener() { AlpacaFillListener::stop(); }
 
 void AlpacaFillListener::start() {
   ws_.setUrl(kStreamUrl);
@@ -185,7 +185,7 @@ void AlpacaFillListener::start() {
 
   thread_ = std::thread(&ix::WebSocket::run, &ws_);
   pin_thread_to_core(thread_, 0);
-  std::cout << "Pinned FillListener thread to CPU Core 0" << std::endl;
+  std::cout << "Pinned FillListener thread to CPU Core 0" << '\n';
 }
 
 void AlpacaFillListener::stop() {
@@ -202,7 +202,7 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   switch (msg->type) {
   case ix::WebSocketMessageType::Open:
-    std::cout << "FillListener: WebSocket connected" << std::endl;
+    std::cout << "FillListener: WebSocket connected" << '\n';
     sendAuth();
     break;
 
@@ -212,12 +212,12 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   case ix::WebSocketMessageType::Error:
     std::cerr << "FillListener: WebSocket error: " << msg->errorInfo.reason
-              << std::endl;
+              << '\n';
     break;
 
   case ix::WebSocketMessageType::Close:
     std::cout << "FillListener: WebSocket closed (code=" << msg->closeInfo.code
-              << ")" << std::endl;
+              << ")" << '\n';
     break;
 
   default:
@@ -242,17 +242,17 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
   try {
     parsed = nlohmann::json::parse(json);
   } catch (const nlohmann::json::parse_error &) {
-    std::cerr << "FillListener: Failed to parse message" << std::endl;
+    std::cerr << "FillListener: Failed to parse message" << '\n';
     return;
   }
 
   if (parsed.contains("stream") && parsed["stream"] == "authorization") {
     if (parsed.contains("data") && parsed["data"].contains("status") &&
         parsed["data"]["status"] == "authorized") {
-      std::cout << "FillListener: Authorized" << std::endl;
+      std::cout << "FillListener: Authorized" << '\n';
       sendSubscribe();
     } else {
-      std::cerr << "FillListener: Authorization failed" << std::endl;
+      std::cerr << "FillListener: Authorization failed" << '\n';
     }
     return;
   }
@@ -269,13 +269,12 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
         }
       }
       if (found) {
-        std::cout << "FillListener: Subscribed to trade_updates" << std::endl;
+        std::cout << "FillListener: Subscribed to trade_updates" << '\n';
       } else {
-        std::cerr << "FillListener: trade_updates not in streams list"
-                  << std::endl;
+        std::cerr << "FillListener: trade_updates not in streams list" << '\n';
       }
     } else {
-      std::cerr << "FillListener: Malformed listening response" << std::endl;
+      std::cerr << "FillListener: Malformed listening response" << '\n';
     }
     return;
   }
@@ -305,7 +304,7 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
               << " processed ("
               << std::string_view(fill_event.symbol,
                                   strnlen(fill_event.symbol, kSymbolCapacity))
-              << " qty=" << fill_event.quantity << ")" << std::endl;
+              << " qty=" << fill_event.quantity << ")" << '\n';
   } else if (std::holds_alternative<CancelEvent>(update)) {
     const auto &cancel_event = std::get<CancelEvent>(update);
     Order order{};
@@ -327,6 +326,6 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     std::cout << "FillListener: Cancel processed ("
               << std::string_view(cancel_event.symbol,
                                   strnlen(cancel_event.symbol, kSymbolCapacity))
-              << " qty=" << cancel_event.quantity << ")" << std::endl;
+              << " qty=" << cancel_event.quantity << ")" << '\n';
   }
 }

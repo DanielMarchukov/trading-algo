@@ -125,6 +125,7 @@ TEST_F(LockFreeMPSCQueueTest, MultiProducerSingleConsumer) {
   constexpr int total_items = num_producers * items_per_producer;
 
   std::vector<std::thread> producers;
+  producers.reserve(num_producers);
   std::atomic<bool> start{false};
 
   for (int p = 0; p < num_producers; ++p) {
@@ -168,6 +169,7 @@ TEST_F(LockFreeMPSCQueueTest, StressTestHighContention) {
   constexpr int total_items = num_producers * items_per_producer;
 
   std::vector<std::thread> producers;
+  producers.reserve(num_producers);
   std::atomic<int> production_counter{0};
 
   for (int p = 0; p < num_producers; ++p) {
@@ -194,7 +196,7 @@ TEST_F(LockFreeMPSCQueueTest, StressTestHighContention) {
     t.join();
   }
 
-  std::sort(received.begin(), received.end());
+  std::ranges::sort(received);
   EXPECT_EQ(received.size(), total_items);
 
   for (size_t i = 0; i < received.size(); ++i) {
@@ -251,7 +253,7 @@ TEST(LockFreeMPSCQueueComplexTest, HandlesComplexTypes) {
   complex_queue.push(data1);
   complex_queue.push(data2);
 
-  ComplexData result;
+  ComplexData result{};
   EXPECT_TRUE(complex_queue.try_pop(result));
   EXPECT_EQ(result, data1);
 

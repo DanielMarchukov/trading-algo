@@ -5,6 +5,7 @@
 #include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
+#include "OrderCooldown.hpp"
 #include "OrderGateway.hpp"
 #include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
@@ -62,6 +63,7 @@ private:
   std::string ipc_address_;
   std::vector<std::string> symbols_;
   std::unique_ptr<PositionManager> position_manager_;
+  std::unique_ptr<OrderCooldown> order_cooldown_;
   std::unique_ptr<RiskManager> risk_manager_;
   zmq::context_t context_{1};
   std::unique_ptr<PendingOrderTracker> pending_tracker_;

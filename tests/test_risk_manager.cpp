@@ -1,3 +1,4 @@
+#include "OrderCooldown.hpp"
 #include "PositionManager.hpp"
 #include "RiskManager.hpp"
 #include "TestHelpers.hpp"
@@ -118,6 +119,7 @@ TEST_F(RiskManagerTest, ConcurrentOnNewOrderFromMultipleThreads) {
   std::atomic<bool> start{false};
   std::atomic<int> approved{0};
   std::vector<std::thread> threads;
+  threads.reserve(num_threads);
 
   for (int t = 0; t < num_threads; ++t) {
     threads.emplace_back([&]() {
@@ -151,4 +153,32 @@ TEST_F(RiskManagerTest, ApprovesOrderAtLimitWithLargeInputs) {
   const Order order = createOrder("AAPL", OrderSide::Buy, qty, price);
 
   EXPECT_TRUE(risk_manager_->onNewOrder(order));
+}
+
+TEST_F(RiskManagerTest, RejectsOrderDuringCooldown) {
+  auto cooldown = std::make_unique<OrderCooldown>(100'000'000);
+  cooldown->registerSymbol("AAPL");
+  RiskManager rm(pos_manager_.get(), cooldown.get());
+
+  const Order order =
+      createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
+  EXPECT_TRUE(rm.onNewOrder(order));
+
+  const Order order2 =
+      createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
+  EXPECT_FALSE(rm.onNewOrder(order2));
+
+  EXPECT_EQ(pos_manager_->getTotalExposure("AAPL"), 10);
+}
+
+TEST_F(RiskManagerTest, ApprovesOrderWithNullCooldown) {
+  RiskManager rm(pos_manager_.get(), nullptr);
+
+  const Order order =
+      createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
+  EXPECT_TRUE(rm.onNewOrder(order));
+
+  const Order order2 =
+      createOrder("AAPL", OrderSide::Buy, 10, 100 * SCALING_FACTOR);
+  EXPECT_TRUE(rm.onNewOrder(order2));
 }

@@ -1,11 +1,18 @@
 #include "RiskManager.hpp"
+#include "OrderCooldown.hpp"
 #include "PositionManager.hpp"
 #include <cstdlib>
 
-RiskManager::RiskManager(PositionManager *position_manager)
-    : position_manager_(position_manager) {}
+RiskManager::RiskManager(PositionManager *position_manager,
+                         OrderCooldown *order_cooldown)
+    : position_manager_(position_manager), order_cooldown_(order_cooldown) {}
 
 bool RiskManager::onNewOrder(const Order &order) {
+  if (order_cooldown_ && !order_cooldown_->checkAndUpdate(order.symbol))
+      [[unlikely]] {
+    return false;
+  }
+
   if (!position_manager_) [[unlikely]] {
     return false;
   }

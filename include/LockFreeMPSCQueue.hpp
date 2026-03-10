@@ -26,7 +26,7 @@ public:
   }
 
   ~LockFreeMPSCQueue() {
-    T dummy;
+    T dummy{};
     while (try_pop(dummy)) {
     }
     if (tail_ != &stub_) {

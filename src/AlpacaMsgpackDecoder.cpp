@@ -90,11 +90,11 @@ struct AlpacaVisitor : msgpack::null_visitor {
   using RawEmitFn = AlpacaMsgpackDecoder::RawEmitFn;
   using AuthSuccessCallback = std::function<void()>;
 
-  MarketEvent *event_buffer;
-  RawEmitFn emit_fn;
-  void *emit_ctx;
-  const AuthSuccessCallback *on_auth_success;
-  uint64_t arrived_at;
+  MarketEvent *event_buffer = nullptr;
+  RawEmitFn emit_fn = nullptr;
+  void *emit_ctx = nullptr;
+  const AuthSuccessCallback *on_auth_success = nullptr;
+  uint64_t arrived_at = 0;
 
   uint32_t array_depth = 0;
   uint32_t array_index = 0;
@@ -410,9 +410,8 @@ void AlpacaMsgpackDecoder::decodeRaw(std::span<const char> data,
 
   try {
     msgpack::parse(data.data(), data.size(), visitor);
-  } catch (...) {
-    // msgpack::parse() can throw on severely malformed input despite
-    // SAX visitor callbacks. Swallow here to avoid crashing the
-    // data pipeline — the malformed frame is simply dropped.
+  } catch (...) { // NOLINT(bugprone-empty-catch)
+    // msgpack::parse() throws on severely malformed input despite
+    // SAX visitor. Drop the frame to keep the data pipeline alive.
   }
 }

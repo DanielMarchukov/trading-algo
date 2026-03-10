@@ -17,8 +17,8 @@ public:
                       const std::string &symbol, std::atomic<bool> &is_running,
                       OrderCallbackType order_callback,
                       RiskManager *risk_manager)
-      : subscriber_(context, zmq::socket_type::sub), is_running_(is_running),
-        order_callback_(order_callback),
+      : subscriber_(context, zmq::socket_type::sub), symbol_{},
+        is_running_(is_running), order_callback_(order_callback),
         strategy_(std::make_unique<StrategyType>()),
         risk_manager_(risk_manager) {
     if (symbol.size() > 8) {
@@ -35,7 +35,7 @@ public:
       subscriber_.connect(address);
     } catch (const zmq::error_t &e) {
       std::cerr << "MarketEventConsumer for " << symbol_
-                << " ZMQ error during construction: " << e.what() << std::endl;
+                << " ZMQ error during construction: " << e.what() << '\n';
       throw;
     }
   }

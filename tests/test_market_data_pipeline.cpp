@@ -136,7 +136,7 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
     using AuthSuccessCallback = std::function<void()>;
     std::shared_ptr<DataFlowState> state_;
 
-    void setOnAuthSuccess(AuthSuccessCallback) {}
+    void setOnAuthSuccess(const AuthSuccessCallback &) {}
     void decode(std::span<const char>, uint64_t arrived_at,
                 const EmitCallback &emit) {
       state_->data_decoded = true;
@@ -226,7 +226,7 @@ TEST_F(MarketDataPipelineTest, AuthSuccessCallbackWiresDecoderToSource) {
   NoopSink sink;
 
   MarketDataPipeline<SubscribeSource, AuthDecoder, NoopSink> pipeline(
-      std::move(source), std::move(decoder), std::move(sink));
+      std::move(source), std::move(decoder), sink);
 
   ASSERT_TRUE(*trigger);
   (*trigger)();

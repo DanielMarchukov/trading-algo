@@ -36,7 +36,7 @@ void AlpacaWebSocketSource::start() {
 
   thread_ = std::thread(&ix::WebSocket::run, ws_.get());
   pin_thread_to_core(thread_, 1);
-  std::cout << "AlpacaWebSocketSource: pinned to CPU core 1" << std::endl;
+  std::cout << "AlpacaWebSocketSource: pinned to CPU core 1" << '\n';
 }
 
 void AlpacaWebSocketSource::stop() {
@@ -55,7 +55,7 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   switch (msg->type) {
   case ix::WebSocketMessageType::Open:
-    std::cout << "AlpacaWebSocketSource: connected" << std::endl;
+    std::cout << "AlpacaWebSocketSource: connected" << '\n';
     sendAuth();
     break;
 
@@ -68,12 +68,12 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   case ix::WebSocketMessageType::Error:
     std::cerr << "AlpacaWebSocketSource: error: " << msg->errorInfo.reason
-              << std::endl;
+              << '\n';
     break;
 
   case ix::WebSocketMessageType::Close:
     std::cout << "AlpacaWebSocketSource: closed (code=" << msg->closeInfo.code
-              << ")" << std::endl;
+              << ")" << '\n';
     break;
 
   default:
@@ -106,5 +106,5 @@ void AlpacaWebSocketSource::sendSubscribe() {
   pk.pack(symbols_);
   ws_->sendBinary(std::string(buffer.data(), buffer.size()));
   std::cout << "AlpacaWebSocketSource: subscribed to " << symbols_.size()
-            << " symbols" << std::endl;
+            << " symbols" << '\n';
 }
