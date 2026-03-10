@@ -14,10 +14,19 @@ constexpr const char *kStreamUrl = "wss://paper-api.alpaca.markets/stream";
 constexpr int kMinReconnectMs = 100;
 constexpr int kMaxReconnectMs = 30000;
 constexpr std::size_t kSymbolCapacity = 8;
+constexpr std::size_t kOrderIdCapacity = 48;
 
 void copySymbol(char (&dest)[8], const std::string &src) {
   std::memset(dest, 0, kSymbolCapacity);
   const auto len = (std::min)(src.size(), kSymbolCapacity);
+  if (len > 0) {
+    std::memcpy(dest, src.data(), len);
+  }
+}
+
+void copyOrderId(char (&dest)[48], const std::string &src) {
+  std::memset(dest, 0, kOrderIdCapacity);
+  const auto len = (std::min)(src.size(), kOrderIdCapacity);
   if (len > 0) {
     std::memcpy(dest, src.data(), len);
   }
@@ -95,6 +104,11 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
     return std::monostate{};
   }
 
+  std::string order_id;
+  if (order.contains("id") && order["id"].is_string()) {
+    order_id = order["id"].get<std::string>();
+  }
+
   if (event == "fill" || event == "partial_fill") {
     if (!data.contains("qty") || !data.contains("price")) {
       return std::monostate{};
@@ -111,6 +125,7 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
     fill.side = *side;
     fill.quantity = *qty;
     fill.price = *price;
+    copyOrderId(fill.alpaca_order_id, order_id);
     return fill;
   }
 
@@ -118,6 +133,7 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
     CancelEvent cancel{};
     copySymbol(cancel.symbol, symbol);
     cancel.side = *side;
+    copyOrderId(cancel.alpaca_order_id, order_id);
 
     int64_t total_qty = 0;
     int64_t filled_qty = 0;

@@ -16,9 +16,10 @@ struct FillEvent {
   OrderSide side;
   int64_t quantity;
   double price;
+  char alpaca_order_id[48];
 };
 
-static_assert(sizeof(FillEvent) == 32, "FillEvent must be 32 bytes");
+static_assert(sizeof(FillEvent) == 80, "FillEvent must be 80 bytes");
 static_assert(alignof(FillEvent) == 8, "FillEvent must be 8-byte aligned");
 static_assert(std::is_trivially_copyable_v<FillEvent>,
               "FillEvent must be trivially copyable");
@@ -27,9 +28,10 @@ struct CancelEvent {
   char symbol[8];
   OrderSide side;
   int64_t quantity;
+  char alpaca_order_id[48];
 };
 
-static_assert(sizeof(CancelEvent) == 24, "CancelEvent must be 24 bytes");
+static_assert(sizeof(CancelEvent) == 72, "CancelEvent must be 72 bytes");
 static_assert(alignof(CancelEvent) == 8, "CancelEvent must be 8-byte aligned");
 static_assert(std::is_trivially_copyable_v<CancelEvent>,
               "CancelEvent must be trivially copyable");
