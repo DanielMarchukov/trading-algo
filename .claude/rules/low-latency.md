@@ -56,7 +56,7 @@ C++23 introduced "deducing this" (explicit object parameters) which modernizes t
   performance, better error messages
 - **Deducing this** eliminates the need for `static_cast` in CRTP and removes the templated base class requirement
 - **CRTP** remains valid but is considered legacy when full C++23 support is available. Minimum compiler versions for
-  deducing this: GCC 14+, Clang 18+, MSVC 17.2+ (partial). Verify toolchain support before migrating from CRTP.
+  deducing this: GCC 14+, Clang 18+, MSVC 17.2+ (partial). This project uses Clang 19 in CI, which has full support.
 
 For this project, use **concepts to constrain** + **templates for injection**:
 
