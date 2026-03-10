@@ -168,6 +168,8 @@ TEST_F(MarketDataPipelineTest, DataFlowsFromSourceThroughDecoderToSink) {
   pipeline.start();
 
   std::string test_data = "test_payload";
+  ASSERT_NE(inject->fn, nullptr);
+  ASSERT_NE(inject->ctx, nullptr);
   inject->fn(inject->ctx,
              std::span<const char>(test_data.data(), test_data.size()));
 

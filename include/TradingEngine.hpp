@@ -29,6 +29,13 @@ static_assert(std::is_trivially_copyable_v<OrderQueuePusher>,
 using ConsumerType =
     MarketEventConsumer<SimpleMarketMakingStrategy, OrderQueuePusher>;
 
+static_assert(sizeof(OrderQueuePusher) == sizeof(void *),
+              "OrderQueuePusher should be pointer-sized");
+static_assert(alignof(ConsumerType) == 64,
+              "ConsumerType must be cache-line aligned for hot-path use");
+static_assert(sizeof(ConsumerType) % 64 == 0,
+              "ConsumerType size must be a multiple of the cache line");
+
 class TradingEngine {
 public:
   explicit TradingEngine(const std::vector<std::string> &symbols,

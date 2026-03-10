@@ -12,6 +12,9 @@ namespace detail {
 struct EmitProbe {
   void operator()(const MarketEvent &, std::string_view) const;
 };
+struct AuthProbe {
+  void operator()() const;
+};
 } // namespace detail
 
 template <typename T>
@@ -46,7 +49,7 @@ public:
         sink_(std::move(sink)) {
     if constexpr (requires {
                     source_.sendSubscribe();
-                    decoder_.setOnAuthSuccess(std::declval<void (*)()>());
+                    decoder_.setOnAuthSuccess(detail::AuthProbe{});
                   }) {
       decoder_.setOnAuthSuccess([this]() { source_.sendSubscribe(); });
     }

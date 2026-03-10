@@ -12,7 +12,7 @@
 #include <zmq.hpp>
 
 template <StrategyLike StrategyType, typename OrderCallbackType>
-class MarketEventConsumer {
+class alignas(64) MarketEventConsumer {
 public:
   MarketEventConsumer(zmq::context_t &context, const std::string &address,
                       const std::string &symbol, std::atomic<bool> &is_running,
