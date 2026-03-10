@@ -25,7 +25,12 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   for (const auto &symbol : symbols_) {
     position_manager_->registerSymbol(symbol);
   }
-  risk_manager_ = std::make_unique<RiskManager>(position_manager_.get());
+  order_cooldown_ = std::make_unique<OrderCooldown>();
+  for (const auto &symbol : symbols_) {
+    order_cooldown_->registerSymbol(symbol);
+  }
+  risk_manager_ = std::make_unique<RiskManager>(position_manager_.get(),
+                                                order_cooldown_.get());
   pending_tracker_ = std::make_unique<PendingOrderTracker>();
   order_queue_ = std::make_unique<LockFreeMPSCQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(
