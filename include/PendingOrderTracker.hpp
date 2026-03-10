@@ -41,8 +41,7 @@ public:
                         std::string_view alpaca_order_id);
 
 private:
-  using SlotMap =
-      tbb::concurrent_hash_map<OrderSlotKey, std::string,
-                                OrderSlotKeyHashCompare>;
+  using SlotMap = tbb::concurrent_hash_map<OrderSlotKey, std::string,
+                                           OrderSlotKeyHashCompare>;
   mutable SlotMap slots_;
 };

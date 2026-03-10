@@ -2,7 +2,9 @@
 #include "LockFreeMPSCQueue.hpp"
 #include "Order.hpp"
 #include "OrderGateway.hpp"
+#include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
+#include "TestHelpers.hpp"
 #include "ThreadGuard.hpp"
 #include <expected>
 #include <future>
@@ -331,3 +333,196 @@ INSTANTIATE_TEST_SUITE_P(
         ShutdownExceptionParam{
             []() { return std::make_unique<WildThrowingRestClient>(); },
             "OrderGateway: Unknown error placing order"}));
+
+namespace {
+
+class TrackingRestClient final : public IRestClient {
+public:
+  struct Call {
+    enum Type { Place, Cancel } type;
+    std::string id;
+  };
+
+  explicit TrackingRestClient(
+      std::expected<void, OrderError> cancel_result = {})
+      : cancel_result_(std::move(cancel_result)) {}
+
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*order*/) override {
+    std::string id = "alpaca-" + std::to_string(++place_counter_);
+    calls.push_back({Call::Place, id});
+    return OrderAck{id, "accepted"};
+  }
+
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view alpaca_order_id) override {
+    calls.push_back({Call::Cancel, std::string(alpaca_order_id)});
+    return cancel_result_;
+  }
+
+  std::vector<Call> calls;
+
+private:
+  int place_counter_ = 0;
+  std::expected<void, OrderError> cancel_result_;
+};
+
+class ThrowingCancelClient final : public IRestClient {
+public:
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*order*/) override {
+    std::string id = "alpaca-" + std::to_string(++place_counter_);
+    place_ids.push_back(id);
+    return OrderAck{id, "accepted"};
+  }
+
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    throw std::runtime_error("cancel network error");
+  }
+
+  std::vector<std::string> place_ids;
+
+private:
+  int place_counter_ = 0;
+};
+
+} // namespace
+
+class CancelBeforeReplaceTest : public ::testing::Test {
+protected:
+  PositionManager position_manager_;
+  PendingOrderTracker tracker_;
+};
+
+TEST_F(CancelBeforeReplaceTest, CancelsPreviousBeforePlacingNew) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  Order order1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  Order order2 = test_helpers::createOrder("AAPL", OrderSide::Buy, 200, 0);
+  order_queue.push(order1);
+  order_queue.push(order2);
+
+  auto *raw_client = new TrackingRestClient();
+  std::unique_ptr<IRestClient> client(raw_client);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  ASSERT_GE(raw_client->calls.size(), 3u);
+  EXPECT_EQ(raw_client->calls[0].type, TrackingRestClient::Call::Place);
+  EXPECT_EQ(raw_client->calls[1].type, TrackingRestClient::Call::Cancel);
+  EXPECT_EQ(raw_client->calls[1].id, "alpaca-1");
+  EXPECT_EQ(raw_client->calls[2].type, TrackingRestClient::Call::Place);
+}
+
+TEST_F(CancelBeforeReplaceTest, NoCancelWhenNoPreviousOrder) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order_queue.push(order);
+
+  auto *raw_client = new TrackingRestClient();
+  std::unique_ptr<IRestClient> client(raw_client);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  ASSERT_EQ(raw_client->calls.size(), 1u);
+  EXPECT_EQ(raw_client->calls[0].type, TrackingRestClient::Call::Place);
+}
+
+TEST_F(CancelBeforeReplaceTest, PlacesOrderEvenWhenCancelFails422) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  Order order1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  Order order2 = test_helpers::createOrder("AAPL", OrderSide::Buy, 200, 0);
+  order_queue.push(order1);
+  order_queue.push(order2);
+
+  auto cancel_error = std::unexpected(OrderError{422, "order already filled"});
+  auto *raw_client = new TrackingRestClient(cancel_error);
+  std::unique_ptr<IRestClient> client(raw_client);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  int place_count = 0;
+  for (const auto &call : raw_client->calls) {
+    if (call.type == TrackingRestClient::Call::Place)
+      ++place_count;
+  }
+  EXPECT_EQ(place_count, 2);
+}
+
+TEST_F(CancelBeforeReplaceTest, PlacesOrderEvenWhenCancelThrows) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  Order order1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  Order order2 = test_helpers::createOrder("AAPL", OrderSide::Buy, 200, 0);
+  order_queue.push(order1);
+  order_queue.push(order2);
+
+  auto *raw_client = new ThrowingCancelClient();
+  std::unique_ptr<IRestClient> client(raw_client);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  EXPECT_EQ(raw_client->place_ids.size(), 2u);
+}
+
+TEST_F(CancelBeforeReplaceTest, TracksDifferentSidesIndependently) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  Order buy1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  Order sell1 = test_helpers::createOrder("AAPL", OrderSide::Sell, 50, 0);
+  order_queue.push(buy1);
+  order_queue.push(sell1);
+
+  auto *raw_client = new TrackingRestClient();
+  std::unique_ptr<IRestClient> client(raw_client);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  ASSERT_EQ(raw_client->calls.size(), 2u);
+  EXPECT_EQ(raw_client->calls[0].type, TrackingRestClient::Call::Place);
+  EXPECT_EQ(raw_client->calls[1].type, TrackingRestClient::Call::Place);
+}
+
+TEST_F(CancelBeforeReplaceTest, DoesNotRecordFailedPlacement) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  position_manager_.registerSymbol("AAPL");
+
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order_queue.push(order);
+
+  class FailingPlaceClient final : public IRestClient {
+  public:
+    std::expected<OrderAck, OrderError>
+    placeOrder(const Order & /*order*/) override {
+      return std::unexpected(OrderError{500, "internal error"});
+    }
+    std::expected<void, OrderError>
+    cancelOrder(std::string_view /*alpaca_order_id*/) override {
+      return {};
+    }
+  };
+
+  OrderGateway gateway(is_running, &order_queue,
+                       std::make_unique<FailingPlaceClient>(),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  EXPECT_FALSE(tracker_.getExistingOrder(key, OrderSide::Buy).has_value());
+}
