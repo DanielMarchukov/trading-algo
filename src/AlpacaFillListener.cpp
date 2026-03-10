@@ -124,6 +124,7 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
     FillEvent fill{};
     copySymbol(fill.symbol, symbol);
     fill.side = *side;
+    fill.is_partial = (event == "partial_fill");
     fill.quantity = *qty;
     fill.price = *price;
     copyOrderId(fill.alpaca_order_id, order_id);
@@ -291,7 +292,7 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     fill.quantity = fill_event.quantity;
     fill.price = fill_event.price;
     position_manager_->onFill(fill);
-    if (pending_tracker_) {
+    if (pending_tracker_ && !fill_event.is_partial) {
       SymbolKey key{};
       std::memcpy(key.value, fill_event.symbol, kSymbolCapacity);
       std::string_view order_id(
@@ -299,7 +300,9 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
           strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
       pending_tracker_->onOrderCompleted(key, fill_event.side, order_id);
     }
-    std::cout << "FillListener: Fill processed ("
+    std::cout << "FillListener: "
+              << (fill_event.is_partial ? "Partial fill" : "Fill")
+              << " processed ("
               << std::string_view(fill_event.symbol,
                                   strnlen(fill_event.symbol, kSymbolCapacity))
               << " qty=" << fill_event.quantity << ")" << std::endl;

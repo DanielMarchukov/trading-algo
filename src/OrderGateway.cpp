@@ -33,21 +33,22 @@ void OrderGateway::executeOrder(const Order &order) {
     auto prev_id = pending_tracker_->getExistingOrder(key, order.side);
     if (prev_id) {
       try {
-        auto cancel_result = rest_client_->cancelOrder(*prev_id);
+        auto cancel_result = rest_client_->cancelOrder(prev_id->view());
         if (cancel_result) {
-          std::cerr << "OrderGateway: Canceled previous order " << *prev_id
-                    << std::endl;
+          std::cerr << "OrderGateway: Canceled previous order "
+                    << prev_id->view() << std::endl;
         } else {
           std::cerr << "OrderGateway: Cancel returned HTTP "
-                    << cancel_result.error().status_code << " for " << *prev_id
-                    << ": " << cancel_result.error().message << std::endl;
+                    << cancel_result.error().status_code << " for "
+                    << prev_id->view() << ": " << cancel_result.error().message
+                    << std::endl;
         }
       } catch (const std::exception &e) {
-        std::cerr << "OrderGateway: Exception canceling order " << *prev_id
-                  << ": " << e.what() << std::endl;
+        std::cerr << "OrderGateway: Exception canceling order "
+                  << prev_id->view() << ": " << e.what() << std::endl;
       } catch (...) {
-        std::cerr << "OrderGateway: Unknown error canceling order " << *prev_id
-                  << std::endl;
+        std::cerr << "OrderGateway: Unknown error canceling order "
+                  << prev_id->view() << std::endl;
       }
     }
   }

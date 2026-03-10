@@ -1,6 +1,6 @@
 #include "PendingOrderTracker.hpp"
 
-std::optional<std::string>
+std::optional<AlpacaOrderId>
 PendingOrderTracker::getExistingOrder(const SymbolKey &symbol,
                                       OrderSide side) const {
   OrderSlotKey key{symbol, side};
@@ -16,7 +16,7 @@ void PendingOrderTracker::recordOrder(const SymbolKey &symbol, OrderSide side,
   OrderSlotKey key{symbol, side};
   SlotMap::accessor acc;
   slots_.insert(acc, key);
-  acc->second = std::string(alpaca_order_id);
+  acc->second = AlpacaOrderId(alpaca_order_id);
 }
 
 void PendingOrderTracker::onOrderCompleted(const SymbolKey &symbol,

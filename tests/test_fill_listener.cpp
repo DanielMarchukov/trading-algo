@@ -93,6 +93,7 @@ TEST_P(FillParseTest, ParsesFillFields) {
                 fill.alpaca_order_id,
                 strnlen(fill.alpaca_order_id, sizeof(fill.alpaca_order_id))),
             order_id);
+  EXPECT_EQ(fill.is_partial, std::string(event_type) == "partial_fill");
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -530,6 +531,28 @@ TEST_F(FillListenerTrackerTest, FillNotifiesTracker) {
   })");
 
   EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+TEST_F(FillListenerTrackerTest, PartialFillDoesNotClearTracker) {
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "partial-order-id");
+
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  callHandleTradeUpdate(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "partial_fill",
+      "qty": "50",
+      "price": "150.25",
+      "order": {"symbol": "AAPL", "side": "buy", "id": "partial-order-id"}
+    }
+  })");
+
+  EXPECT_TRUE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
 }
 
 TEST_F(FillListenerTrackerTest, CancelNotifiesTracker) {

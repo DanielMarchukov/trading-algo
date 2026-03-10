@@ -14,6 +14,7 @@
 struct FillEvent {
   char symbol[8];
   OrderSide side;
+  bool is_partial;
   int64_t quantity;
   double price;
   char alpaca_order_id[48];

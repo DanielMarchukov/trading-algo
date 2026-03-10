@@ -30,7 +30,7 @@ TEST_F(PendingOrderTrackerTest, RecordAndRetrieve) {
   tracker_.recordOrder(makeSymbol("AAPL"), OrderSide::Buy, "order-abc");
   auto result = tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Buy);
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(*result, "order-abc");
+  EXPECT_EQ(result->view(), "order-abc");
 }
 
 TEST_F(PendingOrderTrackerTest, RecordOverwritesPrevious) {
@@ -38,7 +38,7 @@ TEST_F(PendingOrderTrackerTest, RecordOverwritesPrevious) {
   tracker_.recordOrder(makeSymbol("AAPL"), OrderSide::Buy, "order-2");
   auto result = tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Buy);
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(*result, "order-2");
+  EXPECT_EQ(result->view(), "order-2");
 }
 
 TEST_F(PendingOrderTrackerTest, OnCompletedRemovesMatchingId) {
@@ -53,7 +53,7 @@ TEST_F(PendingOrderTrackerTest, OnCompletedIgnoresMismatchedId) {
   tracker_.onOrderCompleted(makeSymbol("AAPL"), OrderSide::Buy, "order-old");
   auto result = tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Buy);
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(*result, "order-new");
+  EXPECT_EQ(result->view(), "order-new");
 }
 
 struct SlotIndependenceParam {
@@ -83,8 +83,8 @@ TEST_P(SlotIndependenceTest, SlotsAreIndependent) {
   auto result_b = tracker_.getExistingOrder(makeSymbol(symbol_b), side_b);
   ASSERT_TRUE(result_a.has_value());
   ASSERT_TRUE(result_b.has_value());
-  EXPECT_EQ(*result_a, id_a);
-  EXPECT_EQ(*result_b, id_b);
+  EXPECT_EQ(result_a->view(), id_a);
+  EXPECT_EQ(result_b->view(), id_b);
 
   tracker_.onOrderCompleted(makeSymbol(symbol_a), side_a, id_a);
   EXPECT_FALSE(

@@ -2,9 +2,11 @@
 
 #include "Order.hpp"
 #include "PositionManager.hpp"
+#include <cstring>
 #include <optional>
-#include <string>
+#include <string_view>
 #include <tbb/concurrent_hash_map.h>
+#include <type_traits>
 
 struct OrderSlotKey {
   SymbolKey symbol;
@@ -14,6 +16,9 @@ struct OrderSlotKey {
     return symbol == other.symbol && side == other.side;
   }
 };
+
+static_assert(std::is_trivially_copyable_v<OrderSlotKey>,
+              "OrderSlotKey must be trivially copyable for hash map");
 
 struct OrderSlotKeyHashCompare {
   [[nodiscard]] static std::size_t hash(const OrderSlotKey &k) {
@@ -29,9 +34,33 @@ struct OrderSlotKeyHashCompare {
   }
 };
 
+struct AlpacaOrderId {
+  static constexpr std::size_t kCapacity = 48;
+  char value[kCapacity]{};
+
+  AlpacaOrderId() = default;
+
+  explicit AlpacaOrderId(std::string_view id) {
+    const auto len = (std::min)(id.size(), kCapacity);
+    std::memcpy(value, id.data(), len);
+  }
+
+  [[nodiscard]] std::string_view view() const {
+    return {value, strnlen(value, kCapacity)};
+  }
+
+  [[nodiscard]] bool operator==(std::string_view other) const {
+    return view() == other;
+  }
+};
+
+static_assert(std::is_trivially_copyable_v<AlpacaOrderId>,
+              "AlpacaOrderId must be trivially copyable");
+static_assert(sizeof(AlpacaOrderId) == 48, "AlpacaOrderId must be 48 bytes");
+
 class PendingOrderTracker {
 public:
-  [[nodiscard]] std::optional<std::string>
+  [[nodiscard]] std::optional<AlpacaOrderId>
   getExistingOrder(const SymbolKey &symbol, OrderSide side) const;
 
   void recordOrder(const SymbolKey &symbol, OrderSide side,
@@ -41,7 +70,7 @@ public:
                         std::string_view alpaca_order_id);
 
 private:
-  using SlotMap = tbb::concurrent_hash_map<OrderSlotKey, std::string,
+  using SlotMap = tbb::concurrent_hash_map<OrderSlotKey, AlpacaOrderId,
                                            OrderSlotKeyHashCompare>;
   mutable SlotMap slots_;
 };
