@@ -148,6 +148,17 @@ TEST_F(MarketEventConsumerTest, ConstructorThrowsOnInvalidAddress) {
                zmq::error_t);
 }
 
+TEST_F(MarketEventConsumerTest, ConstructorRejectsSymbolExceeding8Bytes) {
+  zmq::context_t context(1);
+  std::atomic is_running(true);
+  NoopOrderCallback callback;
+
+  EXPECT_THROW((MarketEventConsumer<EmptyStrategy, NoopOrderCallback>(
+                   context, ipc_address, "TOOLONGSYM", is_running, callback,
+                   risk_manager_.get())),
+               std::invalid_argument);
+}
+
 TEST_F(MarketEventConsumerTest, CallsStrategyAndReceivesOrders) {
   zmq::context_t context(1);
   zmq::socket_t publisher(context, zmq::socket_type::pub);

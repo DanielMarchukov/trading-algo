@@ -32,8 +32,10 @@ public:
   void stop();
   void sendSubscribe();
 
-private:
+protected:
   void onMessage(const ix::WebSocketMessagePtr &msg);
+
+private:
   void sendAuth();
 
   std::string api_key_;
