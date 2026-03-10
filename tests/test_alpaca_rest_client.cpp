@@ -341,7 +341,7 @@ TEST_F(AlpacaRestClientCancelOrderTest, Cancel204ReturnsSuccess) {
   EXPECT_EQ(req.path, "/v2/orders/order-uuid-123");
 }
 
-TEST_F(AlpacaRestClientCancelOrderTest, Cancel404ReturnsSuccess) {
+TEST_F(AlpacaRestClientCancelOrderTest, Cancel404ReturnsError) {
   StubHttpServer server(404, R"({"message":"order not found"})");
   point_client_to(server.port());
   AlpacaRestClient client;
@@ -351,7 +351,8 @@ TEST_F(AlpacaRestClientCancelOrderTest, Cancel404ReturnsSuccess) {
   auto result = client.cancelOrder("gone-order-id");
   t.join();
 
-  EXPECT_TRUE(result.has_value());
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().status_code, 404);
 }
 
 TEST_F(AlpacaRestClientCancelOrderTest, Cancel422ReturnsError) {

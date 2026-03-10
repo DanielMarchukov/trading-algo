@@ -68,7 +68,7 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
       cpr::Header{{"APCA-API-KEY-ID", api_key_},
                   {"APCA-API-SECRET-KEY", api_secret_}});
 
-  if (r.status_code == 204 || r.status_code == 404) {
+  if (r.status_code == 204) {
     return {};
   }
 

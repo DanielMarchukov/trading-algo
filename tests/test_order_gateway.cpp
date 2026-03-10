@@ -458,6 +458,32 @@ TEST_F(CancelBeforeReplaceTest, PlacesOrderEvenWhenCancelFails422) {
   EXPECT_EQ(place_count, 2);
 }
 
+TEST_F(CancelBeforeReplaceTest, SkipsNewOrderWhenCancelReturns404) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  position_manager_.registerSymbol("AAPL");
+
+  Order order1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  Order order2 = test_helpers::createOrder("AAPL", OrderSide::Buy, 200, 0);
+  order_queue.push(order1);
+  order_queue.push(order2);
+
+  auto cancel_error = std::unexpected(OrderError{404, "order not found"});
+  auto *raw_client = new TrackingRestClient(cancel_error);
+  std::unique_ptr<IRestClient> client(raw_client);
+  OrderGateway gateway(is_running, &order_queue, std::move(client),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  int place_count = 0;
+  for (const auto &call : raw_client->calls) {
+    if (call.type == TrackingRestClient::Call::Place)
+      ++place_count;
+  }
+  EXPECT_EQ(place_count, 1);
+}
+
 TEST_F(CancelBeforeReplaceTest, SkipsNewOrderWhenCancelThrows) {
   std::atomic is_running(false);
   LockFreeMPSCQueue<Order> order_queue;

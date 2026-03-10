@@ -97,7 +97,7 @@ Sources: [Deducing this for static polymorphism][7], [Concepts vs CRTP][8]
 
 ## Cache Efficiency
 
-- All hot-path structs: `alignas(64)` + `static_assert(sizeof(T))`
+- All hot-path structs: `alignas(64)` + `static_assert(sizeof(T) == expected_size)` + `static_assert(alignof(T) == 64)`
 - Keep related data together — avoid pointer chasing
 - Use fixed-width symbol keys (`char[8]`) not `std::string`
 - Pad between independent atomic variables to avoid false sharing
@@ -167,7 +167,9 @@ For wire formats:
 
 - **SBE (Simple Binary Encoding)**: 13x faster than FlatBuffers (80 msgs/μs vs 5 msgs/μs). Best for HFT but verbose XML
   schemas.
-- **Raw struct casting**: Current approach (64-byte MarketEvent) is correct and fastest — zero overhead. Keep it.
+- **Raw struct casting**: Current approach (64-byte MarketEvent) is correct and fastest for internal same-build IPC —
+  zero overhead. Only safe when producer and consumer share the same compiler, ABI, and endianness (true for our
+  single-process ZMQ pipeline). Not safe across network or cross-build boundaries — use explicit serialization there.
 - **simdjson**: 4x faster than RapidJSON, 25x faster than nlohmann/json. Use for parsing Alpaca REST responses.
   Gigabytes/sec throughput. Zero-copy via on-demand API.
 - **nlohmann/json** (current): Fine for cold path order placement. Replace with simdjson only if REST response parsing

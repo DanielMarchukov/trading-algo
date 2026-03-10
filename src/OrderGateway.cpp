@@ -40,11 +40,13 @@ void OrderGateway::executeOrder(const Order &order) {
                     << prev_id->view() << std::endl;
           cancel_accepted = true;
         } else {
-          cancel_accepted = true;
-          std::cerr << "OrderGateway: Cancel returned HTTP "
-                    << cancel_result.error().status_code << " for "
+          const auto code = cancel_result.error().status_code;
+          std::cerr << "OrderGateway: Cancel returned HTTP " << code << " for "
                     << prev_id->view() << ": " << cancel_result.error().message
                     << std::endl;
+          if (code == 422) {
+            cancel_accepted = true;
+          }
         }
       } catch (const std::exception &e) {
         std::cerr << "OrderGateway: Exception canceling order "
