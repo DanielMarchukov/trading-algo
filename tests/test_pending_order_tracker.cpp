@@ -1,4 +1,6 @@
 #include "PendingOrderTracker.hpp"
+#include "ThreadGuard.hpp"
+#include <future>
 #include <gtest/gtest.h>
 #include <thread>
 
@@ -54,61 +56,85 @@ TEST_F(PendingOrderTrackerTest, OnCompletedIgnoresMismatchedId) {
   EXPECT_EQ(*result, "order-new");
 }
 
-TEST_F(PendingOrderTrackerTest, IndependentSlots) {
-  tracker_.recordOrder(makeSymbol("AAPL"), OrderSide::Buy, "buy-order");
-  tracker_.recordOrder(makeSymbol("AAPL"), OrderSide::Sell, "sell-order");
+struct SlotIndependenceParam {
+  const char *desc;
+  const char *symbol_a;
+  OrderSide side_a;
+  const char *id_a;
+  const char *symbol_b;
+  OrderSide side_b;
+  const char *id_b;
+};
 
-  auto buy = tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Buy);
-  auto sell = tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Sell);
-  ASSERT_TRUE(buy.has_value());
-  ASSERT_TRUE(sell.has_value());
-  EXPECT_EQ(*buy, "buy-order");
-  EXPECT_EQ(*sell, "sell-order");
+class SlotIndependenceTest
+    : public ::testing::TestWithParam<SlotIndependenceParam> {
+protected:
+  PendingOrderTracker tracker_;
+};
 
-  tracker_.onOrderCompleted(makeSymbol("AAPL"), OrderSide::Buy, "buy-order");
-  EXPECT_FALSE(tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Buy)
-                   .has_value());
-  EXPECT_TRUE(tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Sell)
-                  .has_value());
+TEST_P(SlotIndependenceTest, SlotsAreIndependent) {
+  const auto &[desc, symbol_a, side_a, id_a, symbol_b, side_b, id_b] =
+      GetParam();
+
+  tracker_.recordOrder(makeSymbol(symbol_a), side_a, id_a);
+  tracker_.recordOrder(makeSymbol(symbol_b), side_b, id_b);
+
+  auto result_a = tracker_.getExistingOrder(makeSymbol(symbol_a), side_a);
+  auto result_b = tracker_.getExistingOrder(makeSymbol(symbol_b), side_b);
+  ASSERT_TRUE(result_a.has_value());
+  ASSERT_TRUE(result_b.has_value());
+  EXPECT_EQ(*result_a, id_a);
+  EXPECT_EQ(*result_b, id_b);
+
+  tracker_.onOrderCompleted(makeSymbol(symbol_a), side_a, id_a);
+  EXPECT_FALSE(
+      tracker_.getExistingOrder(makeSymbol(symbol_a), side_a).has_value());
+  EXPECT_TRUE(
+      tracker_.getExistingOrder(makeSymbol(symbol_b), side_b).has_value());
 }
 
-TEST_F(PendingOrderTrackerTest, DifferentSymbolsAreIndependent) {
-  tracker_.recordOrder(makeSymbol("AAPL"), OrderSide::Buy, "aapl-order");
-  tracker_.recordOrder(makeSymbol("TSLA"), OrderSide::Buy, "tsla-order");
-
-  auto aapl = tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Buy);
-  auto tsla = tracker_.getExistingOrder(makeSymbol("TSLA"), OrderSide::Buy);
-  ASSERT_TRUE(aapl.has_value());
-  ASSERT_TRUE(tsla.has_value());
-  EXPECT_EQ(*aapl, "aapl-order");
-  EXPECT_EQ(*tsla, "tsla-order");
-}
+INSTANTIATE_TEST_SUITE_P(
+    SlotTypes, SlotIndependenceTest,
+    ::testing::Values(SlotIndependenceParam{"same symbol different sides",
+                                            "AAPL", OrderSide::Buy, "buy-order",
+                                            "AAPL", OrderSide::Sell,
+                                            "sell-order"},
+                      SlotIndependenceParam{
+                          "different symbols same side", "AAPL", OrderSide::Buy,
+                          "aapl-order", "TSLA", OrderSide::Buy, "tsla-order"}));
 
 TEST_F(PendingOrderTrackerTest, ConcurrentAccess) {
   constexpr int kIterations = 1000;
+  std::promise<void> done;
+  auto future = done.get_future();
 
-  std::thread writer1([&]() {
+  ThreadGuard writer1{std::thread([&]() {
     for (int i = 0; i < kIterations; ++i) {
       tracker_.recordOrder(makeSymbol("AAPL"), OrderSide::Buy,
                            "order-" + std::to_string(i));
     }
-  });
+  })};
 
-  std::thread writer2([&]() {
+  ThreadGuard writer2{std::thread([&]() {
     for (int i = 0; i < kIterations; ++i) {
       tracker_.recordOrder(makeSymbol("AAPL"), OrderSide::Sell,
                            "order-" + std::to_string(i));
     }
-  });
+  })};
 
-  std::thread reader([&]() {
+  ThreadGuard reader{std::thread([&]() {
     for (int i = 0; i < kIterations; ++i) {
       (void)tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Buy);
       (void)tracker_.getExistingOrder(makeSymbol("AAPL"), OrderSide::Sell);
     }
-  });
+    done.set_value();
+  })};
 
-  writer1.join();
-  writer2.join();
-  reader.join();
+  const auto status = future.wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready)
+      << "ConcurrentAccess test timed out — possible deadlock";
+
+  writer1.t.join();
+  writer2.t.join();
+  reader.t.join();
 }
