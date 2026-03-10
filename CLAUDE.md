@@ -27,16 +27,19 @@ cd build && ctest --output-on-failure
 Every code change must respect the hot path / cold path boundary. Before writing any C++ code, check
 `.claude/rules/low-latency.md`.
 
+The hot path is **network-to-network**: WebSocket market data ingestion through to REST order submission.
+
 Key non-negotiables:
 
-- **No virtual dispatch on the hot path** — use templates/CRTP
+- **No virtual dispatch on the hot path** — templates/CRTP
 - **No heap allocation on the hot path** — pre-allocate at startup
-- **No mutex on the hot path** — use atomics and lock-free structures
-- **No exceptions on the hot path** — use error codes
+- **No `std::shared_ptr` on the hot path** — atomic refcount overhead. Use raw non-owning pointers.
+- **No mutex on the hot path** — atomics and lock-free structures
+- **No exceptions on the hot path** — use error codes, mark functions `noexcept`
 - **Cache-line align** all hot-path structs: `alignas(64)`, `static_assert(sizeof(T) == expected)`
 - **Measure before/after** every optimization
 
-When unsure if something is hot path: if it runs between ZMQ recv and order_queue push, it's hot path.
+When unsure if something is hot path: if it runs between WebSocket recv and REST order send, it's hot path.
 
 ## C++ Conventions
 
