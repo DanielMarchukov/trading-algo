@@ -6,10 +6,10 @@
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
 #include "OrderGateway.hpp"
+#include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
 #include "SimpleMarketMakingStrategy.hpp"
 #include <atomic>
-#include <cstdint>
 #include <memory>
 #include <string>
 #include <thread>
@@ -64,6 +64,7 @@ private:
   std::unique_ptr<PositionManager> position_manager_;
   std::unique_ptr<RiskManager> risk_manager_;
   zmq::context_t context_{1};
+  std::unique_ptr<PendingOrderTracker> pending_tracker_;
   std::unique_ptr<LockFreeMPSCQueue<Order>> order_queue_;
   std::unique_ptr<OrderGateway> order_gateway_;
   std::thread order_gateway_thread_;
