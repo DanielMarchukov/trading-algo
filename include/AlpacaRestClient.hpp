@@ -12,6 +12,9 @@ public:
   [[nodiscard]] std::expected<OrderAck, OrderError>
   placeOrder(const Order &order) override;
 
+  [[nodiscard]] std::expected<void, OrderError>
+  cancelOrder(std::string_view alpaca_order_id) override;
+
 private:
   std::string api_key_;
   std::string api_secret_;

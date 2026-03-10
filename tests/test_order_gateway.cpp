@@ -24,6 +24,11 @@ public:
     return OrderAck{"ord-123", "accepted"};
   }
 
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    return {};
+  }
+
   std::promise<void> *promise_to_fulfill = nullptr;
 };
 
@@ -117,6 +122,10 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
       count_.fetch_add(1, std::memory_order_release);
       return OrderAck{"ord-" + std::to_string(order.id), "accepted"};
     }
+    std::expected<void, OrderError>
+    cancelOrder(std::string_view /*alpaca_order_id*/) override {
+      return {};
+    }
 
   private:
     std::vector<uint64_t> &ids_;
@@ -167,6 +176,10 @@ TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
     placeOrder(const Order & /*unused*/) override {
       return std::unexpected(OrderError{422, "insufficient qty"});
     }
+    std::expected<void, OrderError>
+    cancelOrder(std::string_view /*alpaca_order_id*/) override {
+      return {};
+    }
   };
 
   OrderGateway gateway(is_running, &order_queue,
@@ -189,6 +202,11 @@ public:
     throw std::runtime_error("simulated rest error");
   }
 
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    return {};
+  }
+
 private:
   std::promise<void> *promise_;
 };
@@ -203,6 +221,11 @@ public:
     if (promise_)
       promise_->set_value();
     throw 42;
+  }
+
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    return {};
   }
 
 private:

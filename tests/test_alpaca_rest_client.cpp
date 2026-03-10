@@ -92,6 +92,7 @@ inline void close_socket(SocketType sock) {
 }
 
 struct CapturedRequest {
+  std::string method;
   std::string path;
   std::string body;
 };
@@ -175,6 +176,8 @@ public:
 
     CapturedRequest req;
     auto first_space = raw.find(' ');
+    if (first_space != std::string::npos)
+      req.method = raw.substr(0, first_space);
     auto second_space = raw.find(' ', first_space + 1);
     if (first_space != std::string::npos && second_space != std::string::npos)
       req.path = raw.substr(first_space + 1, second_space - first_space - 1);
@@ -319,4 +322,50 @@ TEST_F(AlpacaRestClientPlaceOrderTest, SuccessResponseReturnsOrderAck) {
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->client_order_id, "ord-abc-123");
   EXPECT_EQ(result->status, "accepted");
+}
+
+class AlpacaRestClientCancelOrderTest : public AlpacaRestClientTestBase {};
+
+TEST_F(AlpacaRestClientCancelOrderTest, Cancel204ReturnsSuccess) {
+  StubHttpServer server(204, "");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  CapturedRequest req;
+  std::thread t([&]() { req = server.serve_one(); });
+  auto result = client.cancelOrder("order-uuid-123");
+  t.join();
+
+  EXPECT_TRUE(result.has_value());
+  EXPECT_EQ(req.method, "DELETE");
+  EXPECT_EQ(req.path, "/v2/orders/order-uuid-123");
+}
+
+TEST_F(AlpacaRestClientCancelOrderTest, Cancel404ReturnsSuccess) {
+  StubHttpServer server(404, R"({"message":"order not found"})");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  CapturedRequest req;
+  std::thread t([&]() { req = server.serve_one(); });
+  auto result = client.cancelOrder("gone-order-id");
+  t.join();
+
+  EXPECT_TRUE(result.has_value());
+}
+
+TEST_F(AlpacaRestClientCancelOrderTest, Cancel422ReturnsError) {
+  StubHttpServer server(422, R"({"message":"order already filled"})");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  CapturedRequest req;
+  std::thread t([&]() { req = server.serve_one(); });
+  auto result = client.cancelOrder("filled-order-id");
+  t.join();
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().status_code, 422);
+  EXPECT_TRUE(result.error().message.find("order already filled") !=
+              std::string::npos);
 }
