@@ -5,7 +5,6 @@
 #include "Strategy.hpp"
 #include <atomic>
 #include <cstring>
-#include <exception>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -62,19 +61,9 @@ public:
 
       MarketEvent event{};
       std::memcpy(&event, payload.data(), sizeof(MarketEvent));
-      try {
-        auto order = strategy_->onMarketEvent(event);
-        if (order && risk_manager_->onNewOrder(*order)) {
-          order_callback_(*order);
-        }
-      } catch (const std::exception &e) {
-        std::cerr << "MarketEventConsumer[" << symbol_
-                  << "]: exception in strategy/risk pipeline: " << e.what()
-                  << std::endl;
-      } catch (...) {
-        std::cerr << "MarketEventConsumer[" << symbol_
-                  << "]: unknown exception in strategy/risk pipeline"
-                  << std::endl;
+      auto order = strategy_->onMarketEvent(event);
+      if (order && risk_manager_->onNewOrder(*order)) {
+        order_callback_(*order);
       }
     }
   }

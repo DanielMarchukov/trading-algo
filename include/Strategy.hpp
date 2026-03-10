@@ -7,5 +7,5 @@
 
 template <typename T>
 concept StrategyLike = requires(T t, const MarketEvent &e) {
-  { t.onMarketEvent(e) } -> std::same_as<std::optional<Order>>;
+  { t.onMarketEvent(e) } noexcept -> std::same_as<std::optional<Order>>;
 };

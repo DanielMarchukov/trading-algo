@@ -19,7 +19,7 @@
 
 class MockStrategy {
 public:
-  std::optional<Order> onMarketEvent(const MarketEvent &event) {
+  std::optional<Order> onMarketEvent(const MarketEvent &event) noexcept {
     if (event.eventType == 2) {
       Order order{};
       order.id = 1;
@@ -67,14 +67,14 @@ protected:
 
 class EmptyStrategy {
 public:
-  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) {
+  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) noexcept {
     return std::nullopt;
   }
 };
 
 class RejectedOrderStrategy {
 public:
-  std::optional<Order> onMarketEvent(const MarketEvent &event) {
+  std::optional<Order> onMarketEvent(const MarketEvent &event) noexcept {
     if (event.eventType == 2) {
       Order order{};
       order.id = 1;
@@ -91,7 +91,7 @@ class CountingStrategy {
 public:
   static std::atomic<int> invocation_count;
 
-  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) {
+  std::optional<Order> onMarketEvent(const MarketEvent & /*event*/) noexcept {
     invocation_count.fetch_add(1, std::memory_order_relaxed);
     return std::nullopt;
   }
