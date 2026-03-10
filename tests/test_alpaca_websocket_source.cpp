@@ -37,9 +37,8 @@ struct CaptureCallback {
 class AlpacaWebSocketSourceTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    source_ = std::make_unique<TestableSource>("key", "secret",
-                                               std::vector<std::string>{"AAPL"},
-                                               is_running_);
+    source_ = std::make_unique<TestableSource>(
+        "key", "secret", std::vector<std::string>{"AAPL"}, is_running_);
   }
 
   std::atomic<bool> is_running_{true};
