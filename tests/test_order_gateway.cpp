@@ -6,6 +6,7 @@
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
 #include "ThreadGuard.hpp"
+#include <cstdint>
 #include <expected>
 #include <future>
 #include <gtest/gtest.h>
@@ -339,7 +340,7 @@ namespace {
 class TrackingRestClient final : public IRestClient {
 public:
   struct Call {
-    enum Type { Place, Cancel } type;
+    enum Type : std::uint8_t { Place, Cancel } type;
     std::string id;
   };
 

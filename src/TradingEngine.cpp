@@ -58,13 +58,13 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
 }
 
 TradingEngine::~TradingEngine() {
-  std::cout << "TradingEngine destructor: Starting shutdown..." << std::endl;
+  std::cout << "TradingEngine destructor: Starting shutdown..." << '\n';
   if (is_running_.load()) {
     stop();
   }
   shutdown();
   g_is_running_ptr = nullptr;
-  std::cout << "TradingEngine destructor: Shutdown complete." << std::endl;
+  std::cout << "TradingEngine destructor: Shutdown complete." << '\n';
 }
 
 void TradingEngine::setup_signal_handler() {
@@ -76,7 +76,7 @@ void TradingEngine::setup_signal_handler() {
 void TradingEngine::launch_gateway() {
   order_gateway_thread_ = std::thread(&OrderGateway::run, order_gateway_.get());
   pin_thread_to_core(order_gateway_thread_, 0);
-  std::cout << "Pinned OrderGateway thread to CPU Core 0" << std::endl;
+  std::cout << "Pinned OrderGateway thread to CPU Core 0" << '\n';
 }
 
 void TradingEngine::launch_consumers() {
@@ -84,7 +84,7 @@ void TradingEngine::launch_consumers() {
   if (max_cores > 0 && symbols_.size() + 2 > max_cores) {
     std::cerr << "Warning: " << symbols_.size()
               << " symbols + 2 reserved cores exceeds " << max_cores
-              << " available cores; thread pinning will wrap" << std::endl;
+              << " available cores; thread pinning will wrap" << '\n';
   }
 
   for (uint32_t i = 0; i < symbols_.size(); ++i) {
@@ -101,7 +101,7 @@ void TradingEngine::launch_consumers() {
     uint32_t core_id = max_cores > 0 ? (i + 2) % max_cores : i + 2;
     pin_thread_to_core(consumer_threads_.back().thread, core_id);
     std::cout << "Pinned thread for " << symbol << " to CPU Core " << core_id
-              << std::endl;
+              << '\n';
   }
 }
 
@@ -130,16 +130,16 @@ void TradingEngine::shutdown() {
 }
 
 void TradingEngine::run() {
-  std::cout << "Starting trading engine..." << std::endl;
+  std::cout << "Starting trading engine..." << '\n';
   fill_listener_->start();
-  std::cout << "FillListener started" << std::endl;
+  std::cout << "FillListener started" << '\n';
   market_publisher_->start();
-  std::cout << "MarketPublisher started" << std::endl;
+  std::cout << "MarketPublisher started" << '\n';
   launch_gateway();
   launch_consumers();
   main_loop();
 
-  std::cout << "Main loop exited. Shutting down threads..." << std::endl;
+  std::cout << "Main loop exited. Shutting down threads..." << '\n';
   shutdown();
 }
 

@@ -27,13 +27,13 @@ void pin_thread_to_core(std::thread &t, uint32_t core_id) {
 #elif defined(_WIN32)
   if (core_id >= 64) {
     std::cerr << "Error: core_id " << core_id
-              << " exceeds 64-bit affinity mask limit" << std::endl;
+              << " exceeds 64-bit affinity mask limit" << '\n';
     return;
   }
   if (const DWORD_PTR mask = 1ULL << core_id;
       SetThreadAffinityMask(t.native_handle(), mask) == 0) {
     std::cerr << "Error calling SetThreadAffinityMask: " << GetLastError()
-              << std::endl;
+              << '\n';
   }
 #elif defined(__APPLE__)
   // THREAD_AFFINITY_POLICY is only a scheduling hint (same-tag threads
@@ -45,12 +45,11 @@ void pin_thread_to_core(std::thread &t, uint32_t core_id) {
                         (thread_policy_t)&policy,
                         THREAD_AFFINITY_POLICY_COUNT) != KERN_SUCCESS) {
     std::cerr << "Warning: thread_policy_set affinity hint failed for core "
-              << core_id << std::endl;
+              << core_id << '\n';
   }
 #else
   (void)t;
   (void)core_id;
-  std::cerr << "Warning: CPU pinning not supported on this platform."
-            << std::endl;
+  std::cerr << "Warning: CPU pinning not supported on this platform." << '\n';
 #endif
 }

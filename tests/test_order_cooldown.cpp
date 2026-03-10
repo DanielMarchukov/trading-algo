@@ -1,5 +1,6 @@
 #include "OrderCooldown.hpp"
 #include "Utils.hpp"
+#include <cstring>
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
@@ -19,20 +20,20 @@ protected:
 
 TEST_F(OrderCooldownTest, AllowsFirstOrder) {
   char symbol[8] = {};
-  std::memcpy(symbol, "AAPL", 4);
+  std::strncpy(symbol, "AAPL", sizeof(symbol));
   EXPECT_TRUE(cooldown_->checkAndUpdate(symbol));
 }
 
 TEST_F(OrderCooldownTest, RejectsOrderWithinCooldown) {
   char symbol[8] = {};
-  std::memcpy(symbol, "AAPL", 4);
+  std::strncpy(symbol, "AAPL", sizeof(symbol));
   EXPECT_TRUE(cooldown_->checkAndUpdate(symbol));
   EXPECT_FALSE(cooldown_->checkAndUpdate(symbol));
 }
 
 TEST_F(OrderCooldownTest, AllowsOrderAfterCooldownExpires) {
   char symbol[8] = {};
-  std::memcpy(symbol, "AAPL", 4);
+  std::strncpy(symbol, "AAPL", sizeof(symbol));
   EXPECT_TRUE(cooldown_->checkAndUpdate(symbol));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(60));
@@ -43,8 +44,8 @@ TEST_F(OrderCooldownTest, AllowsOrderAfterCooldownExpires) {
 TEST_F(OrderCooldownTest, IndependentPerSymbol) {
   char aapl[8] = {};
   char googl[8] = {};
-  std::memcpy(aapl, "AAPL", 4);
-  std::memcpy(googl, "GOOGL", 5);
+  std::strncpy(aapl, "AAPL", sizeof(aapl));
+  std::strncpy(googl, "GOOGL", sizeof(googl));
 
   EXPECT_TRUE(cooldown_->checkAndUpdate(aapl));
   EXPECT_TRUE(cooldown_->checkAndUpdate(googl));
@@ -52,7 +53,7 @@ TEST_F(OrderCooldownTest, IndependentPerSymbol) {
 
 TEST_F(OrderCooldownTest, RejectsUnregisteredSymbol) {
   char unknown[8] = {};
-  std::memcpy(unknown, "TSLA", 4);
+  std::strncpy(unknown, "TSLA", sizeof(unknown));
   EXPECT_FALSE(cooldown_->checkAndUpdate(unknown));
 }
 
@@ -61,7 +62,7 @@ TEST_F(OrderCooldownTest, ZeroCooldownAllowsAll) {
   zero_cd.registerSymbol("AAPL");
 
   char symbol[8] = {};
-  std::memcpy(symbol, "AAPL", 4);
+  std::strncpy(symbol, "AAPL", sizeof(symbol));
 
   for (int i = 0; i < 100; ++i) {
     EXPECT_TRUE(zero_cd.checkAndUpdate(symbol));
@@ -81,11 +82,12 @@ TEST_F(OrderCooldownTest, ConcurrentDifferentSymbols) {
   std::atomic<bool> start{false};
   std::atomic<int> total_approved{0};
   std::vector<std::thread> threads;
+  threads.reserve(kNumThreads);
 
-  for (int t = 0; t < kNumThreads; ++t) {
-    threads.emplace_back([&, t]() {
+  for (const auto *symbol : symbols) {
+    threads.emplace_back([&, symbol]() {
       char sym[8] = {};
-      std::memcpy(sym, symbols[t], std::strlen(symbols[t]));
+      std::strncpy(sym, symbol, sizeof(sym));
 
       while (!start.load(std::memory_order_acquire)) {
       }
@@ -122,24 +124,29 @@ TEST_F(OrderCooldownTest, IgnoresRegistrationBeyondMaxSymbols) {
   OrderCooldown cd(0);
   for (uint32_t i = 0; i < OrderCooldown::kMaxSymbols; ++i) {
     char name[8] = {};
-    std::snprintf(name, sizeof(name), "S%02u", i);
+    name[0] = 'S';
+    name[1] = static_cast<char>('0' + (i / 10));
+    name[2] = static_cast<char>('0' + (i % 10));
     cd.registerSymbol(name);
   }
 
   cd.registerSymbol("OVER");
 
+  constexpr uint32_t kLastIdx = OrderCooldown::kMaxSymbols - 1;
   char last[8] = {};
-  std::snprintf(last, sizeof(last), "S%02u", OrderCooldown::kMaxSymbols - 1);
+  last[0] = 'S';
+  last[1] = static_cast<char>('0' + (kLastIdx / 10));
+  last[2] = static_cast<char>('0' + (kLastIdx % 10));
   EXPECT_TRUE(cd.checkAndUpdate(last));
 
   char over[8] = {};
-  std::memcpy(over, "OVER", 4);
+  std::strncpy(over, "OVER", sizeof(over));
   EXPECT_FALSE(cd.checkAndUpdate(over));
 }
 
 TEST_F(OrderCooldownTest, DoesNotUpdateTimestampOnRejection) {
   char symbol[8] = {};
-  std::memcpy(symbol, "AAPL", 4);
+  std::strncpy(symbol, "AAPL", sizeof(symbol));
 
   EXPECT_TRUE(cooldown_->checkAndUpdate(symbol));
 

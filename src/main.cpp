@@ -13,10 +13,10 @@ int main() {
     TradingEngine engine(symbols, std::move(alpaca_client));
     engine.run();
   } catch (const std::exception &e) {
-    std::cerr << "An exception occurred: " << e.what() << std::endl;
+    std::cerr << "An exception occurred: " << e.what() << '\n';
     return 1;
   } catch (...) {
-    std::cerr << "An unknown exception occurred." << std::endl;
+    std::cerr << "An unknown exception occurred." << '\n';
     return 1;
   }
   return 0;

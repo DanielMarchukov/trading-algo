@@ -119,6 +119,7 @@ TEST_F(RiskManagerTest, ConcurrentOnNewOrderFromMultipleThreads) {
   std::atomic<bool> start{false};
   std::atomic<int> approved{0};
   std::vector<std::thread> threads;
+  threads.reserve(num_threads);
 
   for (int t = 0; t < num_threads; ++t) {
     threads.emplace_back([&]() {

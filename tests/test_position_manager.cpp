@@ -164,6 +164,7 @@ TEST_F(PositionManagerTest, FilledAndPendingIndependent) {
 
 TEST_F(PositionManagerTest, ConcurrentFillsForSameSymbol) {
   std::vector<std::thread> threads;
+  threads.reserve(4);
 
   for (int i = 0; i < 4; ++i) {
     threads.emplace_back([this]() {
@@ -214,6 +215,7 @@ TEST_F(PositionManagerTest, ConcurrentOrderSentAndFill) {
 
   std::atomic<bool> start{false};
   std::vector<std::thread> threads;
+  threads.reserve(num_sender_threads + 1);
 
   for (int t = 0; t < num_sender_threads; ++t) {
     threads.emplace_back([&]() {
@@ -239,7 +241,8 @@ TEST_F(PositionManagerTest, ConcurrentOrderSentAndFill) {
     t.join();
   }
 
-  const int64_t total_sent = num_sender_threads * orders_per_thread;
+  const int64_t total_sent =
+      static_cast<int64_t>(num_sender_threads) * orders_per_thread;
   EXPECT_EQ(pm.getFilledPosition("AAPL"), total_sent);
   EXPECT_EQ(pm.getPendingPosition("AAPL"), 0);
   EXPECT_EQ(pm.getTotalExposure("AAPL"), total_sent);

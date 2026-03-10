@@ -22,7 +22,7 @@ void ZmqMarketEventSink::start() {
   zmq_pub_.set(zmq::sockopt::sndhwm, 1000000);
   zmq_pub_.set(zmq::sockopt::linger, 0);
   zmq_pub_.bind(zmq_address_);
-  std::cout << "ZmqMarketEventSink: bound to " << zmq_address_ << std::endl;
+  std::cout << "ZmqMarketEventSink: bound to " << zmq_address_ << '\n';
 }
 
 void ZmqMarketEventSink::stop() {}

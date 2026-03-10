@@ -16,9 +16,13 @@ TEST_F(SimpleMarketMakingStrategyTest, GeneratesBuyOrderOnTradeEvent) {
   const auto order = strategy.onMarketEvent(trade_event);
 
   ASSERT_TRUE(order.has_value());
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
   EXPECT_EQ(order->side, OrderSide::Buy);
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
   EXPECT_EQ(order->type, OrderType::Limit);
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
   EXPECT_EQ(order->quantity, 100);
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
   EXPECT_EQ(order->price, 1499900);
 }
 
@@ -29,6 +33,7 @@ TEST_F(SimpleMarketMakingStrategyTest, LeavesOrderIdUnset) {
 
   const auto order = strategy.onMarketEvent(trade);
   ASSERT_TRUE(order.has_value());
+  // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
   EXPECT_EQ(order->id, 0);
 }
 

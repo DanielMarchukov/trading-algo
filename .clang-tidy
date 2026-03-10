@@ -1,19 +1,41 @@
 ---
-Checks: "clang-diagnostic-*,clang-analyzer-*"
-WarningsAsErrors: ""
-HeaderFileExtensions:
-  - ""
-  - h
-  - hh
-  - hpp
-  - hxx
-ImplementationFileExtensions:
-  - c
-  - cc
-  - cpp
-  - cxx
-HeaderFilterRegex: ""
-ExcludeHeaderFilterRegex: ""
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-init-variables,
+  -cppcoreguidelines-narrowing-conversions,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-const-cast,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-special-member-functions,
+  -cppcoreguidelines-use-default-member-init,
+  modernize-*,
+  -modernize-avoid-c-arrays,
+  -modernize-use-auto,
+  -modernize-use-default-member-init,
+  -modernize-use-designated-initializers,
+  -modernize-use-nodiscard,
+  -modernize-use-trailing-return-type,
+  -modernize-pass-by-value,
+  performance-*,
+  misc-unused-using-decls,
+  misc-use-internal-linkage
+
+WarningsAsErrors: "*"
+HeaderFilterRegex: "include/.*\\.hpp$"
+ExcludeHeaderFilterRegex: "vcpkg_installed/.*"
 FormatStyle: llvm
-User: danielmarchukov
 SystemHeaders: false
