@@ -38,6 +38,11 @@ private:
   static_assert(sizeof(Entry) == 64, "Entry must be one cache line");
   static_assert(alignof(Entry) == 64, "Entry must be cache-line aligned");
 
+  static_assert(sizeof(Order::symbol) == 8,
+                "Order::symbol must be 8 bytes for unique key encoding");
+  static_assert(sizeof(Fill::symbol) == 8,
+                "Fill::symbol must be 8 bytes for unique key encoding");
+
   std::array<Entry, kMaxSymbols> table_{};
 
   [[nodiscard]] static uint64_t symbolToKey(const char *data,

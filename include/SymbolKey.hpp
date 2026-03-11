@@ -3,6 +3,7 @@
 #include <cstring>
 #include <functional>
 #include <string_view>
+#include <type_traits>
 
 struct SymbolKey {
   char value[8] = {};
@@ -13,6 +14,8 @@ struct SymbolKey {
 };
 
 static_assert(sizeof(SymbolKey) == 8, "SymbolKey must be exactly 8 bytes");
+static_assert(std::is_trivially_copyable_v<SymbolKey>,
+              "SymbolKey must be trivially copyable for hash map use");
 
 struct SymbolKeyHashCompare {
   [[nodiscard]] static std::size_t hash(const SymbolKey &k) {
