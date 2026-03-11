@@ -32,6 +32,8 @@ repos:
       - id: mdformat
         args: ["--wrap", "120"]
         files: \.(md|markdown)$
+        additional_dependencies:
+          - mdformat-tables
 
 ci:
   autofix_commit_msg: |

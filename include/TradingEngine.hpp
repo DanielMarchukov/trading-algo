@@ -2,6 +2,7 @@
 
 #include "AlpacaPipeline.hpp"
 #include "IRestClient.hpp"
+#include "LatencyTracker.hpp"
 #include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
@@ -60,8 +61,10 @@ private:
   void shutdown();
 
   std::atomic<bool> is_running_;
+  std::atomic<bool> shutdown_done_{false};
   std::string ipc_address_;
   std::vector<std::string> symbols_;
+  std::unique_ptr<LatencyTracker> latency_tracker_;
   std::unique_ptr<PositionManager> position_manager_;
   std::unique_ptr<OrderCooldown> order_cooldown_;
   std::unique_ptr<RiskManager> risk_manager_;

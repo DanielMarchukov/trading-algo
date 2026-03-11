@@ -1,4 +1,5 @@
 #include "AlpacaFillListener.hpp"
+#include "LatencyTracker.hpp"
 #include "PendingOrderTracker.hpp"
 #include "ThreadPinning.hpp"
 #include <algorithm>
@@ -164,9 +165,11 @@ AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
                                        std::atomic<bool> &is_running,
                                        const std::string &api_key,
                                        const std::string &api_secret,
-                                       PendingOrderTracker *pending_tracker)
+                                       PendingOrderTracker *pending_tracker,
+                                       LatencyTracker *latency_tracker)
     : position_manager_(position_manager), pending_tracker_(pending_tracker),
-      is_running_(is_running), api_key_(api_key), api_secret_(api_secret) {
+      latency_tracker_(latency_tracker), is_running_(is_running),
+      api_key_(api_key), api_secret_(api_secret) {
   if (position_manager_ == nullptr) {
     throw std::invalid_argument(
         "AlpacaFillListener: position_manager must not be null");
@@ -291,12 +294,15 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     fill.quantity = fill_event.quantity;
     fill.price = fill_event.price;
     position_manager_->onFill(fill);
+    std::string_view order_id(
+        fill_event.alpaca_order_id,
+        strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
+    if (latency_tracker_ && !order_id.empty()) {
+      latency_tracker_->recordFillReceived(order_id);
+    }
     if (pending_tracker_ && !fill_event.is_partial) {
       SymbolKey key{};
       std::memcpy(key.value, fill_event.symbol, kSymbolCapacity);
-      std::string_view order_id(
-          fill_event.alpaca_order_id,
-          strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
       pending_tracker_->onOrderCompleted(key, fill_event.side, order_id);
     }
     std::cout << "FillListener: "

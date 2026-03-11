@@ -1,4 +1,5 @@
 #include "AlpacaFillListener.hpp"
+#include "LatencyTracker.hpp"
 #include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
@@ -553,6 +554,36 @@ TEST_F(FillListenerTrackerTest, PartialFillDoesNotClearTracker) {
   })");
 
   EXPECT_TRUE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+TEST_F(FillListenerTrackerTest, FillRecordsLatencyWhenTrackerProvided) {
+  auto latency_tracker = std::make_unique<LatencyTracker>();
+  latency_tracker->recordOrderSubmit("latency-order-id");
+
+  listener_ = std::make_unique<AlpacaFillListener>(
+      position_manager_.get(), is_running_, "test_key", "test_secret",
+      tracker_.get(), latency_tracker.get());
+
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "latency-order-id");
+
+  callHandleTradeUpdate(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "fill",
+      "qty": "100",
+      "price": "150.25",
+      "order": {"symbol": "AAPL", "side": "buy", "id": "latency-order-id"}
+    }
+  })");
+
+  EXPECT_EQ(latency_tracker->count(LatencyMetric::FillRoundTrip), 1);
+  EXPECT_GT(latency_tracker->percentile(LatencyMetric::FillRoundTrip, 50.0), 0);
 }
 
 TEST_F(FillListenerTrackerTest, CancelNotifiesTracker) {

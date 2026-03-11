@@ -4,7 +4,6 @@
 #include "Utils.hpp"
 #include <csignal>
 #include <cstdlib>
-#include <filesystem>
 #include <iostream>
 
 namespace {
@@ -20,7 +19,7 @@ void signalHandler(const int signum) {
 TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client)
     : is_running_(true), symbols_(symbols) {
-  setup_signal_handler();
+  latency_tracker_ = std::make_unique<LatencyTracker>();
   position_manager_ = std::make_unique<PositionManager>();
   for (const auto &symbol : symbols_) {
     position_manager_->registerSymbol(symbol);
@@ -35,7 +34,7 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   order_queue_ = std::make_unique<LockFreeMPSCQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(
       is_running_, order_queue_.get(), std::move(rest_client),
-      position_manager_.get(), pending_tracker_.get());
+      position_manager_.get(), pending_tracker_.get(), latency_tracker_.get());
 
   const char *api_key = std::getenv("APCA_API_KEY_ID");
   const char *api_secret = std::getenv("APCA_API_SECRET_KEY");
@@ -45,7 +44,7 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   }
   fill_listener_ = std::make_unique<AlpacaFillListener>(
       position_manager_.get(), is_running_, api_key, api_secret,
-      pending_tracker_.get());
+      pending_tracker_.get(), latency_tracker_.get());
 
   ipc_address_ = getZmqMarketDataAddress();
 
@@ -55,6 +54,8 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   auto sink = ZmqMarketEventSink(context_, ipc_address_);
   market_publisher_ = std::make_unique<AlpacaPipeline>(
       std::move(source), std::move(decoder), std::move(sink));
+
+  setup_signal_handler();
 }
 
 TradingEngine::~TradingEngine() {
@@ -93,7 +94,7 @@ void TradingEngine::launch_consumers() {
 
     auto consumer = std::make_unique<ConsumerType>(
         context_, ipc_address_, symbol, is_running_, callback,
-        risk_manager_.get());
+        risk_manager_.get(), latency_tracker_.get());
 
     consumer_threads_.push_back(
         {std::thread(&ConsumerType::run, consumer.get()), std::move(consumer)});
@@ -112,6 +113,10 @@ void TradingEngine::main_loop() const {
 }
 
 void TradingEngine::shutdown() {
+  if (shutdown_done_.exchange(true)) {
+    return;
+  }
+
   market_publisher_->stop();
 
   for (auto &[thread, consumer] : consumer_threads_) {
@@ -127,6 +132,16 @@ void TradingEngine::shutdown() {
     order_gateway_thread_.join();
   }
   order_gateway_.reset();
+
+  if (latency_tracker_) {
+    try {
+      latency_tracker_->dump(".");
+    } catch (const std::exception &e) {
+      std::cerr << "Latency tracker dump failed: " << e.what() << '\n';
+    } catch (...) {
+      std::cerr << "Latency tracker dump failed with unknown error" << '\n';
+    }
+  }
 }
 
 void TradingEngine::run() {

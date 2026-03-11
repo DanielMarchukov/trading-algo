@@ -1,6 +1,8 @@
 #include "OrderGateway.hpp"
+#include "LatencyTracker.hpp"
 #include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
+#include "Utils.hpp"
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -9,10 +11,11 @@ OrderGateway::OrderGateway(std::atomic<bool> &is_running,
                            LockFreeMPSCQueue<Order> *order_queue,
                            std::unique_ptr<IRestClient> rest_client,
                            PositionManager *position_manager,
-                           PendingOrderTracker *pending_tracker)
+                           PendingOrderTracker *pending_tracker,
+                           LatencyTracker *latency_tracker)
     : is_running_(is_running), order_queue_(order_queue),
       rest_client_(std::move(rest_client)), position_manager_(position_manager),
-      pending_tracker_(pending_tracker) {
+      pending_tracker_(pending_tracker), latency_tracker_(latency_tracker) {
   if (order_queue_ == nullptr) {
     throw std::invalid_argument("OrderGateway: order_queue must not be null");
   }
@@ -72,6 +75,9 @@ void OrderGateway::executeOrder(const Order &order) {
       if (pending_tracker_) {
         pending_tracker_->recordOrder(key, order.side, result->client_order_id);
       }
+      if (latency_tracker_) {
+        latency_tracker_->recordOrderSubmit(result->client_order_id);
+      }
     } else {
       std::cerr << "OrderGateway: Rejected (HTTP " << result.error().status_code
                 << "): " << result.error().message << '\n';
@@ -89,13 +95,31 @@ void OrderGateway::executeOrder(const Order &order) {
 void OrderGateway::run() {
   Order order_to_execute{};
   while (order_queue_->wait_and_pop(order_to_execute, is_running_)) {
+    const uint64_t dequeued_at = nowNanos();
     order_to_execute.id = ++order_id_counter_;
+
+    if (latency_tracker_) {
+      latency_tracker_->record(LatencyMetric::MpscQueue,
+                               dequeued_at - order_to_execute.queuedAt);
+      latency_tracker_->record(LatencyMetric::EndToEnd,
+                               dequeued_at - order_to_execute.arrivedAt);
+    }
+
     executeOrder(order_to_execute);
   }
 
   Order remaining_order{};
   while (order_queue_->try_pop(remaining_order)) {
+    const uint64_t dequeued_at = nowNanos();
     remaining_order.id = ++order_id_counter_;
+
+    if (latency_tracker_) {
+      latency_tracker_->record(LatencyMetric::MpscQueue,
+                               dequeued_at - remaining_order.queuedAt);
+      latency_tracker_->record(LatencyMetric::EndToEnd,
+                               dequeued_at - remaining_order.arrivedAt);
+    }
+
     executeOrder(remaining_order);
   }
 }
