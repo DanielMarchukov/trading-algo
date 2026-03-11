@@ -1,9 +1,17 @@
 #include "AlpacaRestClient.hpp"
 #include <charconv>
+#include <cpr/curlholder.h>
 #include <cstring>
+#include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
+
+#if defined(__linux__)
+#include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <sys/socket.h>
+#endif
 
 namespace {
 
@@ -29,6 +37,15 @@ static_assert(
       return f == 1;
     }(),
     "SCALING_FACTOR must be a power of 10");
+
+#if defined(__linux__)
+int setTcpQuickAck(void * /*clientp*/, curl_socket_t curlfd,
+                   curlsocktype /*purpose*/) {
+  int flag = 1;
+  setsockopt(curlfd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(flag));
+  return CURL_SOCKOPT_OK;
+}
+#endif
 
 } // namespace
 
@@ -56,6 +73,11 @@ AlpacaRestClient::AlpacaRestClient(int64_t rate_limit_threshold,
   session_->SetHeader(cpr::Header{{"APCA-API-KEY-ID", api_key_cstr},
                                   {"APCA-API-SECRET-KEY", api_secret_cstr},
                                   {"Content-Type", "application/json"}});
+
+#if defined(__linux__)
+  auto holder = session_->GetCurlHolder();
+  curl_easy_setopt(holder->handle, CURLOPT_SOCKOPTFUNCTION, setTcpQuickAck);
+#endif
 }
 
 void AlpacaRestClient::buildOrderPayload(const Order &order) {
