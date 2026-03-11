@@ -1,6 +1,5 @@
 #include "LatencyTracker.hpp"
 #include "Utils.hpp"
-#include <cstdio>
 #include <fstream>
 #include <hdr/hdr_histogram.h>
 #include <iomanip>
@@ -126,17 +125,13 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
     return;
   }
   file << desc << "\nSamples: " << h->total_count << "\n\n";
-
-  FILE *tmp = std::tmpfile();
-  if (tmp) {
-    hdr_percentiles_print(h, tmp, 5, 1.0, CLASSIC);
-    std::fseek(tmp, 0, SEEK_SET);
-    char buf[4096];
-    while (std::size_t n = std::fread(buf, 1, sizeof(buf), tmp)) {
-      file.write(buf, static_cast<std::streamsize>(n));
-    }
-    std::fclose(tmp);
-  }
+  file << "Min:     " << fmt(min_val) << '\n';
+  file << "Mean:    " << fmt(static_cast<int64_t>(mean_val)) << '\n';
+  file << "p50:     " << fmt(p50) << '\n';
+  file << "p90:     " << fmt(p90) << '\n';
+  file << "p99:     " << fmt(p99) << '\n';
+  file << "p99.9:   " << fmt(p999) << '\n';
+  file << "Max:     " << fmt(max_val) << '\n';
   std::cout << "  Written: " << filepath << '\n';
 }
 
