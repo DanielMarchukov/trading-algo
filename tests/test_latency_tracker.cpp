@@ -146,6 +146,25 @@ TEST_F(LatencyTrackerTest, LargeLatencyValuesRecorded) {
   EXPECT_GE(p50, 58'000'000'000LL);
 }
 
+TEST_F(LatencyTrackerTest, DumpFormatsAllLatencyRanges) {
+  const auto tmp =
+      std::filesystem::temp_directory_path() / "latency_fmt_ranges";
+  std::filesystem::create_directories(tmp);
+
+  tracker_.record(LatencyMetric::EndToEnd, 500);
+  tracker_.record(LatencyMetric::ZmqTransport, 50'000);
+  tracker_.record(LatencyMetric::StrategyRisk, 5'000'000);
+  tracker_.record(LatencyMetric::MpscQueue, 2'000'000'000);
+  tracker_.dump(tmp.string());
+
+  EXPECT_TRUE(std::filesystem::exists(tmp / "latency_end_to_end.txt"));
+  EXPECT_TRUE(std::filesystem::exists(tmp / "latency_zmq_transport.txt"));
+  EXPECT_TRUE(std::filesystem::exists(tmp / "latency_strategy_risk.txt"));
+  EXPECT_TRUE(std::filesystem::exists(tmp / "latency_mpsc_queue.txt"));
+
+  std::filesystem::remove_all(tmp);
+}
+
 TEST_F(LatencyTrackerTest, DumpWritesAllMetricFiles) {
   const auto tmp =
       std::filesystem::temp_directory_path() / "latency_all_metrics";

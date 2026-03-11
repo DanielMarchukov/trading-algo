@@ -1,4 +1,5 @@
 #include "IRestClient.hpp"
+#include "LatencyTracker.hpp"
 #include "LockFreeMPSCQueue.hpp"
 #include "Order.hpp"
 #include "OrderGateway.hpp"
@@ -6,6 +7,7 @@
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
 #include "ThreadGuard.hpp"
+#include "Utils.hpp"
 #include <cstdint>
 #include <expected>
 #include <future>
@@ -555,4 +557,73 @@ TEST_F(CancelBeforeReplaceTest, DoesNotRecordFailedPlacement) {
   SymbolKey key{};
   std::memcpy(key.value, "AAPL", 4);
   EXPECT_FALSE(tracker_.getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+TEST_F(OrderGatewayTest, RecordsLatencyMetricsWhileRunning) {
+  std::atomic is_running(true);
+  LockFreeMPSCQueue<Order> order_queue;
+  std::promise<void> promise;
+  auto future = promise.get_future();
+  LatencyTracker tracker;
+
+  auto mock_client = std::make_unique<MockRestClient>(&promise);
+  OrderGateway gateway(is_running, &order_queue, std::move(mock_client),
+                       &position_manager_, nullptr, &tracker);
+
+  ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
+
+  Order order{};
+  order.arrivedAt = nowNanos();
+  order.queuedAt = nowNanos();
+  order_queue.push(order);
+
+  auto status = future.wait_for(std::chrono::seconds(2));
+  ASSERT_EQ(status, std::future_status::ready);
+  is_running.store(false);
+  guard.t.join();
+
+  EXPECT_EQ(tracker.count(LatencyMetric::MpscQueue), 1);
+  EXPECT_EQ(tracker.count(LatencyMetric::EndToEnd), 1);
+  EXPECT_GT(tracker.percentile(LatencyMetric::MpscQueue, 50.0), 0);
+  EXPECT_GT(tracker.percentile(LatencyMetric::EndToEnd, 50.0), 0);
+}
+
+TEST_F(OrderGatewayTest, RecordsLatencyMetricsDuringDrain) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+  LatencyTracker tracker;
+
+  Order order{};
+  order.arrivedAt = nowNanos();
+  order.queuedAt = nowNanos();
+  order_queue.push(order);
+
+  OrderGateway gateway(is_running, &order_queue,
+                       std::make_unique<MockRestClient>(), &position_manager_,
+                       nullptr, &tracker);
+  gateway.run();
+
+  EXPECT_EQ(tracker.count(LatencyMetric::MpscQueue), 1);
+  EXPECT_EQ(tracker.count(LatencyMetric::EndToEnd), 1);
+}
+
+TEST_F(OrderGatewayTest, RecordsOrderSubmitTimestamp) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+  LatencyTracker tracker;
+
+  Order order{};
+  order.arrivedAt = nowNanos();
+  order.queuedAt = nowNanos();
+  order_queue.push(order);
+
+  OrderGateway gateway(is_running, &order_queue,
+                       std::make_unique<MockRestClient>(), &position_manager_,
+                       nullptr, &tracker);
+  gateway.run();
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  tracker.recordFillReceived("ord-123");
+
+  EXPECT_EQ(tracker.count(LatencyMetric::FillRoundTrip), 1);
 }
