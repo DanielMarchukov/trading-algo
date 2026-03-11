@@ -6,31 +6,28 @@
 
 namespace {
 
-std::string buildOrderPayload(const Order &order) {
-  std::string payload;
-  payload.reserve(256);
-  payload += R"({"symbol":")";
-  payload.append(order.symbol, strnlen(order.symbol, sizeof(order.symbol)));
-  payload += R"(","qty":")";
-  payload += std::to_string(order.quantity);
-  payload += R"(","side":")";
-  payload += (order.side == OrderSide::Buy) ? "buy" : "sell";
-
-  if (order.type == OrderType::Market) {
-    payload += R"(","type":"market","time_in_force":"day"})";
-  } else {
-    payload += R"(","type":"limit","time_in_force":"day","limit_price":")";
-    const auto whole = order.price / SCALING_FACTOR;
-    const auto frac = order.price % SCALING_FACTOR;
-    payload += std::to_string(whole);
-    payload += '.';
-    auto frac_str = std::to_string(frac);
-    payload.append(4 - frac_str.size(), '0');
-    payload += frac_str;
-    payload += R"("})";
+constexpr std::size_t kPriceDecimals = [] {
+  std::size_t digits = 0;
+  int64_t f = SCALING_FACTOR;
+  while (f > 1) {
+    f /= 10;
+    ++digits;
   }
-  return payload;
-}
+  return digits;
+}();
+
+static_assert(kPriceDecimals > 0);
+static_assert(
+    [] {
+      int64_t f = SCALING_FACTOR;
+      while (f > 1) {
+        if (f % 10 != 0)
+          return false;
+        f /= 10;
+      }
+      return f == 1;
+    }(),
+    "SCALING_FACTOR must be a power of 10");
 
 } // namespace
 
@@ -50,18 +47,47 @@ AlpacaRestClient::AlpacaRestClient() {
   order_url_ = base_url + "/v2/orders";
   cancel_url_prefix_ = base_url + "/v2/orders/";
 
+  payload_buf_.reserve(256);
+
   session_ = std::make_unique<cpr::Session>();
   session_->SetHeader(cpr::Header{{"APCA-API-KEY-ID", api_key_cstr},
                                   {"APCA-API-SECRET-KEY", api_secret_cstr},
                                   {"Content-Type", "application/json"}});
 }
 
+void AlpacaRestClient::buildOrderPayload(const Order &order) {
+  payload_buf_.clear();
+  payload_buf_ += R"({"symbol":")";
+  payload_buf_.append(order.symbol,
+                      strnlen(order.symbol, sizeof(order.symbol)));
+  payload_buf_ += R"(","qty":")";
+  payload_buf_ += std::to_string(order.quantity);
+  payload_buf_ += R"(","side":")";
+  payload_buf_ += (order.side == OrderSide::Buy) ? "buy" : "sell";
+
+  if (order.type == OrderType::Market) {
+    payload_buf_ += R"(","type":"market","time_in_force":"day"})";
+  } else {
+    payload_buf_ += R"(","type":"limit","time_in_force":"day","limit_price":")";
+    const auto whole = order.price / SCALING_FACTOR;
+    const auto frac = order.price % SCALING_FACTOR;
+    payload_buf_ += std::to_string(whole);
+    payload_buf_ += '.';
+    auto frac_str = std::to_string(frac);
+    if (frac_str.size() < kPriceDecimals) {
+      payload_buf_.append(kPriceDecimals - frac_str.size(), '0');
+    }
+    payload_buf_ += frac_str;
+    payload_buf_ += R"("})";
+  }
+}
+
 std::expected<OrderAck, OrderError>
 AlpacaRestClient::placeOrder(const Order &order) {
-  auto payload = buildOrderPayload(order);
+  buildOrderPayload(order);
 
   session_->SetUrl(cpr::Url{order_url_});
-  session_->SetBody(cpr::Body{std::move(payload)});
+  session_->SetBody(cpr::Body{payload_buf_});
   const cpr::Response r = session_->Post();
 
   if (r.status_code >= 400) {

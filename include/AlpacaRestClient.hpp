@@ -17,7 +17,10 @@ public:
   cancelOrder(std::string_view alpaca_order_id) override;
 
 private:
+  void buildOrderPayload(const Order &order);
+
   std::unique_ptr<cpr::Session> session_;
   std::string order_url_;
   std::string cancel_url_prefix_;
+  std::string payload_buf_;
 };
