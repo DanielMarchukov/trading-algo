@@ -91,9 +91,9 @@ TEST_F(RateLimiterTest, WaitOrDropReturnsTrueWhenNotThrottled) {
 }
 
 TEST_F(RateLimiterTest, PolicyAccessor) {
-  EXPECT_EQ(limiter_.policy(), ThrottlePolicy::Wait);
-  RateLimiter drop_limiter{5, ThrottlePolicy::Drop};
-  EXPECT_EQ(drop_limiter.policy(), ThrottlePolicy::Drop);
+  EXPECT_EQ(limiter_.policy(), ThrottlePolicy::Drop);
+  RateLimiter wait_limiter{5, ThrottlePolicy::Wait};
+  EXPECT_EQ(wait_limiter.policy(), ThrottlePolicy::Wait);
 }
 
 TEST_F(RateLimiterTest, RepeatedUpdatesTrackLatestValue) {

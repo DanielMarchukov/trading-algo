@@ -407,11 +407,13 @@ TEST_P(AlpacaRateLimitHeaderTest, UpdatesRateLimiterFromHeader) {
   EXPECT_EQ(client.rateLimiter().canSend(), expected_can_send);
 }
 
-INSTANTIATE_TEST_SUITE_P(RemainingValues, AlpacaRateLimitHeaderTest,
-                         ::testing::Values(RateLimitHeaderParam{42, true},
-                                           RateLimitHeaderParam{10, true},
-                                           RateLimitHeaderParam{3, false},
-                                           RateLimitHeaderParam{0, false}));
+INSTANTIATE_TEST_SUITE_P(
+    RemainingValues, AlpacaRateLimitHeaderTest,
+    ::testing::Values(
+        RateLimitHeaderParam{42, true},
+        RateLimitHeaderParam{RateLimiter::kDefaultThreshold, true},
+        RateLimitHeaderParam{RateLimiter::kDefaultThreshold - 1, false},
+        RateLimitHeaderParam{0, false}));
 
 class AlpacaRestClientRateLimitTest : public AlpacaRestClientTestBase {};
 
@@ -481,4 +483,23 @@ TEST_F(AlpacaRestClientRateLimitTest, ConstructorForwardsThrottleConfig) {
   AlpacaRestClient client(20, ThrottlePolicy::Drop);
   EXPECT_EQ(client.rateLimiter().threshold(), 20);
   EXPECT_EQ(client.rateLimiter().policy(), ThrottlePolicy::Drop);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, DropPolicyRejectsOrderWhenThrottled) {
+  std::string header = "X-Ratelimit-Remaining: 0\r\n";
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
+  point_client_to(server.port());
+  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto first = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(first.has_value());
+  EXPECT_FALSE(client.rateLimiter().canSend());
+
+  auto second = client.placeOrder(order);
+  ASSERT_FALSE(second.has_value());
+  EXPECT_EQ(second.error().status_code, 429);
 }

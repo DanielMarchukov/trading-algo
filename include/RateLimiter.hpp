@@ -15,7 +15,7 @@ public:
   static constexpr int64_t kWindowDurationNs = 60'000'000'000LL;
 
   explicit RateLimiter(int64_t threshold = kDefaultThreshold,
-                       ThrottlePolicy policy = ThrottlePolicy::Wait) noexcept;
+                       ThrottlePolicy policy = ThrottlePolicy::Drop) noexcept;
 
   void update(int64_t remaining) noexcept;
   void onRateLimited() noexcept;

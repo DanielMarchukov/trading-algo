@@ -96,7 +96,7 @@ void AlpacaRestClient::updateRateLimit(const cpr::Response &r) {
     const auto &val = it->second;
     auto [ptr, ec] =
         std::from_chars(val.data(), val.data() + val.size(), remaining);
-    if (ec == std::errc{}) {
+    if (ec == std::errc{} && ptr == val.data() + val.size()) {
       rate_limiter_.update((std::max)(remaining, int64_t{0}));
     }
   }
