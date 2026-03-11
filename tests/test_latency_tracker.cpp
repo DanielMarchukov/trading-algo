@@ -60,9 +60,9 @@ TEST_F(LatencyTrackerTest, ConcurrentRecordFromMultipleThreads) {
       while (!start.load(std::memory_order_acquire)) {
       }
       for (int i = 0; i < samples_per_thread; ++i) {
-        tracker_.record(
-            LatencyMetric::ZmqTransport,
-            static_cast<uint64_t>(t + 1) * 1000 + static_cast<uint64_t>(i));
+        tracker_.record(LatencyMetric::ZmqTransport,
+                        static_cast<uint64_t>(t + 1) * 1000 +
+                            static_cast<uint64_t>(i));
       }
     });
   }
@@ -98,8 +98,7 @@ TEST_F(LatencyTrackerTest, DumpProducesFiles) {
   tracker_.record(LatencyMetric::EndToEnd, 100'000);
   tracker_.dump(tmp.string());
 
-  EXPECT_TRUE(
-      std::filesystem::exists(tmp / "latency_end_to_end.txt"));
+  EXPECT_TRUE(std::filesystem::exists(tmp / "latency_end_to_end.txt"));
 
   std::filesystem::remove_all(tmp);
 }
@@ -111,8 +110,7 @@ TEST_F(LatencyTrackerTest, DumpEmptyMetricsDoesNotCrash) {
 
   tracker_.dump(tmp.string());
 
-  EXPECT_FALSE(
-      std::filesystem::exists(tmp / "latency_end_to_end.txt"));
+  EXPECT_FALSE(std::filesystem::exists(tmp / "latency_end_to_end.txt"));
 
   std::filesystem::remove_all(tmp);
 }
@@ -125,8 +123,7 @@ TEST_F(LatencyTrackerTest, DuplicateSubmitOverwritesTimestamp) {
   tracker_.recordFillReceived("order-dup");
 
   EXPECT_EQ(tracker_.count(LatencyMetric::FillRoundTrip), 1);
-  const auto latency =
-      tracker_.percentile(LatencyMetric::FillRoundTrip, 50.0);
+  const auto latency = tracker_.percentile(LatencyMetric::FillRoundTrip, 50.0);
   EXPECT_LT(latency, 500'000);
 }
 

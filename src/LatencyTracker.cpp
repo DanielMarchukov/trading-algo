@@ -34,15 +34,13 @@ void LatencyTracker::record(LatencyMetric metric, uint64_t nanos) noexcept {
   hdr_record_value_atomic(histograms_[idx], static_cast<int64_t>(nanos));
 }
 
-void LatencyTracker::recordOrderSubmit(
-    std::string_view client_order_id) {
+void LatencyTracker::recordOrderSubmit(std::string_view client_order_id) {
   const uint64_t now = nowNanos();
   std::lock_guard lock(submit_mutex_);
   submit_timestamps_[std::string(client_order_id)] = now;
 }
 
-void LatencyTracker::recordFillReceived(
-    std::string_view client_order_id) {
+void LatencyTracker::recordFillReceived(std::string_view client_order_id) {
   const uint64_t now = nowNanos();
   std::lock_guard lock(submit_mutex_);
   if (auto it = submit_timestamps_.find(std::string(client_order_id));

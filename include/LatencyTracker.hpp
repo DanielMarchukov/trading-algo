@@ -47,12 +47,12 @@ private:
       "end_to_end", "zmq_transport", "strategy_risk", "mpsc_queue",
       "fill_round_trip"};
 
-  static constexpr std::array<const char *, kMetricCount> kMetricDescriptions = {
-      "End-to-end hot path (WebSocket recv -> pre-REST call)",
-      "ZMQ transport (pre-publish -> post-receive)",
-      "Strategy + Risk check (post-ZMQ recv -> pre-queue push)",
-      "MPSC queue (push -> pop)",
-      "Fill round-trip [cold] (post-REST return -> fill received)"};
+  static constexpr std::array<const char *, kMetricCount> kMetricDescriptions =
+      {"End-to-end hot path (WebSocket recv -> pre-REST call)",
+       "ZMQ transport (pre-publish -> post-receive)",
+       "Strategy + Risk check (post-ZMQ recv -> pre-queue push)",
+       "MPSC queue (push -> pop)",
+       "Fill round-trip [cold] (post-REST return -> fill received)"};
 
   void dumpOne(LatencyMetric metric, const std::string &output_dir) const;
 
