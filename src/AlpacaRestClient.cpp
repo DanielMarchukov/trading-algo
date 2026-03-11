@@ -82,13 +82,28 @@ void AlpacaRestClient::buildOrderPayload(const Order &order) {
   }
 }
 
+void AlpacaRestClient::updateRateLimit(const cpr::Response &r) {
+  if (r.status_code == 429) {
+    rate_limiter_.onRateLimited();
+    return;
+  }
+  auto it = r.header.find("X-Ratelimit-Remaining");
+  if (it != r.header.end()) {
+    rate_limiter_.update(std::stoll(it->second));
+  }
+}
+
 std::expected<OrderAck, OrderError>
 AlpacaRestClient::placeOrder(const Order &order) {
+  if (!rate_limiter_.waitOrDrop()) {
+    return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
+  }
   buildOrderPayload(order);
 
   session_->SetUrl(cpr::Url{order_url_});
   session_->SetBody(cpr::Body{payload_buf_});
   const cpr::Response r = session_->Post();
+  updateRateLimit(r);
 
   if (r.status_code >= 400) {
     return std::unexpected(
@@ -107,9 +122,13 @@ AlpacaRestClient::placeOrder(const Order &order) {
 
 std::expected<void, OrderError>
 AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
+  if (!rate_limiter_.waitOrDrop()) {
+    return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
+  }
   session_->SetUrl(cpr::Url{cancel_url_prefix_ + std::string(alpaca_order_id)});
   session_->RemoveContent();
   const cpr::Response r = session_->Delete();
+  updateRateLimit(r);
 
   if (r.status_code == 204) {
     return {};
@@ -117,4 +136,8 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
 
   return std::unexpected(
       OrderError{r.status_code, "Error canceling order: " + r.text});
+}
+
+const RateLimiter &AlpacaRestClient::rateLimiter() const {
+  return rate_limiter_;
 }
