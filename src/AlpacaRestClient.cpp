@@ -1,4 +1,5 @@
 #include "AlpacaRestClient.hpp"
+#include <charconv>
 #include <cstring>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -31,7 +32,9 @@ static_assert(
 
 } // namespace
 
-AlpacaRestClient::AlpacaRestClient() {
+AlpacaRestClient::AlpacaRestClient(int64_t rate_limit_threshold,
+                                   ThrottlePolicy throttle_policy)
+    : rate_limiter_(rate_limit_threshold, throttle_policy) {
   const char *api_key_cstr = std::getenv("APCA_API_KEY_ID");
   const char *api_secret_cstr = std::getenv("APCA_API_SECRET_KEY");
   const char *base_url_cstr = std::getenv("APCA_API_BASE_URL");
@@ -89,7 +92,13 @@ void AlpacaRestClient::updateRateLimit(const cpr::Response &r) {
   }
   auto it = r.header.find("X-Ratelimit-Remaining");
   if (it != r.header.end()) {
-    rate_limiter_.update(std::stoll(it->second));
+    int64_t remaining = 0;
+    const auto &val = it->second;
+    auto [ptr, ec] =
+        std::from_chars(val.data(), val.data() + val.size(), remaining);
+    if (ec == std::errc{}) {
+      rate_limiter_.update((std::max)(remaining, int64_t{0}));
+    }
   }
 }
 

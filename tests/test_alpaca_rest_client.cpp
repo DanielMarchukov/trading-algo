@@ -459,3 +459,26 @@ TEST_F(AlpacaRestClientRateLimitTest, CancelAlsoUpdatesRateLimit) {
 
   EXPECT_EQ(client.rateLimiter().remaining(), 15);
 }
+
+TEST_F(AlpacaRestClientRateLimitTest, MalformedHeaderDoesNotCrash) {
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})",
+                        "X-Ratelimit-Remaining: not-a-number\r\n");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(client.rateLimiter().remaining(),
+            RateLimiter::kMaxRequestsPerWindow);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, ConstructorForwardsThrottleConfig) {
+  point_client_to(12345);
+  AlpacaRestClient client(20, ThrottlePolicy::Drop);
+  EXPECT_EQ(client.rateLimiter().threshold(), 20);
+  EXPECT_EQ(client.rateLimiter().policy(), ThrottlePolicy::Drop);
+}

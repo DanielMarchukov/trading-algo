@@ -10,7 +10,9 @@
 
 class AlpacaRestClient final : public IRestClient {
 public:
-  AlpacaRestClient();
+  explicit AlpacaRestClient(
+      int64_t rate_limit_threshold = RateLimiter::kDefaultThreshold,
+      ThrottlePolicy throttle_policy = ThrottlePolicy::Wait);
   [[nodiscard]] std::expected<OrderAck, OrderError>
   placeOrder(const Order &order) override;
 

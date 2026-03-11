@@ -117,3 +117,14 @@ TEST_F(RateLimiterTest, MultipleOnRateLimitedCallsAreIdempotent) {
   limiter_.update(100);
   EXPECT_TRUE(limiter_.canSend());
 }
+
+TEST_F(RateLimiterTest, ThresholdClampedToValidRange) {
+  RateLimiter zero_threshold(0);
+  EXPECT_EQ(zero_threshold.threshold(), 1);
+
+  RateLimiter negative_threshold(-5);
+  EXPECT_EQ(negative_threshold.threshold(), 1);
+
+  RateLimiter over_max(999);
+  EXPECT_EQ(over_max.threshold(), RateLimiter::kMaxRequestsPerWindow);
+}

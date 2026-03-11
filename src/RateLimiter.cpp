@@ -1,9 +1,11 @@
 #include "RateLimiter.hpp"
 #include "Utils.hpp"
+#include <algorithm>
 #include <thread>
 
 RateLimiter::RateLimiter(int64_t threshold, ThrottlePolicy policy) noexcept
-    : threshold_(threshold), policy_(policy) {}
+    : threshold_(std::clamp(threshold, int64_t{1}, kMaxRequestsPerWindow)),
+      policy_(policy) {}
 
 void RateLimiter::update(int64_t remaining) noexcept {
   remaining_.store(remaining, std::memory_order_relaxed);
