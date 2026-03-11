@@ -164,10 +164,12 @@ TEST_F(LatencyTrackerTest, DumpWritesAllMetricFilesAndFormatsAllRanges) {
   EXPECT_TRUE(std::filesystem::exists(tmp / "latency_mpsc_queue.txt"));
   EXPECT_TRUE(std::filesystem::exists(tmp / "latency_fill_round_trip.txt"));
 
-  std::ifstream file(tmp / "latency_end_to_end.txt");
-  std::string first_line;
-  std::getline(file, first_line);
-  EXPECT_FALSE(first_line.empty());
+  {
+    std::ifstream file(tmp / "latency_end_to_end.txt");
+    std::string first_line;
+    std::getline(file, first_line);
+    EXPECT_FALSE(first_line.empty());
+  }
 
   std::filesystem::remove_all(tmp);
 }
