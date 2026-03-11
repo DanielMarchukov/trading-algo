@@ -1,10 +1,11 @@
 #include "LatencyTracker.hpp"
 #include "Utils.hpp"
-#include <cinttypes>
 #include <cstdio>
 #include <fstream>
 #include <hdr/hdr_histogram.h>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 LatencyTracker::LatencyTracker() {
@@ -95,20 +96,20 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   std::cout << "  Samples: " << h->total_count << '\n';
 
   auto fmt = [](int64_t nanos) -> std::string {
-    char buf[64];
+    std::ostringstream oss;
     if (nanos < 1000) {
-      std::snprintf(buf, sizeof(buf), "%" PRId64 "ns", nanos);
+      oss << nanos << "ns";
     } else if (nanos < 1'000'000) {
-      std::snprintf(buf, sizeof(buf), "%.2fus",
-                    static_cast<double>(nanos) / 1000.0);
+      oss << std::fixed << std::setprecision(2)
+          << (static_cast<double>(nanos) / 1000.0) << "us";
     } else if (nanos < 1'000'000'000) {
-      std::snprintf(buf, sizeof(buf), "%.2fms",
-                    static_cast<double>(nanos) / 1'000'000.0);
+      oss << std::fixed << std::setprecision(2)
+          << (static_cast<double>(nanos) / 1'000'000.0) << "ms";
     } else {
-      std::snprintf(buf, sizeof(buf), "%.3fs",
-                    static_cast<double>(nanos) / 1'000'000'000.0);
+      oss << std::fixed << std::setprecision(3)
+          << (static_cast<double>(nanos) / 1'000'000'000.0) << "s";
     }
-    return buf;
+    return oss.str();
   };
 
   std::cout << "  Min:     " << fmt(min_val) << '\n';
@@ -120,11 +121,15 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   std::cout << "  Max:     " << fmt(max_val) << '\n';
 
   const std::string filepath = output_dir + "/latency_" + name + ".txt";
-  FILE *fp = std::fopen(filepath.c_str(), "w");
+  {
+    std::ofstream file(filepath);
+    if (!file.is_open()) {
+      return;
+    }
+    file << desc << "\nSamples: " << h->total_count << "\n\n";
+  }
+  FILE *fp = std::fopen(filepath.c_str(), "a");
   if (fp) {
-    std::fprintf(fp, "%s\n", desc);
-    std::fprintf(fp, "Samples: %" PRId64 "\n\n",
-                 static_cast<int64_t>(h->total_count));
     hdr_percentiles_print(h, fp, 5, 1.0, CLASSIC);
     std::fclose(fp);
     std::cout << "  Written: " << filepath << '\n';

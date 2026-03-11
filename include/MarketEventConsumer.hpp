@@ -20,10 +20,10 @@ public:
                       OrderCallbackType order_callback,
                       RiskManager *risk_manager,
                       LatencyTracker *latency_tracker = nullptr)
-      : subscriber_(context, zmq::socket_type::sub), symbol_{},
-        is_running_(is_running), order_callback_(order_callback),
-        strategy_(std::make_unique<StrategyType>()),
-        risk_manager_(risk_manager), latency_tracker_(latency_tracker) {
+      : is_running_(is_running), strategy_(std::make_unique<StrategyType>()),
+        risk_manager_(risk_manager), latency_tracker_(latency_tracker),
+        subscriber_(context, zmq::socket_type::sub),
+        order_callback_(order_callback), symbol_{} {
     if (symbol.size() > 8) {
       throw std::invalid_argument(
           "MarketEventConsumer symbol must be <= 8 bytes");
@@ -89,11 +89,11 @@ public:
   }
 
 private:
-  zmq::socket_t subscriber_;
-  char symbol_[9];
   std::atomic<bool> &is_running_;
-  OrderCallbackType order_callback_;
   std::unique_ptr<StrategyType> strategy_;
   RiskManager *risk_manager_;
   LatencyTracker *latency_tracker_;
+  zmq::socket_t subscriber_;
+  OrderCallbackType order_callback_;
+  char symbol_[9];
 };

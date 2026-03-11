@@ -42,9 +42,9 @@ TEST_F(LatencyTrackerTest, MultipleMetricsAreIndependent) {
 }
 
 TEST_F(LatencyTrackerTest, InvalidMetricDoesNotCrash) {
-  tracker_.record(static_cast<LatencyMetric>(255), 1000);
-  EXPECT_EQ(tracker_.percentile(static_cast<LatencyMetric>(255), 50.0), 0);
-  EXPECT_EQ(tracker_.count(static_cast<LatencyMetric>(255)), 0);
+  tracker_.record(LatencyMetric::Count, 1000);
+  EXPECT_EQ(tracker_.percentile(LatencyMetric::Count, 50.0), 0);
+  EXPECT_EQ(tracker_.count(LatencyMetric::Count), 0);
 }
 
 TEST_F(LatencyTrackerTest, ConcurrentRecordFromMultipleThreads) {
