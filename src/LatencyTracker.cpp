@@ -121,19 +121,23 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   std::cout << "  Max:     " << fmt(max_val) << '\n';
 
   const std::string filepath = output_dir + "/latency_" + name + ".txt";
-  {
-    std::ofstream file(filepath);
-    if (!file.is_open()) {
-      return;
+  std::ofstream file(filepath);
+  if (!file.is_open()) {
+    return;
+  }
+  file << desc << "\nSamples: " << h->total_count << "\n\n";
+
+  FILE *tmp = std::tmpfile();
+  if (tmp) {
+    hdr_percentiles_print(h, tmp, 5, 1.0, CLASSIC);
+    std::fseek(tmp, 0, SEEK_SET);
+    char buf[4096];
+    while (std::size_t n = std::fread(buf, 1, sizeof(buf), tmp)) {
+      file.write(buf, static_cast<std::streamsize>(n));
     }
-    file << desc << "\nSamples: " << h->total_count << "\n\n";
+    std::fclose(tmp);
   }
-  FILE *fp = std::fopen(filepath.c_str(), "a");
-  if (fp) {
-    hdr_percentiles_print(h, fp, 5, 1.0, CLASSIC);
-    std::fclose(fp);
-    std::cout << "  Written: " << filepath << '\n';
-  }
+  std::cout << "  Written: " << filepath << '\n';
 }
 
 void LatencyTracker::dump(const std::string &output_dir) const {
