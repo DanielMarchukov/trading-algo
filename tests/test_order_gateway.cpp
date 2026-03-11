@@ -588,7 +588,7 @@ TEST_F(OrderGatewayTest, RecordsLatencyMetricsWhileRunning) {
   EXPECT_GT(tracker.percentile(LatencyMetric::EndToEnd, 50.0), 0);
 }
 
-TEST_F(OrderGatewayTest, RecordsLatencyMetricsDuringDrain) {
+TEST_F(OrderGatewayTest, RecordsAllLatencyMetricsDuringDrain) {
   std::atomic is_running(false);
   LockFreeMPSCQueue<Order> order_queue;
   LatencyTracker tracker;
@@ -605,22 +605,6 @@ TEST_F(OrderGatewayTest, RecordsLatencyMetricsDuringDrain) {
 
   EXPECT_EQ(tracker.count(LatencyMetric::MpscQueue), 1);
   EXPECT_EQ(tracker.count(LatencyMetric::EndToEnd), 1);
-}
-
-TEST_F(OrderGatewayTest, RecordsOrderSubmitTimestamp) {
-  std::atomic is_running(false);
-  LockFreeMPSCQueue<Order> order_queue;
-  LatencyTracker tracker;
-
-  Order order{};
-  order.arrivedAt = nowNanos();
-  order.queuedAt = nowNanos();
-  order_queue.push(order);
-
-  OrderGateway gateway(is_running, &order_queue,
-                       std::make_unique<MockRestClient>(), &position_manager_,
-                       nullptr, &tracker);
-  gateway.run();
 
   std::this_thread::sleep_for(std::chrono::milliseconds(1));
   tracker.recordFillReceived("ord-123");

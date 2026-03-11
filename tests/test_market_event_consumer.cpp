@@ -1,3 +1,4 @@
+#include "LatencyTracker.hpp"
 #include "MarketEvent.hpp"
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
@@ -287,4 +288,54 @@ TEST_F(MarketEventConsumerTest, PropagatesTimestampsToOrder) {
   EXPECT_EQ(received_order.arrivedAt, known_arrived_at);
   EXPECT_GT(received_order.queuedAt, 0U);
   EXPECT_GE(received_order.queuedAt, known_arrived_at);
+}
+
+TEST_F(MarketEventConsumerTest, RecordsLatencyMetricsWhenTrackerProvided) {
+  zmq::context_t context(1);
+  zmq::socket_t publisher(context, zmq::socket_type::pub);
+  publisher.bind(ipc_address);
+
+  std::atomic is_test_running(true);
+  std::promise<Order> promise;
+  auto future = promise.get_future();
+  PromiseOrderCallback test_callback{&promise};
+  LatencyTracker tracker;
+
+  MarketEventConsumer<MockStrategy, PromiseOrderCallback> consumer(
+      context, ipc_address, "TEST", is_test_running, test_callback,
+      risk_manager_.get(), &tracker);
+
+  ThreadGuard consumer_thread_guard{
+      std::thread(&MarketEventConsumer<MockStrategy, PromiseOrderCallback>::run,
+                  &consumer)};
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  MarketEvent sent_event{};
+  sent_event.eventType = 2;
+  sent_event.arrivedAt = nowNanos();
+
+  auto start_time = std::chrono::steady_clock::now();
+  while (future.wait_for(std::chrono::milliseconds(10)) !=
+         std::future_status::ready) {
+    zmq::message_t topic("TEST", 4);
+    zmq::message_t payload(&sent_event, sizeof(MarketEvent));
+    publisher.send(topic, zmq::send_flags::sndmore);
+    publisher.send(payload, zmq::send_flags::none);
+    if (std::chrono::steady_clock::now() - start_time >
+        std::chrono::seconds(2)) {
+      break;
+    }
+  }
+
+  is_test_running.store(false);
+
+  ASSERT_TRUE(future.valid());
+  auto status = future.wait_for(std::chrono::seconds(0));
+  ASSERT_EQ(status, std::future_status::ready);
+
+  EXPECT_GE(tracker.count(LatencyMetric::ZmqTransport), 1);
+  EXPECT_GE(tracker.count(LatencyMetric::StrategyRisk), 1);
+  EXPECT_GT(tracker.percentile(LatencyMetric::ZmqTransport, 50.0), 0);
+  EXPECT_GT(tracker.percentile(LatencyMetric::StrategyRisk, 50.0), 0);
 }
