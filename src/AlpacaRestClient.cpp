@@ -2,7 +2,34 @@
 #include <cstring>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
-#include <string_view>
+#include <string>
+
+namespace {
+
+constexpr std::size_t kPriceDecimals = [] {
+  std::size_t digits = 0;
+  int64_t f = SCALING_FACTOR;
+  while (f > 1) {
+    f /= 10;
+    ++digits;
+  }
+  return digits;
+}();
+
+static_assert(kPriceDecimals > 0);
+static_assert(
+    [] {
+      int64_t f = SCALING_FACTOR;
+      while (f > 1) {
+        if (f % 10 != 0)
+          return false;
+        f /= 10;
+      }
+      return f == 1;
+    }(),
+    "SCALING_FACTOR must be a power of 10");
+
+} // namespace
 
 AlpacaRestClient::AlpacaRestClient() {
   const char *api_key_cstr = std::getenv("APCA_API_KEY_ID");
@@ -14,37 +41,54 @@ AlpacaRestClient::AlpacaRestClient() {
                              "APCA_API_SECRET_KEY not set in environment.");
   }
 
-  api_key_ = api_key_cstr;
-  api_secret_ = api_secret_cstr;
+  const std::string base_url =
+      base_url_cstr ? base_url_cstr : "https://paper-api.alpaca.markets";
 
-  if (base_url_cstr) {
-    base_url_ = cpr::Url{base_url_cstr};
+  order_url_ = base_url + "/v2/orders";
+  cancel_url_prefix_ = base_url + "/v2/orders/";
+
+  payload_buf_.reserve(256);
+
+  session_ = std::make_unique<cpr::Session>();
+  session_->SetHeader(cpr::Header{{"APCA-API-KEY-ID", api_key_cstr},
+                                  {"APCA-API-SECRET-KEY", api_secret_cstr},
+                                  {"Content-Type", "application/json"}});
+}
+
+void AlpacaRestClient::buildOrderPayload(const Order &order) {
+  payload_buf_.clear();
+  payload_buf_ += R"({"symbol":")";
+  payload_buf_.append(order.symbol,
+                      strnlen(order.symbol, sizeof(order.symbol)));
+  payload_buf_ += R"(","qty":")";
+  payload_buf_ += std::to_string(order.quantity);
+  payload_buf_ += R"(","side":")";
+  payload_buf_ += (order.side == OrderSide::Buy) ? "buy" : "sell";
+
+  if (order.type == OrderType::Market) {
+    payload_buf_ += R"(","type":"market","time_in_force":"day"})";
   } else {
-    base_url_ = cpr::Url{"https://paper-api.alpaca.markets"};
+    payload_buf_ += R"(","type":"limit","time_in_force":"day","limit_price":")";
+    const auto whole = order.price / SCALING_FACTOR;
+    const auto frac = order.price % SCALING_FACTOR;
+    payload_buf_ += std::to_string(whole);
+    payload_buf_ += '.';
+    auto frac_str = std::to_string(frac);
+    if (frac_str.size() < kPriceDecimals) {
+      payload_buf_.append(kPriceDecimals - frac_str.size(), '0');
+    }
+    payload_buf_ += frac_str;
+    payload_buf_ += R"("})";
   }
 }
 
 std::expected<OrderAck, OrderError>
 AlpacaRestClient::placeOrder(const Order &order) {
-  nlohmann::json payload;
-  payload["symbol"] = std::string_view(
-      order.symbol, strnlen(order.symbol, sizeof(order.symbol)));
-  payload["qty"] = std::to_string(order.quantity);
-  payload["side"] = (order.side == OrderSide::Buy) ? "buy" : "sell";
-  payload["type"] = (order.type == OrderType::Market) ? "market" : "limit";
-  payload["time_in_force"] = "day";
+  buildOrderPayload(order);
 
-  if (order.type == OrderType::Limit) {
-    payload["limit_price"] =
-        std::to_string(static_cast<double>(order.price) / SCALING_FACTOR);
-  }
-
-  const cpr::Response r =
-      cpr::Post(cpr::Url{base_url_ + "/v2/orders"},
-                cpr::Header{{"APCA-API-KEY-ID", api_key_},
-                            {"APCA-API-SECRET-KEY", api_secret_},
-                            {"Content-Type", "application/json"}},
-                cpr::Body{payload.dump()});
+  session_->SetUrl(cpr::Url{order_url_});
+  session_->SetBody(cpr::Body{payload_buf_});
+  const cpr::Response r = session_->Post();
 
   if (r.status_code >= 400) {
     return std::unexpected(
@@ -63,10 +107,9 @@ AlpacaRestClient::placeOrder(const Order &order) {
 
 std::expected<void, OrderError>
 AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
-  const cpr::Response r = cpr::Delete(
-      cpr::Url{base_url_ + "/v2/orders/" + std::string(alpaca_order_id)},
-      cpr::Header{{"APCA-API-KEY-ID", api_key_},
-                  {"APCA-API-SECRET-KEY", api_secret_}});
+  session_->SetUrl(cpr::Url{cancel_url_prefix_ + std::string(alpaca_order_id)});
+  session_->RemoveContent();
+  const cpr::Response r = session_->Delete();
 
   if (r.status_code == 204) {
     return {};
