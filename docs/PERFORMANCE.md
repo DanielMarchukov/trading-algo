@@ -6,14 +6,14 @@ The engine tracks five latency metrics via HdrHistogram, reporting p50, p90, p99
 
 ### Hot path metrics
 
-| Metric | Start | End | |--------|-------|-----| | End-to-end | WebSocket recv (`arrivedAt`) | Order dequeued in
-OrderGateway | | ZMQ transport | `arrivedAt` (pre-publish) | Post-ZMQ recv in consumer | | Strategy + Risk | Post-ZMQ
-recv | Pre-MPSC queue push | | MPSC queue | Queue push (`queuedAt`) | Queue pop in OrderGateway |
+- **End-to-end:** WebSocket recv (`arrivedAt`) to order dequeued in OrderGateway
+- **ZMQ transport:** `arrivedAt` (pre-publish) to post-ZMQ recv in consumer
+- **Strategy + Risk:** post-ZMQ recv to pre-MPSC queue push
+- **MPSC queue:** queue push (`queuedAt`) to queue pop in OrderGateway
 
 ### Cold path metrics
 
-| Metric | Start | End | |--------|-------|-----| | Fill round-trip | REST `placeOrder` returns | Fill received via
-WebSocket |
+- **Fill round-trip:** REST `placeOrder` returns to fill received via WebSocket
 
 ### Implementation
 
