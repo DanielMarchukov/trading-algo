@@ -117,14 +117,14 @@ TEST_F(LatencyTrackerTest, DumpEmptyMetricsDoesNotCrash) {
 
 TEST_F(LatencyTrackerTest, DuplicateSubmitOverwritesTimestamp) {
   tracker_.recordOrderSubmit("order-dup");
-  std::this_thread::sleep_for(std::chrono::microseconds(200));
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
   tracker_.recordOrderSubmit("order-dup");
-  std::this_thread::sleep_for(std::chrono::microseconds(100));
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
   tracker_.recordFillReceived("order-dup");
 
   EXPECT_EQ(tracker_.count(LatencyMetric::FillRoundTrip), 1);
   const auto latency = tracker_.percentile(LatencyMetric::FillRoundTrip, 50.0);
-  EXPECT_LT(latency, 500'000);
+  EXPECT_LT(latency, 40'000'000);
 }
 
 TEST_F(LatencyTrackerTest, FillBeforeSubmitIsIgnored) {
