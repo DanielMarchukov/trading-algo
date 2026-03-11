@@ -64,6 +64,7 @@ private:
   std::atomic<bool> shutdown_done_{false};
   std::string ipc_address_;
   std::vector<std::string> symbols_;
+  std::unique_ptr<LatencyTracker> latency_tracker_;
   std::unique_ptr<PositionManager> position_manager_;
   std::unique_ptr<OrderCooldown> order_cooldown_;
   std::unique_ptr<RiskManager> risk_manager_;
@@ -75,5 +76,4 @@ private:
   std::vector<ConsumerThread> consumer_threads_;
   std::unique_ptr<IFillListener> fill_listener_;
   std::unique_ptr<AlpacaPipeline> market_publisher_;
-  std::unique_ptr<LatencyTracker> latency_tracker_;
 };
