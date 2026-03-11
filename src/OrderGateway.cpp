@@ -2,6 +2,7 @@
 #include "LatencyTracker.hpp"
 #include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
+#include "SymbolKey.hpp"
 #include "Utils.hpp"
 #include <cstring>
 #include <iostream>
