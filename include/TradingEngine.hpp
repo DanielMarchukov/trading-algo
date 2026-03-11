@@ -61,6 +61,7 @@ private:
   void shutdown();
 
   std::atomic<bool> is_running_;
+  std::atomic<bool> shutdown_done_{false};
   std::string ipc_address_;
   std::vector<std::string> symbols_;
   std::unique_ptr<PositionManager> position_manager_;

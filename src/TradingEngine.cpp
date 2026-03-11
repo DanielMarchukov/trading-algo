@@ -112,6 +112,10 @@ void TradingEngine::main_loop() const {
 }
 
 void TradingEngine::shutdown() {
+  if (shutdown_done_.exchange(true)) {
+    return;
+  }
+
   market_publisher_->stop();
 
   for (auto &[thread, consumer] : consumer_threads_) {
