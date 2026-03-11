@@ -1,4 +1,5 @@
 #include "AlpacaRestClient.hpp"
+#include <charconv>
 #include <cstring>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -31,7 +32,9 @@ static_assert(
 
 } // namespace
 
-AlpacaRestClient::AlpacaRestClient() {
+AlpacaRestClient::AlpacaRestClient(int64_t rate_limit_threshold,
+                                   ThrottlePolicy throttle_policy)
+    : rate_limiter_(rate_limit_threshold, throttle_policy) {
   const char *api_key_cstr = std::getenv("APCA_API_KEY_ID");
   const char *api_secret_cstr = std::getenv("APCA_API_SECRET_KEY");
   const char *base_url_cstr = std::getenv("APCA_API_BASE_URL");
@@ -82,13 +85,34 @@ void AlpacaRestClient::buildOrderPayload(const Order &order) {
   }
 }
 
+void AlpacaRestClient::updateRateLimit(const cpr::Response &r) {
+  if (r.status_code == 429) {
+    rate_limiter_.onRateLimited();
+    return;
+  }
+  auto it = r.header.find("X-Ratelimit-Remaining");
+  if (it != r.header.end()) {
+    int64_t remaining = 0;
+    const auto &val = it->second;
+    auto [ptr, ec] =
+        std::from_chars(val.data(), val.data() + val.size(), remaining);
+    if (ec == std::errc{} && ptr == val.data() + val.size()) {
+      rate_limiter_.update((std::max)(remaining, int64_t{0}));
+    }
+  }
+}
+
 std::expected<OrderAck, OrderError>
 AlpacaRestClient::placeOrder(const Order &order) {
+  if (!rate_limiter_.waitOrDrop()) {
+    return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
+  }
   buildOrderPayload(order);
 
   session_->SetUrl(cpr::Url{order_url_});
   session_->SetBody(cpr::Body{payload_buf_});
   const cpr::Response r = session_->Post();
+  updateRateLimit(r);
 
   if (r.status_code >= 400) {
     return std::unexpected(
@@ -107,9 +131,13 @@ AlpacaRestClient::placeOrder(const Order &order) {
 
 std::expected<void, OrderError>
 AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
+  if (!rate_limiter_.waitOrDrop()) {
+    return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
+  }
   session_->SetUrl(cpr::Url{cancel_url_prefix_ + std::string(alpaca_order_id)});
   session_->RemoveContent();
   const cpr::Response r = session_->Delete();
+  updateRateLimit(r);
 
   if (r.status_code == 204) {
     return {};
@@ -117,4 +145,8 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
 
   return std::unexpected(
       OrderError{r.status_code, "Error canceling order: " + r.text});
+}
+
+const RateLimiter &AlpacaRestClient::rateLimiter() const {
+  return rate_limiter_;
 }

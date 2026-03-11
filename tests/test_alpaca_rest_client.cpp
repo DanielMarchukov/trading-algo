@@ -15,11 +15,11 @@ using SocketType = int;
 #endif
 
 #include "AlpacaRestClient.hpp"
+#include "RateLimiter.hpp"
 #include <Utils.hpp>
 #include <cstring>
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
-#include <sstream>
 #include <thread>
 
 class AlpacaRestClientTestBase : public ::testing::Test {
@@ -100,9 +100,11 @@ struct CapturedRequest {
 class StubHttpServer {
 public:
   explicit StubHttpServer(int status_code,
-                          std::string response_body = R"({"id":"ord-123"})")
+                          std::string response_body = R"({"id":"ord-123"})",
+                          std::string extra_headers = "")
       : status_code_(status_code), response_body_(std::move(response_body)),
-        server_fd_(initSocket()), port_(0) {
+        extra_headers_(std::move(extra_headers)), server_fd_(initSocket()),
+        port_(0) {
     int opt = 1;
     setsockopt(server_fd_, SOL_SOCKET, SO_REUSEADDR,
                reinterpret_cast<const char *>(&opt), sizeof(opt));
@@ -168,7 +170,7 @@ public:
     std::string response =
         "HTTP/1.1 " + std::to_string(status_code_) +
         " \r\nContent-Length: " + std::to_string(response_body_.size()) +
-        "\r\n\r\n" + response_body_;
+        "\r\n" + extra_headers_ + "\r\n" + response_body_;
     send(client, response.c_str(), static_cast<int>(response.size()), 0);
     close_socket(client);
 
@@ -196,6 +198,7 @@ private:
 
   int status_code_;
   std::string response_body_;
+  std::string extra_headers_;
   SocketType server_fd_;
   int port_;
 };
@@ -375,4 +378,165 @@ TEST_F(AlpacaRestClientCancelOrderTest, Cancel422ReturnsError) {
   EXPECT_EQ(result.error().status_code, 422);
   EXPECT_TRUE(result.error().message.find("order already filled") !=
               std::string::npos);
+}
+
+struct RateLimitHeaderParam {
+  int64_t header_remaining;
+  bool expected_can_send;
+};
+
+class AlpacaRateLimitHeaderTest
+    : public AlpacaRestClientTestBase,
+      public ::testing::WithParamInterface<RateLimitHeaderParam> {};
+
+TEST_P(AlpacaRateLimitHeaderTest, UpdatesRateLimiterFromHeader) {
+  const auto &[remaining, expected_can_send] = GetParam();
+  std::string header =
+      "X-Ratelimit-Remaining: " + std::to_string(remaining) + "\r\n";
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
+  point_client_to(server.port());
+  AlpacaRestClient client;
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(client.rateLimiter().remaining(), remaining);
+  EXPECT_EQ(client.rateLimiter().canSend(), expected_can_send);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    RemainingValues, AlpacaRateLimitHeaderTest,
+    ::testing::Values(
+        RateLimitHeaderParam{42, true},
+        RateLimitHeaderParam{RateLimiter::kDefaultThreshold, true},
+        RateLimitHeaderParam{RateLimiter::kDefaultThreshold - 1, false},
+        RateLimitHeaderParam{0, false}));
+
+class AlpacaRestClientRateLimitTest : public AlpacaRestClientTestBase {};
+
+TEST_F(AlpacaRestClientRateLimitTest, ThrottlesOn429) {
+  StubHttpServer server(429,
+                        R"({"code":42910000,"message":"rate limit exceeded"})");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.placeOrder(order);
+  t.join();
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().status_code, 429);
+  EXPECT_EQ(client.rateLimiter().remaining(), 0);
+  EXPECT_FALSE(client.rateLimiter().canSend());
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, NoHeaderLeavesDefaultRemaining) {
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(client.rateLimiter().remaining(),
+            RateLimiter::kMaxRequestsPerWindow);
+  EXPECT_TRUE(client.rateLimiter().canSend());
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, CancelAlsoUpdatesRateLimit) {
+  StubHttpServer server(204, "", "X-Ratelimit-Remaining: 15\r\n");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.cancelOrder("some-order-id");
+  t.join();
+
+  EXPECT_EQ(client.rateLimiter().remaining(), 15);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, NonNumericHeaderDoesNotCrash) {
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})",
+                        "X-Ratelimit-Remaining: not-a-number\r\n");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(client.rateLimiter().remaining(),
+            RateLimiter::kMaxRequestsPerWindow);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, NumericPrefixHeaderIsRejected) {
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})",
+                        "X-Ratelimit-Remaining: 10foo\r\n");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(client.rateLimiter().remaining(),
+            RateLimiter::kMaxRequestsPerWindow);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, ConstructorForwardsThrottleConfig) {
+  point_client_to(12345);
+  AlpacaRestClient client(20, ThrottlePolicy::Drop);
+  EXPECT_EQ(client.rateLimiter().threshold(), 20);
+  EXPECT_EQ(client.rateLimiter().policy(), ThrottlePolicy::Drop);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest,
+       DropPolicyRejectsPlaceOrderWhenThrottled) {
+  std::string header = "X-Ratelimit-Remaining: 0\r\n";
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
+  point_client_to(server.port());
+  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto first = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(first.has_value());
+  EXPECT_FALSE(client.rateLimiter().canSend());
+
+  auto second = client.placeOrder(order);
+  ASSERT_FALSE(second.has_value());
+  EXPECT_EQ(second.error().status_code, 429);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest,
+       DropPolicyRejectsCancelOrderWhenThrottled) {
+  std::string header = "X-Ratelimit-Remaining: 0\r\n";
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
+  point_client_to(server.port());
+  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto first = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(first.has_value());
+  EXPECT_FALSE(client.rateLimiter().canSend());
+
+  auto cancel = client.cancelOrder("some-order-id");
+  ASSERT_FALSE(cancel.has_value());
+  EXPECT_EQ(cancel.error().status_code, 429);
 }
