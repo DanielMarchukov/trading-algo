@@ -79,6 +79,9 @@ Uses **Taskwarrior** with `project:rop` for all tasks.
 
 ## Web Research
 
+When looking up library APIs, usage patterns, or implementation details, use **Context7 MCP** (`resolve-library-id` then
+`query-docs`) to fetch up-to-date documentation. This applies to agents, skills, and interactive sessions alike.
+
 When implementing low-latency patterns, performance optimizations, or financial protocol integrations, **always search
 the web** for current best practices. Key topics to research as needed:
 

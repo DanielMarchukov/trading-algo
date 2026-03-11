@@ -2,6 +2,7 @@
 
 #include "AlpacaPipeline.hpp"
 #include "IRestClient.hpp"
+#include "LatencyTracker.hpp"
 #include "LockFreeMPSCQueue.hpp"
 #include "MarketEventConsumer.hpp"
 #include "Order.hpp"
@@ -73,4 +74,5 @@ private:
   std::vector<ConsumerThread> consumer_threads_;
   std::unique_ptr<IFillListener> fill_listener_;
   std::unique_ptr<AlpacaPipeline> market_publisher_;
+  std::unique_ptr<LatencyTracker> latency_tracker_;
 };

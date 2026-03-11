@@ -16,6 +16,8 @@ struct alignas(64) Order {
   uint64_t price;
   OrderSide side;
   OrderType type;
+  uint64_t arrivedAt;
+  uint64_t queuedAt;
 };
 
 static_assert(sizeof(Order) == 64, "Order must be exactly one cache line");

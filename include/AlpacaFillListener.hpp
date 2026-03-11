@@ -41,6 +41,7 @@ using TradeUpdate = std::variant<std::monostate, FillEvent, CancelEvent>;
 
 [[nodiscard]] TradeUpdate parseTradingUpdate(const nlohmann::json &parsed);
 
+class LatencyTracker;
 class PendingOrderTracker;
 
 class AlpacaFillListener : public IFillListener {
@@ -51,7 +52,8 @@ public:
   AlpacaFillListener(PositionManager *position_manager,
                      std::atomic<bool> &is_running, const std::string &api_key,
                      const std::string &api_secret,
-                     PendingOrderTracker *pending_tracker = nullptr);
+                     PendingOrderTracker *pending_tracker = nullptr,
+                     LatencyTracker *latency_tracker = nullptr);
 
   ~AlpacaFillListener() override;
 
@@ -66,6 +68,7 @@ private:
 
   PositionManager *position_manager_;
   PendingOrderTracker *pending_tracker_;
+  LatencyTracker *latency_tracker_;
   std::atomic<bool> &is_running_;
   std::string api_key_;
   std::string api_secret_;

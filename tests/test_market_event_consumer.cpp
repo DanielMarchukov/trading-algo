@@ -3,6 +3,7 @@
 #include "Order.hpp"
 #include "PositionManager.hpp"
 #include "ThreadGuard.hpp"
+#include "Utils.hpp"
 #include <atomic>
 #include <chrono>
 #include <cstring>
@@ -237,4 +238,53 @@ TEST_F(MarketEventConsumerTest, SkipsMismatchedPayloadSize) {
 
   EXPECT_EQ(CountingStrategy::invocation_count.load(std::memory_order_relaxed),
             0);
+}
+
+TEST_F(MarketEventConsumerTest, PropagatesTimestampsToOrder) {
+  zmq::context_t context(1);
+  zmq::socket_t publisher(context, zmq::socket_type::pub);
+  publisher.bind(ipc_address);
+
+  std::atomic is_test_running(true);
+  std::promise<Order> promise;
+  auto future = promise.get_future();
+  PromiseOrderCallback test_callback{&promise};
+
+  MarketEventConsumer<MockStrategy, PromiseOrderCallback> consumer(
+      context, ipc_address, "TEST", is_test_running, test_callback,
+      risk_manager_.get());
+
+  ThreadGuard consumer_thread_guard{
+      std::thread(&MarketEventConsumer<MockStrategy, PromiseOrderCallback>::run,
+                  &consumer)};
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  MarketEvent sent_event{};
+  sent_event.eventType = 2;
+  const uint64_t known_arrived_at = nowNanos();
+  sent_event.arrivedAt = known_arrived_at;
+
+  auto start_time = std::chrono::steady_clock::now();
+  while (future.wait_for(std::chrono::milliseconds(10)) !=
+         std::future_status::ready) {
+    zmq::message_t topic("TEST", 4);
+    zmq::message_t payload(&sent_event, sizeof(MarketEvent));
+    publisher.send(topic, zmq::send_flags::sndmore);
+    publisher.send(payload, zmq::send_flags::none);
+    if (std::chrono::steady_clock::now() - start_time >
+        std::chrono::seconds(2)) {
+      break;
+    }
+  }
+
+  is_test_running.store(false);
+
+  ASSERT_TRUE(future.valid());
+  auto status = future.wait_for(std::chrono::seconds(0));
+  ASSERT_EQ(status, std::future_status::ready);
+  Order received_order = future.get();
+  EXPECT_EQ(received_order.arrivedAt, known_arrived_at);
+  EXPECT_GT(received_order.queuedAt, 0U);
+  EXPECT_GE(received_order.queuedAt, known_arrived_at);
 }

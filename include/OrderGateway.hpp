@@ -6,6 +6,7 @@
 #include <atomic>
 #include <memory>
 
+class LatencyTracker;
 class PendingOrderTracker;
 class PositionManager;
 
@@ -15,7 +16,8 @@ public:
                LockFreeMPSCQueue<Order> *order_queue,
                std::unique_ptr<IRestClient> rest_client,
                PositionManager *position_manager,
-               PendingOrderTracker *pending_tracker = nullptr);
+               PendingOrderTracker *pending_tracker = nullptr,
+               LatencyTracker *latency_tracker = nullptr);
 
   void run();
 
@@ -27,5 +29,6 @@ private:
   std::unique_ptr<IRestClient> rest_client_;
   PositionManager *position_manager_;
   PendingOrderTracker *pending_tracker_;
+  LatencyTracker *latency_tracker_;
   uint64_t order_id_counter_ = 0;
 };
