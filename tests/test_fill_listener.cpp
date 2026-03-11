@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
+#include <thread>
 
 class FillListenerTest : public ::testing::Test {
 protected:
