@@ -1,5 +1,6 @@
 #include "LatencyTracker.hpp"
 #include "Utils.hpp"
+#include <cinttypes>
 #include <cstdio>
 #include <fstream>
 #include <hdr/hdr_histogram.h>
@@ -96,7 +97,7 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   auto fmt = [](int64_t nanos) -> std::string {
     char buf[64];
     if (nanos < 1000) {
-      std::snprintf(buf, sizeof(buf), "%ldns", static_cast<long>(nanos));
+      std::snprintf(buf, sizeof(buf), "%" PRId64 "ns", nanos);
     } else if (nanos < 1'000'000) {
       std::snprintf(buf, sizeof(buf), "%.2fus",
                     static_cast<double>(nanos) / 1000.0);
@@ -122,7 +123,8 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   FILE *fp = std::fopen(filepath.c_str(), "w");
   if (fp) {
     std::fprintf(fp, "%s\n", desc);
-    std::fprintf(fp, "Samples: %ld\n\n", static_cast<long>(h->total_count));
+    std::fprintf(fp, "Samples: %" PRId64 "\n\n",
+                 static_cast<int64_t>(h->total_count));
     hdr_percentiles_print(h, fp, 5, 1.0, CLASSIC);
     std::fclose(fp);
     std::cout << "  Written: " << filepath << '\n';
