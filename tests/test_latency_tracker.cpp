@@ -127,9 +127,14 @@ TEST_F(LatencyTrackerTest, DuplicateSubmitOverwritesTimestamp) {
   EXPECT_LT(latency, 40'000'000);
 }
 
-TEST_F(LatencyTrackerTest, FillBeforeSubmitIsIgnored) {
-  tracker_.recordFillReceived("order-never-submitted");
-  EXPECT_EQ(tracker_.count(LatencyMetric::FillRoundTrip), 0);
+TEST_F(LatencyTrackerTest, SecondFillForSameOrderIsIgnored) {
+  tracker_.recordOrderSubmit("order-once");
+  std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  tracker_.recordFillReceived("order-once");
+  EXPECT_EQ(tracker_.count(LatencyMetric::FillRoundTrip), 1);
+
+  tracker_.recordFillReceived("order-once");
+  EXPECT_EQ(tracker_.count(LatencyMetric::FillRoundTrip), 1);
 }
 
 TEST_F(LatencyTrackerTest, LargeLatencyValuesRecorded) {

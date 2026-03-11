@@ -65,9 +65,9 @@ public:
       MarketEvent event{};
       std::memcpy(&event, payload.data(), sizeof(MarketEvent));
 
-      const uint64_t zmq_received_at = nowNanos();
-
+      uint64_t zmq_received_at = 0;
       if (latency_tracker_) [[likely]] {
+        zmq_received_at = nowNanos();
         latency_tracker_->record(LatencyMetric::ZmqTransport,
                                  zmq_received_at - event.arrivedAt);
       }
