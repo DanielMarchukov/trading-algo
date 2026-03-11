@@ -19,7 +19,6 @@ void signalHandler(const int signum) {
 TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client)
     : is_running_(true), symbols_(symbols) {
-  setup_signal_handler();
   latency_tracker_ = std::make_unique<LatencyTracker>();
   position_manager_ = std::make_unique<PositionManager>();
   for (const auto &symbol : symbols_) {
@@ -55,6 +54,8 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   auto sink = ZmqMarketEventSink(context_, ipc_address_);
   market_publisher_ = std::make_unique<AlpacaPipeline>(
       std::move(source), std::move(decoder), std::move(sink));
+
+  setup_signal_handler();
 }
 
 TradingEngine::~TradingEngine() {
