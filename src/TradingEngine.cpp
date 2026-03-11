@@ -133,7 +133,13 @@ void TradingEngine::shutdown() {
   order_gateway_.reset();
 
   if (latency_tracker_) {
-    latency_tracker_->dump(".");
+    try {
+      latency_tracker_->dump(".");
+    } catch (const std::exception &e) {
+      std::cerr << "Latency tracker dump failed: " << e.what() << '\n';
+    } catch (...) {
+      std::cerr << "Latency tracker dump failed with unknown error" << '\n';
+    }
   }
 }
 
