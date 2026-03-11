@@ -4,6 +4,7 @@
 #include "Order.hpp"
 #include <cpr/cpr.h>
 #include <expected>
+#include <memory>
 #include <string>
 
 class AlpacaRestClient final : public IRestClient {
@@ -16,7 +17,7 @@ public:
   cancelOrder(std::string_view alpaca_order_id) override;
 
 private:
-  std::string api_key_;
-  std::string api_secret_;
-  cpr::Url base_url_;
+  std::unique_ptr<cpr::Session> session_;
+  std::string order_url_;
+  std::string cancel_url_prefix_;
 };
