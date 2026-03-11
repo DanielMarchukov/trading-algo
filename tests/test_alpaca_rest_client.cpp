@@ -462,9 +462,25 @@ TEST_F(AlpacaRestClientRateLimitTest, CancelAlsoUpdatesRateLimit) {
   EXPECT_EQ(client.rateLimiter().remaining(), 15);
 }
 
-TEST_F(AlpacaRestClientRateLimitTest, MalformedHeaderDoesNotCrash) {
+TEST_F(AlpacaRestClientRateLimitTest, NonNumericHeaderDoesNotCrash) {
   StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})",
                         "X-Ratelimit-Remaining: not-a-number\r\n");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(client.rateLimiter().remaining(),
+            RateLimiter::kMaxRequestsPerWindow);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest, NumericPrefixHeaderIsRejected) {
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})",
+                        "X-Ratelimit-Remaining: 10foo\r\n");
   point_client_to(server.port());
   AlpacaRestClient client;
   Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
@@ -485,7 +501,8 @@ TEST_F(AlpacaRestClientRateLimitTest, ConstructorForwardsThrottleConfig) {
   EXPECT_EQ(client.rateLimiter().policy(), ThrottlePolicy::Drop);
 }
 
-TEST_F(AlpacaRestClientRateLimitTest, DropPolicyRejectsOrderWhenThrottled) {
+TEST_F(AlpacaRestClientRateLimitTest,
+       DropPolicyRejectsPlaceOrderWhenThrottled) {
   std::string header = "X-Ratelimit-Remaining: 0\r\n";
   StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
   point_client_to(server.port());
@@ -502,4 +519,24 @@ TEST_F(AlpacaRestClientRateLimitTest, DropPolicyRejectsOrderWhenThrottled) {
   auto second = client.placeOrder(order);
   ASSERT_FALSE(second.has_value());
   EXPECT_EQ(second.error().status_code, 429);
+}
+
+TEST_F(AlpacaRestClientRateLimitTest,
+       DropPolicyRejectsCancelOrderWhenThrottled) {
+  std::string header = "X-Ratelimit-Remaining: 0\r\n";
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
+  point_client_to(server.port());
+  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto first = client.placeOrder(order);
+  t.join();
+
+  ASSERT_TRUE(first.has_value());
+  EXPECT_FALSE(client.rateLimiter().canSend());
+
+  auto cancel = client.cancelOrder("some-order-id");
+  ASSERT_FALSE(cancel.has_value());
+  EXPECT_EQ(cancel.error().status_code, 429);
 }

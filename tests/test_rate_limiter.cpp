@@ -1,4 +1,5 @@
 #include "RateLimiter.hpp"
+#include <future>
 #include <gtest/gtest.h>
 #include <thread>
 
@@ -31,7 +32,8 @@ INSTANTIATE_TEST_SUITE_P(
     BelowAndAboveThreshold, RateLimiterUpdateTest,
     ::testing::Values(UpdateParam{0, false}, UpdateParam{1, false},
                       UpdateParam{4, false}, UpdateParam{5, true},
-                      UpdateParam{50, true}, UpdateParam{200, true}));
+                      UpdateParam{50, true},
+                      UpdateParam{RateLimiter::kMaxRequestsPerWindow, true}));
 
 TEST_F(RateLimiterTest, UpdateAboveThresholdClearsThrottle) {
   limiter_.update(2);
@@ -70,10 +72,17 @@ TEST_F(RateLimiterTest, WaitPolicyBlocksUntilReady) {
   RateLimiter wait_limiter{5, ThrottlePolicy::Wait};
   wait_limiter.onRateLimited();
 
-  std::thread waiter([&]() { EXPECT_TRUE(wait_limiter.waitOrDrop()); });
+  std::promise<bool> result_promise;
+  auto result_future = result_promise.get_future();
+  std::thread waiter(
+      [&]() { result_promise.set_value(wait_limiter.waitOrDrop()); });
 
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
   wait_limiter.update(100);
+
+  ASSERT_EQ(result_future.wait_for(std::chrono::seconds(5)),
+            std::future_status::ready);
+  EXPECT_TRUE(result_future.get());
   waiter.join();
   EXPECT_TRUE(wait_limiter.canSend());
 }
