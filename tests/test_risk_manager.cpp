@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <limits>
 #include <memory>
+#include <thread>
 
 using test_helpers::createFill;
 using test_helpers::createOrder;

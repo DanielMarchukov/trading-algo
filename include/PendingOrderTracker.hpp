@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Order.hpp"
-#include "PositionManager.hpp"
+#include "SymbolKey.hpp"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
