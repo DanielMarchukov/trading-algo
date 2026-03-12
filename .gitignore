@@ -4,6 +4,7 @@ compile_commands.json
 _deps
 build/
 build-asan/
+build-tsan/
 .cache/
 env/
 .pytest_cache/
