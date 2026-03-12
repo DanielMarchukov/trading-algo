@@ -1,5 +1,0 @@
-/home/danmarchukov/repos/rich-on-paper/build-tsan/CMakeFiles/paper_money.dir
-/home/danmarchukov/repos/rich-on-paper/build-tsan/CMakeFiles/rich_on_tests.dir
-/home/danmarchukov/repos/rich-on-paper/build-tsan/CMakeFiles/test.dir
-/home/danmarchukov/repos/rich-on-paper/build-tsan/CMakeFiles/edit_cache.dir
-/home/danmarchukov/repos/rich-on-paper/build-tsan/CMakeFiles/rebuild_cache.dir
