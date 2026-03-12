@@ -39,20 +39,25 @@ jobs:
           vcpkgJsonGlob: "**/vcpkg.json"
 
       - name: Configure CMake (TSAN)
-        run: >
-          cmake -B build -S .
-          -DCMAKE_BUILD_TYPE=Debug
-          -DVCPKG_TARGET_TRIPLET=x64-linux
-          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
-          -DSANITIZE_THREAD=ON
-          -DCMAKE_C_COMPILER=gcc
-          -DCMAKE_CXX_COMPILER=g++
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: >
+            cmake -B build -S .
+            -DCMAKE_BUILD_TYPE=Debug
+            -DVCPKG_TARGET_TRIPLET=x64-linux
+            -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+            -DSANITIZE_THREAD=ON
+            -DCMAKE_C_COMPILER=gcc
+            -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
         run: cmake --build build -j$(nproc)
 
       - name: Run tests under TSAN
         working-directory: ./build
-        run: ctest --output-on-failure
+        run: setarch $(uname -m) -R ctest --output-on-failure
         env:
           TSAN_OPTIONS: "halt_on_error=1:second_deadlock_stack=1"

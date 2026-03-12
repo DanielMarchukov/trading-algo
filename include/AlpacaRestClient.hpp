@@ -24,6 +24,7 @@ public:
 private:
   void buildOrderPayload(const Order &order);
   void updateRateLimit(const cpr::Response &r);
+  void reapplyQuickAck();
 
   std::unique_ptr<cpr::Session> session_;
   std::string order_url_;

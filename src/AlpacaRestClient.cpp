@@ -39,10 +39,25 @@ static_assert(
     "SCALING_FACTOR must be a power of 10");
 
 #if defined(__linux__)
+void reapplyTcpQuickAck(CURL *handle) {
+  curl_socket_t sockfd = CURL_SOCKET_BAD;
+  curl_easy_getinfo(handle, CURLINFO_ACTIVESOCKET, &sockfd);
+  if (sockfd != CURL_SOCKET_BAD) {
+    int flag = 1;
+    ::setsockopt(sockfd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(flag));
+  }
+}
+
 int setTcpQuickAck(void * /*clientp*/, curl_socket_t curlfd,
-                   curlsocktype /*purpose*/) {
+                   curlsocktype purpose) {
+  if (purpose != CURLSOCKTYPE_IPCXN) {
+    return CURL_SOCKOPT_OK;
+  }
   int flag = 1;
-  setsockopt(curlfd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(flag));
+  if (::setsockopt(curlfd, IPPROTO_TCP, TCP_QUICKACK, &flag, sizeof(flag)) !=
+      0) {
+    return CURL_SOCKOPT_ERROR;
+  }
   return CURL_SOCKOPT_OK;
 }
 #endif
@@ -134,6 +149,7 @@ AlpacaRestClient::placeOrder(const Order &order) {
   session_->SetUrl(cpr::Url{order_url_});
   session_->SetBody(cpr::Body{payload_buf_});
   const cpr::Response r = session_->Post();
+  reapplyQuickAck();
   updateRateLimit(r);
 
   if (r.status_code >= 400) {
@@ -159,6 +175,7 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
   session_->SetUrl(cpr::Url{cancel_url_prefix_ + std::string(alpaca_order_id)});
   session_->RemoveContent();
   const cpr::Response r = session_->Delete();
+  reapplyQuickAck();
   updateRateLimit(r);
 
   if (r.status_code == 204) {
@@ -167,6 +184,12 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
 
   return std::unexpected(
       OrderError{r.status_code, "Error canceling order: " + r.text});
+}
+
+void AlpacaRestClient::reapplyQuickAck() {
+#if defined(__linux__)
+  reapplyTcpQuickAck(session_->GetCurlHolder()->handle);
+#endif
 }
 
 const RateLimiter &AlpacaRestClient::rateLimiter() const {
