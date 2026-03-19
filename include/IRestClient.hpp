@@ -38,5 +38,5 @@ public:
 
   [[nodiscard]] virtual std::expected<std::vector<AlpacaOrderStatus>,
                                       OrderError>
-  queryOrders(std::string_view status_filter) = 0;
+  queryOrders(std::string_view status_filter, std::string_view after) = 0;
 };

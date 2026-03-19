@@ -629,7 +629,8 @@ public:
   }
 
   std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view /*status_filter*/) override {
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
     return orders_to_return;
   }
 
@@ -763,7 +764,8 @@ TEST_F(FillListenerReconcileTest, HandlesQueryFailure) {
       return {};
     }
     std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-    queryOrders(std::string_view /*status_filter*/) override {
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
       return std::unexpected(OrderError{500, "Internal Server Error"});
     }
   };
@@ -854,4 +856,22 @@ TEST_F(FillListenerReconcileTest, ReconcileMultipleOrders) {
       tracker_->getExistingOrder(aapl_key, OrderSide::Buy).has_value());
   EXPECT_FALSE(
       tracker_->getExistingOrder(googl_key, OrderSide::Sell).has_value());
+}
+
+TEST_F(FillListenerReconcileTest, ReconcilesMissedRejected) {
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "rejected-order-id");
+
+  mock_client_->orders_to_return = {
+      {"rejected-order-id", "AAPL", "buy", "rejected", 100, 0, 0.0}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
+  EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
 }

@@ -18,7 +18,8 @@ public:
   }
 
   std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view /*status_filter*/) override {
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
     return std::vector<AlpacaOrderStatus>{};
   }
 };

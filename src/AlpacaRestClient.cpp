@@ -188,14 +188,18 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
 }
 
 std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-AlpacaRestClient::queryOrders(std::string_view status_filter) {
+AlpacaRestClient::queryOrders(std::string_view status_filter,
+                              std::string_view after) {
   if (!rate_limiter_.waitOrDrop()) {
     return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
   }
 
-  session_->SetUrl(cpr::Url{order_url_ +
-                            "?status=" + std::string(status_filter) +
-                            "&limit=100&direction=desc"});
+  std::string url = order_url_ + "?status=" + std::string(status_filter) +
+                    "&limit=500&direction=desc";
+  if (!after.empty()) {
+    url += "&after=" + std::string(after);
+  }
+  session_->SetUrl(cpr::Url{url});
   session_->RemoveContent();
   const cpr::Response r = session_->Get();
   reapplyQuickAck();
@@ -224,18 +228,22 @@ AlpacaRestClient::queryOrders(std::string_view status_filter) {
     const auto qty_str = item.value("qty", "0");
     const auto filled_str = item.value("filled_qty", "0");
     {
-      auto [ptr, ec] = std::from_chars(
-          qty_str.data(), qty_str.data() + qty_str.size(), order.qty);
-      if (ec != std::errc{}) {
-        order.qty = 0;
+      const auto *end = qty_str.data() + qty_str.size();
+      auto [ptr, ec] = std::from_chars(qty_str.data(), end, order.qty);
+      if (ec != std::errc{} || ptr != end) {
+        std::cerr << "AlpacaRestClient: Non-integer qty '" << qty_str
+                  << "' for order " << order.id << ", skipping" << '\n';
+        continue;
       }
     }
     {
-      auto [ptr, ec] = std::from_chars(filled_str.data(),
-                                       filled_str.data() + filled_str.size(),
-                                       order.filled_qty);
-      if (ec != std::errc{}) {
-        order.filled_qty = 0;
+      const auto *end = filled_str.data() + filled_str.size();
+      auto [ptr, ec] =
+          std::from_chars(filled_str.data(), end, order.filled_qty);
+      if (ec != std::errc{} || ptr != end) {
+        std::cerr << "AlpacaRestClient: Non-integer filled_qty '" << filled_str
+                  << "' for order " << order.id << ", skipping" << '\n';
+        continue;
       }
     }
 

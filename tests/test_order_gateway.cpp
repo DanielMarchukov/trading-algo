@@ -35,7 +35,8 @@ public:
   }
 
   std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view /*status_filter*/) override {
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
     return std::vector<AlpacaOrderStatus>{};
   }
 
@@ -137,7 +138,8 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
       return {};
     }
     std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-    queryOrders(std::string_view /*status_filter*/) override {
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
       return std::vector<AlpacaOrderStatus>{};
     }
 
@@ -195,7 +197,8 @@ TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
       return {};
     }
     std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-    queryOrders(std::string_view /*status_filter*/) override {
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
       return std::vector<AlpacaOrderStatus>{};
     }
   };
@@ -226,7 +229,8 @@ public:
   }
 
   std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view /*status_filter*/) override {
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
     return std::vector<AlpacaOrderStatus>{};
   }
 
@@ -252,7 +256,8 @@ public:
   }
 
   std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view /*status_filter*/) override {
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
     return std::vector<AlpacaOrderStatus>{};
   }
 
@@ -387,7 +392,8 @@ public:
   }
 
   std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view /*status_filter*/) override {
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
     return std::vector<AlpacaOrderStatus>{};
   }
 
@@ -413,7 +419,8 @@ public:
   }
 
   std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view /*status_filter*/) override {
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
     return std::vector<AlpacaOrderStatus>{};
   }
 
@@ -581,7 +588,8 @@ TEST_F(CancelBeforeReplaceTest, DoesNotRecordFailedPlacement) {
       return {};
     }
     std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-    queryOrders(std::string_view /*status_filter*/) override {
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
       return std::vector<AlpacaOrderStatus>{};
     }
   };

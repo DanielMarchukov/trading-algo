@@ -20,7 +20,7 @@ public:
   cancelOrder(std::string_view alpaca_order_id) override;
 
   [[nodiscard]] std::expected<std::vector<AlpacaOrderStatus>, OrderError>
-  queryOrders(std::string_view status_filter) override;
+  queryOrders(std::string_view status_filter, std::string_view after) override;
 
   [[nodiscard]] const RateLimiter &rateLimiter() const;
 
