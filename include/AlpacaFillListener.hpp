@@ -4,11 +4,12 @@
 #include "PositionManager.hpp"
 #include <atomic>
 #include <ixwebsocket/IXWebSocket.h>
-#include <memory>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <unordered_map>
+#include <unordered_set>
 #include <variant>
 
 struct FillEvent {
@@ -41,19 +42,22 @@ using TradeUpdate = std::variant<std::monostate, FillEvent, CancelEvent>;
 
 [[nodiscard]] TradeUpdate parseTradingUpdate(const nlohmann::json &parsed);
 
+class IRestClient;
 class LatencyTracker;
 class PendingOrderTracker;
 
 class AlpacaFillListener : public IFillListener {
   friend class FillListenerTest;
   friend class FillListenerTrackerTest;
+  friend class FillListenerReconcileTest;
 
 public:
   AlpacaFillListener(PositionManager *position_manager,
                      std::atomic<bool> &is_running, const std::string &api_key,
                      const std::string &api_secret,
                      PendingOrderTracker *pending_tracker = nullptr,
-                     LatencyTracker *latency_tracker = nullptr);
+                     LatencyTracker *latency_tracker = nullptr,
+                     IRestClient *reconciliation_client = nullptr);
 
   ~AlpacaFillListener() override;
 
@@ -65,13 +69,18 @@ private:
   void sendAuth();
   void sendSubscribe();
   void handleTradeUpdate(const std::string &json);
+  void reconcileAfterReconnect();
 
   PositionManager *position_manager_;
   PendingOrderTracker *pending_tracker_;
   LatencyTracker *latency_tracker_;
+  IRestClient *reconciliation_client_;
   std::atomic<bool> &is_running_;
   std::string api_key_;
   std::string api_secret_;
   ix::WebSocket ws_;
   std::thread thread_;
+  bool has_connected_{false};
+  std::unordered_map<std::string, int64_t> filled_qty_by_order_;
+  std::unordered_set<std::string> completed_order_ids_;
 };

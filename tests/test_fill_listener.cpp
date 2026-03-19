@@ -1,4 +1,5 @@
 #include "AlpacaFillListener.hpp"
+#include "IRestClient.hpp"
 #include "LatencyTracker.hpp"
 #include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
@@ -611,4 +612,246 @@ TEST_F(FillListenerTrackerTest, CancelNotifiesTracker) {
   })");
 
   EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+// --- Reconciliation tests ---
+
+class MockReconciliationClient final : public IRestClient {
+public:
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*order*/) override {
+    return OrderAck{"mock-id", "accepted"};
+  }
+
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    return {};
+  }
+
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/) override {
+    return orders_to_return;
+  }
+
+  std::vector<AlpacaOrderStatus> orders_to_return;
+};
+
+class FillListenerReconcileTest : public ::testing::Test {
+protected:
+  void SetUp() override {
+    position_manager_ = std::make_unique<PositionManager>();
+    position_manager_->registerSymbol("AAPL");
+    position_manager_->registerSymbol("GOOGL");
+    tracker_ = std::make_unique<PendingOrderTracker>();
+    mock_client_ = std::make_unique<MockReconciliationClient>();
+    listener_ = std::make_unique<AlpacaFillListener>(
+        position_manager_.get(), is_running_, "test_key", "test_secret",
+        tracker_.get(), nullptr, mock_client_.get());
+  }
+
+  void simulateReconnect() {
+    listener_->has_connected_ = true;
+    listener_->reconcileAfterReconnect();
+  }
+
+  void callHandleTradeUpdate(const std::string &json) {
+    listener_->handleTradeUpdate(json);
+  }
+
+  std::unique_ptr<PositionManager> position_manager_;
+  std::unique_ptr<PendingOrderTracker> tracker_;
+  std::unique_ptr<MockReconciliationClient> mock_client_;
+  std::atomic<bool> is_running_{true};
+  std::unique_ptr<AlpacaFillListener> listener_;
+};
+
+TEST_F(FillListenerReconcileTest, ReconcilesMissedFill) {
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "missed-fill-id");
+
+  mock_client_->orders_to_return = {
+      {"missed-fill-id", "AAPL", "buy", "filled", 100, 100, 150.25}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 100);
+  EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+TEST_F(FillListenerReconcileTest, ReconcilesMissedCancel) {
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Buy, "missed-cancel-id");
+
+  mock_client_->orders_to_return = {
+      {"missed-cancel-id", "AAPL", "buy", "canceled", 100, 0, 0.0}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
+  EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
+}
+
+TEST_F(FillListenerReconcileTest, SkipsAlreadyProcessedFill) {
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  callHandleTradeUpdate(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "fill",
+      "qty": "100",
+      "price": "150.25",
+      "order": {"symbol": "AAPL", "side": "buy", "id": "already-filled-id"}
+    }
+  })");
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 100);
+
+  mock_client_->orders_to_return = {
+      {"already-filled-id", "AAPL", "buy", "filled", 100, 100, 150.25}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 100);
+}
+
+TEST_F(FillListenerReconcileTest, ReconcilesMissedPartialFillRemainder) {
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  callHandleTradeUpdate(R"({
+    "stream": "trade_updates",
+    "data": {
+      "event": "partial_fill",
+      "qty": "60",
+      "price": "150.00",
+      "order": {"symbol": "AAPL", "side": "buy", "id": "partial-order-id"}
+    }
+  })");
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 60);
+
+  mock_client_->orders_to_return = {
+      {"partial-order-id", "AAPL", "buy", "filled", 100, 100, 150.40}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 100);
+}
+
+TEST_F(FillListenerReconcileTest, HandlesQueryFailure) {
+  class FailingClient final : public IRestClient {
+  public:
+    std::expected<OrderAck, OrderError>
+    placeOrder(const Order & /*order*/) override {
+      return OrderAck{"mock-id", "accepted"};
+    }
+    std::expected<void, OrderError>
+    cancelOrder(std::string_view /*alpaca_order_id*/) override {
+      return {};
+    }
+    std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+    queryOrders(std::string_view /*status_filter*/) override {
+      return std::unexpected(OrderError{500, "Internal Server Error"});
+    }
+  };
+
+  auto fail_client = std::make_unique<FailingClient>();
+  listener_ = std::make_unique<AlpacaFillListener>(
+      position_manager_.get(), is_running_, "test_key", "test_secret",
+      tracker_.get(), nullptr, fail_client.get());
+
+  EXPECT_NO_THROW(simulateReconnect());
+}
+
+TEST_F(FillListenerReconcileTest, SkipsOrdersWithUnknownSide) {
+  mock_client_->orders_to_return = {
+      {"unknown-side-id", "AAPL", "short", "filled", 100, 100, 150.25}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 0);
+}
+
+TEST_F(FillListenerReconcileTest, ReconcilesSellFill) {
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Sell, 50, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  SymbolKey key{};
+  std::memcpy(key.value, "AAPL", 4);
+  tracker_->recordOrder(key, OrderSide::Sell, "sell-fill-id");
+
+  mock_client_->orders_to_return = {
+      {"sell-fill-id", "AAPL", "sell", "filled", 50, 50, 155.00}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), -50);
+  EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Sell).has_value());
+}
+
+TEST_F(FillListenerReconcileTest, ReconcilesCancelAfterPartialFill) {
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  order.id = 1;
+  position_manager_->onOrderSent(order);
+
+  mock_client_->orders_to_return = {
+      {"cancel-partial-id", "AAPL", "buy", "canceled", 100, 40, 149.50}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 40);
+  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
+}
+
+TEST_F(FillListenerReconcileTest, NoReconciliationWithoutClient) {
+  listener_ = std::make_unique<AlpacaFillListener>(
+      position_manager_.get(), is_running_, "test_key", "test_secret",
+      tracker_.get());
+
+  EXPECT_NO_THROW(simulateReconnect());
+}
+
+TEST_F(FillListenerReconcileTest, ReconcileMultipleOrders) {
+  Order buy_order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  buy_order.id = 1;
+  position_manager_->onOrderSent(buy_order);
+
+  Order sell_order = test_helpers::createOrder("GOOGL", OrderSide::Sell, 50, 0);
+  sell_order.id = 2;
+  position_manager_->onOrderSent(sell_order);
+
+  SymbolKey aapl_key{};
+  std::memcpy(aapl_key.value, "AAPL", 4);
+  tracker_->recordOrder(aapl_key, OrderSide::Buy, "aapl-fill-id");
+
+  SymbolKey googl_key{};
+  std::memcpy(googl_key.value, "GOOGL", 5);
+  tracker_->recordOrder(googl_key, OrderSide::Sell, "googl-cancel-id");
+
+  mock_client_->orders_to_return = {
+      {"aapl-fill-id", "AAPL", "buy", "filled", 100, 100, 150.25},
+      {"googl-cancel-id", "GOOGL", "sell", "canceled", 50, 0, 0.0}};
+
+  simulateReconnect();
+
+  EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 100);
+  EXPECT_EQ(position_manager_->getPendingPosition("GOOGL"), 0);
+  EXPECT_FALSE(
+      tracker_->getExistingOrder(aapl_key, OrderSide::Buy).has_value());
+  EXPECT_FALSE(
+      tracker_->getExistingOrder(googl_key, OrderSide::Sell).has_value());
 }

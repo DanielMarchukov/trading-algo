@@ -3,6 +3,7 @@
 #include <cpr/curlholder.h>
 #include <cstring>
 #include <curl/curl.h>
+#include <iostream>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
@@ -184,6 +185,75 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
 
   return std::unexpected(
       OrderError{r.status_code, "Error canceling order: " + r.text});
+}
+
+std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+AlpacaRestClient::queryOrders(std::string_view status_filter) {
+  if (!rate_limiter_.waitOrDrop()) {
+    return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
+  }
+
+  session_->SetUrl(cpr::Url{order_url_ +
+                            "?status=" + std::string(status_filter) +
+                            "&limit=100&direction=desc"});
+  session_->RemoveContent();
+  const cpr::Response r = session_->Get();
+  reapplyQuickAck();
+  updateRateLimit(r);
+
+  if (r.status_code >= 400) {
+    return std::unexpected(
+        OrderError{r.status_code, "Error querying orders: " + r.text});
+  }
+
+  auto response = nlohmann::json::parse(r.text, nullptr, false);
+  if (!response.is_array()) {
+    return std::unexpected(
+        OrderError{r.status_code, "Invalid JSON array in response"});
+  }
+
+  std::vector<AlpacaOrderStatus> orders;
+  orders.reserve(response.size());
+  for (const auto &item : response) {
+    AlpacaOrderStatus order;
+    order.id = item.value("id", "");
+    order.symbol = item.value("symbol", "");
+    order.side = item.value("side", "");
+    order.status = item.value("status", "");
+
+    const auto qty_str = item.value("qty", "0");
+    const auto filled_str = item.value("filled_qty", "0");
+    {
+      auto [ptr, ec] = std::from_chars(
+          qty_str.data(), qty_str.data() + qty_str.size(), order.qty);
+      if (ec != std::errc{}) {
+        order.qty = 0;
+      }
+    }
+    {
+      auto [ptr, ec] = std::from_chars(filled_str.data(),
+                                       filled_str.data() + filled_str.size(),
+                                       order.filled_qty);
+      if (ec != std::errc{}) {
+        order.filled_qty = 0;
+      }
+    }
+
+    const auto avg_price_str = item.value("filled_avg_price", "");
+    if (!avg_price_str.empty() && avg_price_str != "null") {
+      try {
+        order.filled_avg_price = std::stod(avg_price_str);
+      } catch (const std::exception &e) {
+        std::cerr << "AlpacaRestClient: Failed to parse filled_avg_price '"
+                  << avg_price_str << "': " << e.what() << '\n';
+        order.filled_avg_price = 0.0;
+      }
+    }
+
+    orders.push_back(std::move(order));
+  }
+
+  return orders;
 }
 
 void AlpacaRestClient::reapplyQuickAck() {

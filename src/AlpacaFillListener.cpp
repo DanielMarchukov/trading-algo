@@ -1,4 +1,5 @@
 #include "AlpacaFillListener.hpp"
+#include "IRestClient.hpp"
 #include "LatencyTracker.hpp"
 #include "PendingOrderTracker.hpp"
 #include "ThreadPinning.hpp"
@@ -166,9 +167,11 @@ AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
                                        const std::string &api_key,
                                        const std::string &api_secret,
                                        PendingOrderTracker *pending_tracker,
-                                       LatencyTracker *latency_tracker)
+                                       LatencyTracker *latency_tracker,
+                                       IRestClient *reconciliation_client)
     : position_manager_(position_manager), pending_tracker_(pending_tracker),
-      latency_tracker_(latency_tracker), is_running_(is_running),
+      latency_tracker_(latency_tracker),
+      reconciliation_client_(reconciliation_client), is_running_(is_running),
       api_key_(api_key), api_secret_(api_secret) {
   if (position_manager_ == nullptr) {
     throw std::invalid_argument(
@@ -205,7 +208,13 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   switch (msg->type) {
   case ix::WebSocketMessageType::Open:
-    std::cout << "FillListener: WebSocket connected" << '\n';
+    if (has_connected_) {
+      std::cout << "FillListener: WebSocket reconnected — will reconcile after "
+                   "auth"
+                << '\n';
+    } else {
+      std::cout << "FillListener: WebSocket connected" << '\n';
+    }
     sendAuth();
     break;
 
@@ -253,6 +262,10 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     if (parsed.contains("data") && parsed["data"].contains("status") &&
         parsed["data"]["status"] == "authorized") {
       std::cout << "FillListener: Authorized" << '\n';
+      if (has_connected_) {
+        reconcileAfterReconnect();
+      }
+      has_connected_ = true;
       sendSubscribe();
     } else {
       std::cerr << "FillListener: Authorization failed" << '\n';
@@ -297,6 +310,12 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     std::string_view order_id(
         fill_event.alpaca_order_id,
         strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
+    if (!order_id.empty()) {
+      filled_qty_by_order_[std::string(order_id)] += fill_event.quantity;
+      if (!fill_event.is_partial) {
+        completed_order_ids_.insert(std::string(order_id));
+      }
+    }
     if (latency_tracker_ && !order_id.empty()) {
       latency_tracker_->recordFillReceived(order_id);
     }
@@ -321,12 +340,15 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     order.side = cancel_event.side;
     order.type = OrderType::Market;
     position_manager_->onOrderCancelled(order);
+    std::string_view order_id(
+        cancel_event.alpaca_order_id,
+        strnlen(cancel_event.alpaca_order_id, kOrderIdCapacity));
+    if (!order_id.empty()) {
+      completed_order_ids_.insert(std::string(order_id));
+    }
     if (pending_tracker_) {
       SymbolKey key{};
       std::memcpy(key.value, cancel_event.symbol, kSymbolCapacity);
-      std::string_view order_id(
-          cancel_event.alpaca_order_id,
-          strnlen(cancel_event.alpaca_order_id, kOrderIdCapacity));
       pending_tracker_->onOrderCompleted(key, cancel_event.side, order_id);
     }
     std::cout << "FillListener: Cancel processed ("
@@ -334,4 +356,128 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
                                   strnlen(cancel_event.symbol, kSymbolCapacity))
               << " qty=" << cancel_event.quantity << ")" << '\n';
   }
+}
+
+void AlpacaFillListener::reconcileAfterReconnect() {
+  if (reconciliation_client_ == nullptr) {
+    std::cerr << "FillListener: No reconciliation client — skipping "
+                 "post-reconnect reconciliation"
+              << '\n';
+    return;
+  }
+
+  std::cout << "FillListener: Starting post-reconnect reconciliation" << '\n';
+
+  auto result = reconciliation_client_->queryOrders("all");
+  if (!result) {
+    std::cerr << "FillListener: Reconciliation query failed (HTTP "
+              << result.error().status_code << "): " << result.error().message
+              << '\n';
+    return;
+  }
+
+  const auto &orders = *result;
+  int64_t reconciled_fills = 0;
+  int64_t reconciled_cancels = 0;
+
+  for (const auto &alpaca_order : orders) {
+    if (alpaca_order.id.empty()) {
+      continue;
+    }
+
+    if (completed_order_ids_.contains(alpaca_order.id)) {
+      continue;
+    }
+
+    const auto side_opt = parseSide(alpaca_order.side);
+    if (!side_opt.has_value()) {
+      continue;
+    }
+
+    if (alpaca_order.status == "filled" ||
+        alpaca_order.status == "partially_filled") {
+      const int64_t already_filled =
+          filled_qty_by_order_.contains(alpaca_order.id)
+              ? filled_qty_by_order_[alpaca_order.id]
+              : 0;
+      const int64_t remaining = alpaca_order.filled_qty - already_filled;
+
+      if (remaining <= 0) {
+        continue;
+      }
+
+      Fill fill{};
+      copySymbol(fill.symbol, alpaca_order.symbol);
+      fill.executionId = 0;
+      fill.orderId = 0;
+      fill.side = *side_opt;
+      fill.quantity = remaining;
+      fill.price = alpaca_order.filled_avg_price;
+      position_manager_->onFill(fill);
+
+      filled_qty_by_order_[alpaca_order.id] = alpaca_order.filled_qty;
+      if (alpaca_order.status == "filled") {
+        completed_order_ids_.insert(alpaca_order.id);
+        if (pending_tracker_) {
+          SymbolKey key{};
+          copySymbol(key.value, alpaca_order.symbol);
+          pending_tracker_->onOrderCompleted(key, *side_opt, alpaca_order.id);
+        }
+      }
+
+      ++reconciled_fills;
+      std::cout << "FillListener: Reconciled fill (" << alpaca_order.symbol
+                << " qty=" << remaining
+                << " avg_price=" << alpaca_order.filled_avg_price << ")"
+                << '\n';
+    } else if (alpaca_order.status == "canceled" ||
+               alpaca_order.status == "expired") {
+      const int64_t already_filled =
+          filled_qty_by_order_.contains(alpaca_order.id)
+              ? filled_qty_by_order_[alpaca_order.id]
+              : 0;
+      const int64_t missed_fills = alpaca_order.filled_qty - already_filled;
+
+      if (missed_fills > 0) {
+        Fill fill{};
+        copySymbol(fill.symbol, alpaca_order.symbol);
+        fill.executionId = 0;
+        fill.orderId = 0;
+        fill.side = *side_opt;
+        fill.quantity = missed_fills;
+        fill.price = alpaca_order.filled_avg_price;
+        position_manager_->onFill(fill);
+        filled_qty_by_order_[alpaca_order.id] = alpaca_order.filled_qty;
+      }
+
+      const int64_t unfilled =
+          (std::max)(int64_t{0}, alpaca_order.qty - alpaca_order.filled_qty);
+      if (unfilled > 0) {
+        Order order{};
+        order.id = 0;
+        copySymbol(order.symbol, alpaca_order.symbol);
+        order.quantity = unfilled;
+        order.price = 0;
+        order.side = *side_opt;
+        order.type = OrderType::Market;
+        position_manager_->onOrderCancelled(order);
+      }
+
+      completed_order_ids_.insert(alpaca_order.id);
+      if (pending_tracker_) {
+        SymbolKey key{};
+        copySymbol(key.value, alpaca_order.symbol);
+        pending_tracker_->onOrderCompleted(key, *side_opt, alpaca_order.id);
+      }
+
+      ++reconciled_cancels;
+      std::cout << "FillListener: Reconciled cancel (" << alpaca_order.symbol
+                << " filled=" << missed_fills << " unfilled=" << unfilled << ")"
+                << '\n';
+    }
+  }
+
+  std::cout << "FillListener: Reconciliation complete (fills="
+            << reconciled_fills << " cancels=" << reconciled_cancels << ")"
+            << '\n';
 }
