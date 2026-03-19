@@ -684,23 +684,37 @@ TEST_F(FillListenerReconcileTest, ReconcilesMissedFill) {
   EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
 }
 
-TEST_F(FillListenerReconcileTest, ReconcilesMissedCancel) {
+struct TerminalCancelParam {
+  const char *status;
+};
+
+class ReconcileTerminalCancelTest
+    : public FillListenerReconcileTest,
+      public ::testing::WithParamInterface<TerminalCancelParam> {};
+
+TEST_P(ReconcileTerminalCancelTest, ClearsPositionAndTracker) {
+  const auto &[status] = GetParam();
   Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
   order.id = 1;
   position_manager_->onOrderSent(order);
 
   SymbolKey key{};
   std::memcpy(key.value, "AAPL", 4);
-  tracker_->recordOrder(key, OrderSide::Buy, "missed-cancel-id");
+  tracker_->recordOrder(key, OrderSide::Buy, "terminal-order-id");
 
   mock_client_->orders_to_return = {
-      {"missed-cancel-id", "AAPL", "buy", "canceled", 100, 0, 0.0}};
+      {"terminal-order-id", "AAPL", "buy", status, 100, 0, 0.0}};
 
   simulateReconnect();
 
   EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
   EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
 }
+
+INSTANTIATE_TEST_SUITE_P(TerminalStatuses, ReconcileTerminalCancelTest,
+                         ::testing::Values(TerminalCancelParam{"canceled"},
+                                           TerminalCancelParam{"expired"},
+                                           TerminalCancelParam{"rejected"}));
 
 TEST_F(FillListenerReconcileTest, SkipsAlreadyProcessedFill) {
   Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
@@ -856,22 +870,4 @@ TEST_F(FillListenerReconcileTest, ReconcileMultipleOrders) {
       tracker_->getExistingOrder(aapl_key, OrderSide::Buy).has_value());
   EXPECT_FALSE(
       tracker_->getExistingOrder(googl_key, OrderSide::Sell).has_value());
-}
-
-TEST_F(FillListenerReconcileTest, ReconcilesMissedRejected) {
-  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
-  order.id = 1;
-  position_manager_->onOrderSent(order);
-
-  SymbolKey key{};
-  std::memcpy(key.value, "AAPL", 4);
-  tracker_->recordOrder(key, OrderSide::Buy, "rejected-order-id");
-
-  mock_client_->orders_to_return = {
-      {"rejected-order-id", "AAPL", "buy", "rejected", 100, 0, 0.0}};
-
-  simulateReconnect();
-
-  EXPECT_EQ(position_manager_->getPendingPosition("AAPL"), 0);
-  EXPECT_FALSE(tracker_->getExistingOrder(key, OrderSide::Buy).has_value());
 }
