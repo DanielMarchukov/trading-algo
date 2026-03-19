@@ -673,8 +673,9 @@ TEST_F(AlpacaRestClientQueryOrdersTest, ThrottledQueryReturns429) {
   Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
 
   std::thread t([&]() { server.serve_one(); });
-  (void)client.placeOrder(order);
+  auto setup = client.placeOrder(order);
   t.join();
+  ASSERT_TRUE(setup.has_value());
 
   auto result = client.queryOrders("all", "");
   ASSERT_FALSE(result.has_value());
