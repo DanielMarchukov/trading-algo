@@ -676,7 +676,7 @@ TEST_F(FillListenerReconcileTest, ReconcilesMissedFill) {
   tracker_->recordOrder(key, OrderSide::Buy, "missed-fill-id");
 
   mock_client_->orders_to_return = {
-      {"missed-fill-id", "AAPL", "buy", "filled", 100, 100, 150.25}};
+      {"missed-fill-id", "AAPL", "buy", "filled", "", 100, 100, 150.25}};
 
   simulateReconnect();
 
@@ -703,7 +703,7 @@ TEST_P(ReconcileTerminalCancelTest, ClearsPositionAndTracker) {
   tracker_->recordOrder(key, OrderSide::Buy, "terminal-order-id");
 
   mock_client_->orders_to_return = {
-      {"terminal-order-id", "AAPL", "buy", status, 100, 0, 0.0}};
+      {"terminal-order-id", "AAPL", "buy", status, "", 100, 0, 0.0}};
 
   simulateReconnect();
 
@@ -734,7 +734,7 @@ TEST_F(FillListenerReconcileTest, SkipsAlreadyProcessedFill) {
   EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 100);
 
   mock_client_->orders_to_return = {
-      {"already-filled-id", "AAPL", "buy", "filled", 100, 100, 150.25}};
+      {"already-filled-id", "AAPL", "buy", "filled", "", 100, 100, 150.25}};
 
   simulateReconnect();
 
@@ -759,7 +759,7 @@ TEST_F(FillListenerReconcileTest, ReconcilesMissedPartialFillRemainder) {
   EXPECT_EQ(position_manager_->getFilledPosition("AAPL"), 60);
 
   mock_client_->orders_to_return = {
-      {"partial-order-id", "AAPL", "buy", "filled", 100, 100, 150.40}};
+      {"partial-order-id", "AAPL", "buy", "filled", "", 100, 100, 150.40}};
 
   simulateReconnect();
 
@@ -794,7 +794,7 @@ TEST_F(FillListenerReconcileTest, HandlesQueryFailure) {
 
 TEST_F(FillListenerReconcileTest, SkipsOrdersWithUnknownSide) {
   mock_client_->orders_to_return = {
-      {"unknown-side-id", "AAPL", "short", "filled", 100, 100, 150.25}};
+      {"unknown-side-id", "AAPL", "short", "filled", "", 100, 100, 150.25}};
 
   simulateReconnect();
 
@@ -811,7 +811,7 @@ TEST_F(FillListenerReconcileTest, ReconcilesSellFill) {
   tracker_->recordOrder(key, OrderSide::Sell, "sell-fill-id");
 
   mock_client_->orders_to_return = {
-      {"sell-fill-id", "AAPL", "sell", "filled", 50, 50, 155.00}};
+      {"sell-fill-id", "AAPL", "sell", "filled", "", 50, 50, 155.00}};
 
   simulateReconnect();
 
@@ -825,7 +825,7 @@ TEST_F(FillListenerReconcileTest, ReconcilesCancelAfterPartialFill) {
   position_manager_->onOrderSent(order);
 
   mock_client_->orders_to_return = {
-      {"cancel-partial-id", "AAPL", "buy", "canceled", 100, 40, 149.50}};
+      {"cancel-partial-id", "AAPL", "buy", "canceled", "", 100, 40, 149.50}};
 
   simulateReconnect();
 
@@ -859,8 +859,8 @@ TEST_F(FillListenerReconcileTest, ReconcileMultipleOrders) {
   tracker_->recordOrder(googl_key, OrderSide::Sell, "googl-cancel-id");
 
   mock_client_->orders_to_return = {
-      {"aapl-fill-id", "AAPL", "buy", "filled", 100, 100, 150.25},
-      {"googl-cancel-id", "GOOGL", "sell", "canceled", 50, 0, 0.0}};
+      {"aapl-fill-id", "AAPL", "buy", "filled", "", 100, 100, 150.25},
+      {"googl-cancel-id", "GOOGL", "sell", "canceled", "", 50, 0, 0.0}};
 
   simulateReconnect();
 

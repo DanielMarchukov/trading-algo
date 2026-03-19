@@ -6,9 +6,11 @@
 #include <ixwebsocket/IXWebSocket.h>
 #include <nlohmann/json_fwd.hpp>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 struct FillEvent {
   char symbol[8];
@@ -96,6 +98,14 @@ private:
   struct CompletedEntry {
     char order_id[48]{};
   };
+
+  static_assert(sizeof(FilledEntry) == 56, "FilledEntry must be 56 bytes");
+  static_assert(std::is_trivially_copyable_v<FilledEntry>,
+                "FilledEntry must be trivially copyable");
+  static_assert(sizeof(CompletedEntry) == 48,
+                "CompletedEntry must be 48 bytes");
+  static_assert(std::is_trivially_copyable_v<CompletedEntry>,
+                "CompletedEntry must be trivially copyable");
 
   std::vector<FilledEntry> filled_entries_;
   std::vector<CompletedEntry> completed_entries_;

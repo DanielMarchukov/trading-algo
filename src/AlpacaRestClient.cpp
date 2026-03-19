@@ -194,10 +194,12 @@ AlpacaRestClient::queryOrders(std::string_view status_filter,
     return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
   }
 
-  std::string url = order_url_ + "?status=" + std::string(status_filter) +
-                    "&limit=500&direction=desc";
+  std::string url =
+      order_url_ + "?status=" + std::string(status_filter) + "&limit=500";
   if (!after.empty()) {
-    url += "&after=" + std::string(after);
+    url += "&after=" + std::string(after) + "&direction=asc";
+  } else {
+    url += "&direction=desc";
   }
   session_->SetUrl(cpr::Url{url});
   session_->RemoveContent();
@@ -247,17 +249,31 @@ AlpacaRestClient::queryOrders(std::string_view status_filter,
       }
     }
 
-    const auto avg_price_str = item.value("filled_avg_price", "");
-    if (!avg_price_str.empty() && avg_price_str != "null") {
-      try {
-        order.filled_avg_price = std::stod(avg_price_str);
-      } catch (const std::exception &e) {
-        std::cerr << "AlpacaRestClient: Failed to parse filled_avg_price '"
-                  << avg_price_str << "': " << e.what() << '\n';
-        order.filled_avg_price = 0.0;
+    if (item.contains("filled_avg_price")) {
+      const auto &price_val = item["filled_avg_price"];
+      if (price_val.is_number()) {
+        order.filled_avg_price = price_val.get<double>();
+      } else if (price_val.is_string()) {
+        const auto &s = price_val.get_ref<const std::string &>();
+        if (!s.empty() && s != "null") {
+          std::size_t pos = 0;
+          try {
+            order.filled_avg_price = std::stod(s, &pos);
+          } catch (const std::exception &e) {
+            std::cerr << "AlpacaRestClient: Failed to parse filled_avg_price '"
+                      << s << "': " << e.what() << '\n';
+          }
+          if (pos != s.size()) {
+            std::cerr
+                << "AlpacaRestClient: Trailing chars in filled_avg_price '" << s
+                << "' for order " << order.id << '\n';
+            order.filled_avg_price = 0.0;
+          }
+        }
       }
     }
 
+    order.created_at = item.value("created_at", "");
     orders.push_back(std::move(order));
   }
 

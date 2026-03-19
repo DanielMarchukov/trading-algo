@@ -386,35 +386,47 @@ void AlpacaFillListener::reconcileAfterReconnect() {
 
   std::cout << "FillListener: Starting post-reconnect reconciliation" << '\n';
 
-  auto result = reconciliation_client_->queryOrders("all", session_start_iso_);
-  if (!result) {
-    std::cerr << "FillListener: Reconciliation query failed (HTTP "
-              << result.error().status_code << "): " << result.error().message
-              << '\n';
-    return;
-  }
-
-  const auto &orders = *result;
+  constexpr int64_t kPageSize = 500;
   int64_t reconciled_fills = 0;
   int64_t reconciled_cancels = 0;
+  std::string cursor = session_start_iso_;
 
-  for (const auto &alpaca_order : orders) {
-    if (alpaca_order.id.empty() || isCompleted(alpaca_order.id)) {
-      continue;
+  for (;;) {
+    auto result = reconciliation_client_->queryOrders("all", cursor);
+    if (!result) {
+      std::cerr << "FillListener: Reconciliation query failed (HTTP "
+                << result.error().status_code << "): " << result.error().message
+                << '\n';
+      break;
     }
 
-    const auto side_opt = parseSide(alpaca_order.side);
-    if (!side_opt.has_value()) {
-      continue;
+    const auto &page = *result;
+    for (const auto &alpaca_order : page) {
+      if (alpaca_order.id.empty() || isCompleted(alpaca_order.id)) {
+        continue;
+      }
+
+      const auto side_opt = parseSide(alpaca_order.side);
+      if (!side_opt.has_value()) {
+        continue;
+      }
+
+      if (alpaca_order.status == "filled" ||
+          alpaca_order.status == "partially_filled") {
+        reconciled_fills += reconcileFill(alpaca_order, *side_opt);
+      } else if (alpaca_order.status == "canceled" ||
+                 alpaca_order.status == "expired" ||
+                 alpaca_order.status == "rejected") {
+        reconciled_cancels += reconcileCancel(alpaca_order, *side_opt);
+      }
     }
 
-    if (alpaca_order.status == "filled" ||
-        alpaca_order.status == "partially_filled") {
-      reconciled_fills += reconcileFill(alpaca_order, *side_opt);
-    } else if (alpaca_order.status == "canceled" ||
-               alpaca_order.status == "expired" ||
-               alpaca_order.status == "rejected") {
-      reconciled_cancels += reconcileCancel(alpaca_order, *side_opt);
+    if (static_cast<int64_t>(page.size()) < kPageSize || page.empty()) {
+      break;
+    }
+    cursor = page.back().created_at;
+    if (cursor.empty()) {
+      break;
     }
   }
 
