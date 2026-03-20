@@ -4,7 +4,9 @@
 #include "PendingOrderTracker.hpp"
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
+#include "ThreadGuard.hpp"
 #include <cstring>
+#include <future>
 #include <gtest/gtest.h>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -465,7 +467,9 @@ TEST_F(FillListenerTest, StopDuringActiveProcessingCompletesCorrectly) {
   }
 
   std::atomic<int> processed{0};
-  std::thread processor([&]() {
+  std::promise<void> processor_finished;
+
+  ThreadGuard processor{std::thread([&]() {
     for (int i = 0; i < num_fills; ++i) {
       callHandleTradeUpdate(R"({
         "stream": "trade_updates",
@@ -478,14 +482,17 @@ TEST_F(FillListenerTest, StopDuringActiveProcessingCompletesCorrectly) {
       })");
       processed.fetch_add(1, std::memory_order_relaxed);
     }
-  });
+    processor_finished.set_value();
+  })};
 
   while (processed.load(std::memory_order_relaxed) < 5) {
     std::this_thread::yield();
   }
   listener_->stop();
 
-  processor.join();
+  auto status =
+      processor_finished.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
 
   const int64_t filled = position_manager_->getFilledPosition("AAPL");
   const int64_t pending = position_manager_->getPendingPosition("AAPL");

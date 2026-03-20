@@ -1,6 +1,8 @@
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
+#include "ThreadGuard.hpp"
 #include "Utils.hpp"
+#include <future>
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
@@ -163,17 +165,27 @@ TEST_F(PositionManagerTest, FilledAndPendingIndependent) {
 }
 
 TEST_F(PositionManagerTest, ConcurrentFillsForSameSymbol) {
-  std::vector<std::thread> threads;
-  threads.reserve(4);
+  constexpr int kThreads = 4;
+  std::atomic<int> done_count{0};
+  std::promise<void> all_done;
 
-  for (int i = 0; i < 4; ++i) {
-    threads.emplace_back([this]() {
+  std::vector<std::thread> threads;
+  threads.reserve(kThreads);
+
+  for (int i = 0; i < kThreads; ++i) {
+    threads.emplace_back([this, &done_count, &all_done]() {
       const Fill fill = createFill("AAPL", OrderSide::Buy, 1);
       for (int j = 0; j < 250; ++j) {
         pm.onFill(fill);
       }
+      if (done_count.fetch_add(1, std::memory_order_acq_rel) + 1 == kThreads) {
+        all_done.set_value();
+      }
     });
   }
+
+  auto status = all_done.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
 
   for (auto &t : threads) {
     t.join();
@@ -212,10 +224,14 @@ TEST_F(PositionManagerTest, DoubleRegisterDoesNotResetState) {
 TEST_F(PositionManagerTest, ConcurrentOrderSentAndFill) {
   constexpr int orders_per_thread = 500;
   constexpr int num_sender_threads = 4;
+  constexpr int total_threads = num_sender_threads + 1;
 
   std::atomic<bool> start{false};
+  std::atomic<int> done_count{0};
+  std::promise<void> all_done;
+
   std::vector<std::thread> threads;
-  threads.reserve(num_sender_threads + 1);
+  threads.reserve(total_threads);
 
   for (int t = 0; t < num_sender_threads; ++t) {
     threads.emplace_back([&]() {
@@ -223,6 +239,10 @@ TEST_F(PositionManagerTest, ConcurrentOrderSentAndFill) {
       }
       for (int i = 0; i < orders_per_thread; ++i) {
         pm.onOrderSent(createOrder("AAPL", OrderSide::Buy, 1, 1000));
+      }
+      if (done_count.fetch_add(1, std::memory_order_acq_rel) + 1 ==
+          total_threads) {
+        all_done.set_value();
       }
     });
   }
@@ -233,9 +253,16 @@ TEST_F(PositionManagerTest, ConcurrentOrderSentAndFill) {
     for (int i = 0; i < num_sender_threads * orders_per_thread; ++i) {
       pm.onFill(createFill("AAPL", OrderSide::Buy, 1));
     }
+    if (done_count.fetch_add(1, std::memory_order_acq_rel) + 1 ==
+        total_threads) {
+      all_done.set_value();
+    }
   });
 
   start.store(true, std::memory_order_release);
+
+  auto status = all_done.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
 
   for (auto &t : threads) {
     t.join();
