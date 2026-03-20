@@ -194,14 +194,14 @@ AlpacaRestClient::queryOrders(std::string_view status_filter,
     return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
   }
 
-  std::string url =
-      order_url_ + "?status=" + std::string(status_filter) + "&limit=500";
+  cpr::Parameters params{{"status", std::string(status_filter)},
+                         {"limit", "500"},
+                         {"direction", after.empty() ? "desc" : "asc"}};
   if (!after.empty()) {
-    url += "&after=" + std::string(after) + "&direction=asc";
-  } else {
-    url += "&direction=desc";
+    params.Add({"after", std::string(after)});
   }
-  session_->SetUrl(cpr::Url{url});
+  session_->SetUrl(cpr::Url{order_url_});
+  session_->SetParameters(params);
   session_->RemoveContent();
   const cpr::Response r = session_->Get();
   reapplyQuickAck();
