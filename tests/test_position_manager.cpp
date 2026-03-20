@@ -1,7 +1,5 @@
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
-#include "ThreadGuard.hpp"
-#include "Utils.hpp"
 #include <future>
 #include <gtest/gtest.h>
 #include <thread>

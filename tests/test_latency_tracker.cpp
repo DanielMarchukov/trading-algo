@@ -1,5 +1,4 @@
 #include "LatencyTracker.hpp"
-#include "ThreadGuard.hpp"
 #include <atomic>
 #include <filesystem>
 #include <fstream>

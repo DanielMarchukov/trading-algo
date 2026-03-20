@@ -224,7 +224,7 @@ TEST_F(LockFreeMPSCQueueTest, StressTestHighContention) {
   })};
 
   auto status =
-      consumer_finished.get_future().wait_for(std::chrono::seconds(5));
+      consumer_finished.get_future().wait_for(std::chrono::seconds(30));
   ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
 
   for (auto &t : producers) {

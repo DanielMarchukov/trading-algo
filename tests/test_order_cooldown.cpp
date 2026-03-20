@@ -1,5 +1,4 @@
 #include "OrderCooldown.hpp"
-#include "ThreadGuard.hpp"
 #include "Utils.hpp"
 #include <cstring>
 #include <future>
