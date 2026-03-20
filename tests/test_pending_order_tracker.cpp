@@ -138,8 +138,4 @@ TEST_F(PendingOrderTrackerTest, ConcurrentAccess) {
   const auto status = future.wait_for(std::chrono::seconds(5));
   ASSERT_EQ(status, std::future_status::ready)
       << "ConcurrentAccess test timed out — possible deadlock";
-
-  writer1.t.join();
-  writer2.t.join();
-  reader.t.join();
 }

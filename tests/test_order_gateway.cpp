@@ -162,7 +162,6 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
   while (call_count.load(std::memory_order_acquire) < 2) {
   }
   is_running.store(false);
-  guard.t.join();
 
   ASSERT_EQ(received_ids.size(), 2);
   EXPECT_EQ(received_ids[0], 1);
@@ -292,17 +291,18 @@ TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
   std::stringstream captured;
   auto *original = std::cerr.rdbuf(captured.rdbuf());
 
-  ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
+  {
+    ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
 
-  Order order{};
-  order.id = 1;
-  order_queue.push(order);
+    Order order{};
+    order.id = 1;
+    order_queue.push(order);
 
-  const auto status = future.wait_for(std::chrono::seconds(2));
-  ASSERT_EQ(status, std::future_status::ready);
-  is_running.store(false);
+    const auto status = future.wait_for(std::chrono::seconds(2));
+    ASSERT_EQ(status, std::future_status::ready);
+    is_running.store(false);
+  }
 
-  guard.t.join();
   std::cerr.rdbuf(original);
 
   EXPECT_TRUE(captured.str().find(expected_substr) != std::string::npos);
@@ -625,7 +625,6 @@ TEST_F(OrderGatewayTest, RecordsLatencyMetricsWhileRunning) {
   auto status = future.wait_for(std::chrono::seconds(2));
   ASSERT_EQ(status, std::future_status::ready);
   is_running.store(false);
-  guard.t.join();
 
   EXPECT_EQ(tracker.count(LatencyMetric::MpscQueue), 1);
   EXPECT_EQ(tracker.count(LatencyMetric::EndToEnd), 1);

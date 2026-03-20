@@ -2,6 +2,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <gtest/gtest.h>
 #include <string>
 #include <thread>
@@ -52,6 +53,8 @@ TEST_F(LatencyTrackerTest, ConcurrentRecordFromMultipleThreads) {
   constexpr int samples_per_thread = 10000;
 
   std::atomic<bool> start{false};
+  std::atomic<int> done_count{0};
+  std::promise<void> all_done;
   std::vector<std::thread> threads;
   threads.reserve(num_threads);
 
@@ -64,10 +67,18 @@ TEST_F(LatencyTrackerTest, ConcurrentRecordFromMultipleThreads) {
                         static_cast<uint64_t>(t + 1) * 1000 +
                             static_cast<uint64_t>(i));
       }
+      if (done_count.fetch_add(1, std::memory_order_acq_rel) + 1 ==
+          num_threads) {
+        all_done.set_value();
+      }
     });
   }
 
   start.store(true, std::memory_order_release);
+
+  auto status = all_done.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
+
   for (auto &t : threads) {
     t.join();
   }

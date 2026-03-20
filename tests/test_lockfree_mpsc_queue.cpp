@@ -1,7 +1,9 @@
 #include "LockFreeMPSCQueue.hpp"
+#include "ThreadGuard.hpp"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
+#include <future>
 #include <gtest/gtest.h>
 #include <set>
 #include <thread>
@@ -68,18 +70,22 @@ TEST_F(LockFreeMPSCQueueTest, InterleavedPushPop) {
 TEST_F(LockFreeMPSCQueueTest, WaitAndPopBlocks) {
   std::atomic<bool> consumer_done{false};
   int consumed_value = 0;
+  std::promise<void> consumer_finished;
 
-  std::thread consumer([&]() {
+  ThreadGuard consumer{std::thread([&]() {
     queue.wait_and_pop(consumed_value);
     consumer_done.store(true);
-  });
+    consumer_finished.set_value();
+  })};
 
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   EXPECT_FALSE(consumer_done.load());
 
   queue.push(999);
 
-  consumer.join();
+  auto status =
+      consumer_finished.get_future().wait_for(std::chrono::seconds(2));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
   EXPECT_TRUE(consumer_done.load());
   EXPECT_EQ(consumed_value, 999);
 }
@@ -87,16 +93,24 @@ TEST_F(LockFreeMPSCQueueTest, WaitAndPopBlocks) {
 TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopReturnsOnData) {
   std::atomic<bool> running{true};
   int value = 0;
+  bool got = false;
+  std::promise<void> consumer_finished;
 
-  std::thread producer([&]() {
+  ThreadGuard producer{std::thread([&]() {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
     queue.push(42);
-  });
+  })};
 
-  EXPECT_TRUE(queue.wait_and_pop(value, running));
+  ThreadGuard consumer{std::thread([&]() {
+    got = queue.wait_and_pop(value, running);
+    consumer_finished.set_value();
+  })};
+
+  auto status =
+      consumer_finished.get_future().wait_for(std::chrono::seconds(2));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
+  EXPECT_TRUE(got);
   EXPECT_EQ(value, 42);
-
-  producer.join();
 }
 
 TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopExitsOnStop) {
@@ -104,17 +118,22 @@ TEST_F(LockFreeMPSCQueueTest, StoppableWaitAndPopExitsOnStop) {
   std::atomic<bool> consumer_exited{false};
   bool got = true;
   int value = 0;
+  std::promise<void> consumer_finished;
 
-  std::thread consumer([&]() {
+  ThreadGuard consumer{std::thread([&]() {
     got = queue.wait_and_pop(value, running);
     consumer_exited.store(true);
-  });
+    consumer_finished.set_value();
+  })};
 
   std::this_thread::sleep_for(std::chrono::milliseconds(10));
   EXPECT_FALSE(consumer_exited.load());
 
   running.store(false);
-  consumer.join();
+
+  auto status =
+      consumer_finished.get_future().wait_for(std::chrono::seconds(2));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
   EXPECT_TRUE(consumer_exited.load());
   EXPECT_FALSE(got);
 }
@@ -127,6 +146,7 @@ TEST_F(LockFreeMPSCQueueTest, MultiProducerSingleConsumer) {
   std::vector<std::thread> producers;
   producers.reserve(num_producers);
   std::atomic<bool> start{false};
+  std::promise<void> consumer_finished;
 
   for (int p = 0; p < num_producers; ++p) {
     producers.emplace_back([&, p]() {
@@ -145,13 +165,20 @@ TEST_F(LockFreeMPSCQueueTest, MultiProducerSingleConsumer) {
   std::set<int> received;
   int consumed_count = 0;
 
-  while (consumed_count < total_items) {
-    int value;
-    if (queue.try_pop(value)) {
-      received.insert(value);
-      ++consumed_count;
+  ThreadGuard consumer{std::thread([&]() {
+    while (consumed_count < total_items) {
+      int value;
+      if (queue.try_pop(value)) {
+        received.insert(value);
+        ++consumed_count;
+      }
     }
-  }
+    consumer_finished.set_value();
+  })};
+
+  auto status =
+      consumer_finished.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
 
   for (auto &t : producers) {
     t.join();
@@ -171,6 +198,7 @@ TEST_F(LockFreeMPSCQueueTest, StressTestHighContention) {
   std::vector<std::thread> producers;
   producers.reserve(num_producers);
   std::atomic<int> production_counter{0};
+  std::promise<void> consumer_finished;
 
   for (int p = 0; p < num_producers; ++p) {
     producers.emplace_back([&]() {
@@ -185,12 +213,19 @@ TEST_F(LockFreeMPSCQueueTest, StressTestHighContention) {
   std::vector<int> received;
   received.reserve(total_items);
 
-  while (received.size() < total_items) {
-    int value;
-    if (queue.try_pop(value)) {
-      received.push_back(value);
+  ThreadGuard consumer{std::thread([&]() {
+    while (received.size() < static_cast<size_t>(total_items)) {
+      int value;
+      if (queue.try_pop(value)) {
+        received.push_back(value);
+      }
     }
-  }
+    consumer_finished.set_value();
+  })};
+
+  auto status =
+      consumer_finished.get_future().wait_for(std::chrono::seconds(30));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
 
   for (auto &t : producers) {
     t.join();
@@ -206,8 +241,9 @@ TEST_F(LockFreeMPSCQueueTest, StressTestHighContention) {
 
 TEST_F(LockFreeMPSCQueueTest, MixedPushPopWithDelay) {
   std::atomic<bool> producer_done{false};
+  std::promise<void> consumer_finished;
 
-  std::thread producer([&]() {
+  ThreadGuard producer{std::thread([&]() {
     for (int i = 0; i < 1000; ++i) {
       queue.push(i);
       if (i % 100 == 0) {
@@ -215,21 +251,26 @@ TEST_F(LockFreeMPSCQueueTest, MixedPushPopWithDelay) {
       }
     }
     producer_done.store(true);
-  });
+  })};
 
   int consumed_count = 0;
   int last_value = -1;
 
-  while (!producer_done.load() || consumed_count < 1000) {
-    int value;
-    if (queue.try_pop(value)) {
-      EXPECT_GT(value, last_value);
-      last_value = value;
-      ++consumed_count;
+  ThreadGuard consumer{std::thread([&]() {
+    while (!producer_done.load() || consumed_count < 1000) {
+      int value;
+      if (queue.try_pop(value)) {
+        EXPECT_GT(value, last_value);
+        last_value = value;
+        ++consumed_count;
+      }
     }
-  }
+    consumer_finished.set_value();
+  })};
 
-  producer.join();
+  auto status =
+      consumer_finished.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
   EXPECT_EQ(consumed_count, 1000);
 }
 

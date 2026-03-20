@@ -1,6 +1,7 @@
 #include "OrderCooldown.hpp"
 #include "Utils.hpp"
 #include <cstring>
+#include <future>
 #include <gtest/gtest.h>
 #include <thread>
 #include <vector>
@@ -81,6 +82,8 @@ TEST_F(OrderCooldownTest, ConcurrentDifferentSymbols) {
 
   std::atomic<bool> start{false};
   std::atomic<int> total_approved{0};
+  std::atomic<int> done_count{0};
+  std::promise<void> all_done;
   std::vector<std::thread> threads;
   threads.reserve(kNumThreads);
 
@@ -99,10 +102,17 @@ TEST_F(OrderCooldownTest, ConcurrentDifferentSymbols) {
         }
       }
       total_approved.fetch_add(approved, std::memory_order_relaxed);
+      if (done_count.fetch_add(1, std::memory_order_acq_rel) + 1 ==
+          kNumThreads) {
+        all_done.set_value();
+      }
     });
   }
 
   start.store(true, std::memory_order_release);
+
+  auto status = all_done.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
 
   for (auto &t : threads) {
     t.join();
