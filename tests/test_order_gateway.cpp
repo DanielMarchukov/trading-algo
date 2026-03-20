@@ -34,6 +34,12 @@ public:
     return {};
   }
 
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
+  }
+
   std::promise<void> *promise_to_fulfill = nullptr;
 };
 
@@ -131,6 +137,11 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
     cancelOrder(std::string_view /*alpaca_order_id*/) override {
       return {};
     }
+    std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
+      return std::vector<AlpacaOrderStatus>{};
+    }
 
   private:
     std::vector<uint64_t> &ids_;
@@ -185,6 +196,11 @@ TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
     cancelOrder(std::string_view /*alpaca_order_id*/) override {
       return {};
     }
+    std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
+      return std::vector<AlpacaOrderStatus>{};
+    }
   };
 
   OrderGateway gateway(is_running, &order_queue,
@@ -212,6 +228,12 @@ public:
     return {};
   }
 
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
+  }
+
 private:
   std::promise<void> *promise_;
 };
@@ -231,6 +253,12 @@ public:
   std::expected<void, OrderError>
   cancelOrder(std::string_view /*alpaca_order_id*/) override {
     return {};
+  }
+
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
   }
 
 private:
@@ -363,6 +391,12 @@ public:
     return cancel_result_;
   }
 
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
+  }
+
   std::vector<Call> calls;
 
 private:
@@ -382,6 +416,12 @@ public:
   std::expected<void, OrderError>
   cancelOrder(std::string_view /*alpaca_order_id*/) override {
     throw std::runtime_error("cancel network error");
+  }
+
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
   }
 
   std::vector<std::string> place_ids;
@@ -546,6 +586,11 @@ TEST_F(CancelBeforeReplaceTest, DoesNotRecordFailedPlacement) {
     std::expected<void, OrderError>
     cancelOrder(std::string_view /*alpaca_order_id*/) override {
       return {};
+    }
+    std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
+      return std::vector<AlpacaOrderStatus>{};
     }
   };
 

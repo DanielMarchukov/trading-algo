@@ -16,6 +16,12 @@ public:
   cancelOrder(std::string_view /*alpaca_order_id*/) override {
     return {};
   }
+
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
+  }
 };
 
 class TradingEngineTest : public ::testing::Test {

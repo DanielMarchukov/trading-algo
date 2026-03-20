@@ -9,8 +9,10 @@ int main() {
     const std::vector<std::string> symbols = {"AAPL", "GOOGL", "AMZN"};
 
     auto alpaca_client = std::make_unique<AlpacaRestClient>();
+    auto reconciliation_client = std::make_unique<AlpacaRestClient>();
 
-    TradingEngine engine(symbols, std::move(alpaca_client));
+    TradingEngine engine(symbols, std::move(alpaca_client),
+                         std::move(reconciliation_client));
     engine.run();
   } catch (const std::exception &e) {
     std::cerr << "An exception occurred: " << e.what() << '\n';

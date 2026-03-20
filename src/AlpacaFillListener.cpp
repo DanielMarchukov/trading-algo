@@ -1,9 +1,12 @@
 #include "AlpacaFillListener.hpp"
+#include "IRestClient.hpp"
 #include "LatencyTracker.hpp"
 #include "PendingOrderTracker.hpp"
 #include "ThreadPinning.hpp"
 #include <algorithm>
+#include <chrono>
 #include <cstring>
+#include <ctime>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
@@ -70,6 +73,20 @@ void copyOrderId(char (&dest)[48], const std::string &src) {
     std::cerr << "FillListener: parsePrice failed: " << e.what() << '\n';
   }
   return std::nullopt;
+}
+
+[[nodiscard]] std::string nowIso8601() {
+  const auto now = std::chrono::system_clock::now();
+  const auto t = std::chrono::system_clock::to_time_t(now);
+  std::tm tm{};
+#if defined(_WIN32)
+  gmtime_s(&tm, &t);
+#else
+  gmtime_r(&t, &tm);
+#endif
+  char buf[32]{};
+  std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tm);
+  return buf;
 }
 
 } // namespace
@@ -166,9 +183,11 @@ AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
                                        const std::string &api_key,
                                        const std::string &api_secret,
                                        PendingOrderTracker *pending_tracker,
-                                       LatencyTracker *latency_tracker)
+                                       LatencyTracker *latency_tracker,
+                                       IRestClient *reconciliation_client)
     : position_manager_(position_manager), pending_tracker_(pending_tracker),
-      latency_tracker_(latency_tracker), is_running_(is_running),
+      latency_tracker_(latency_tracker),
+      reconciliation_client_(reconciliation_client), is_running_(is_running),
       api_key_(api_key), api_secret_(api_secret) {
   if (position_manager_ == nullptr) {
     throw std::invalid_argument(
@@ -205,7 +224,13 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   switch (msg->type) {
   case ix::WebSocketMessageType::Open:
-    std::cout << "FillListener: WebSocket connected" << '\n';
+    if (has_connected_) {
+      std::cout << "FillListener: WebSocket reconnected — will reconcile after "
+                   "auth"
+                << '\n';
+    } else {
+      std::cout << "FillListener: WebSocket connected" << '\n';
+    }
     sendAuth();
     break;
 
@@ -254,6 +279,12 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
         parsed["data"]["status"] == "authorized") {
       std::cout << "FillListener: Authorized" << '\n';
       sendSubscribe();
+      if (has_connected_) {
+        reconcileAfterReconnect();
+      } else {
+        session_start_iso_ = nowIso8601();
+      }
+      has_connected_ = true;
     } else {
       std::cerr << "FillListener: Authorization failed" << '\n';
     }
@@ -297,6 +328,12 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     std::string_view order_id(
         fill_event.alpaca_order_id,
         strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
+    if (!order_id.empty()) {
+      upsertFilledQty(order_id, findFilledQty(order_id) + fill_event.quantity);
+      if (!fill_event.is_partial) {
+        markCompleted(order_id);
+      }
+    }
     if (latency_tracker_ && !order_id.empty()) {
       latency_tracker_->recordFillReceived(order_id);
     }
@@ -321,12 +358,15 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
     order.side = cancel_event.side;
     order.type = OrderType::Market;
     position_manager_->onOrderCancelled(order);
+    std::string_view order_id(
+        cancel_event.alpaca_order_id,
+        strnlen(cancel_event.alpaca_order_id, kOrderIdCapacity));
+    if (!order_id.empty()) {
+      markCompleted(order_id);
+    }
     if (pending_tracker_) {
       SymbolKey key{};
       std::memcpy(key.value, cancel_event.symbol, kSymbolCapacity);
-      std::string_view order_id(
-          cancel_event.alpaca_order_id,
-          strnlen(cancel_event.alpaca_order_id, kOrderIdCapacity));
       pending_tracker_->onOrderCompleted(key, cancel_event.side, order_id);
     }
     std::cout << "FillListener: Cancel processed ("
@@ -334,4 +374,192 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
                                   strnlen(cancel_event.symbol, kSymbolCapacity))
               << " qty=" << cancel_event.quantity << ")" << '\n';
   }
+}
+
+void AlpacaFillListener::reconcileAfterReconnect() {
+  if (reconciliation_client_ == nullptr) {
+    std::cerr << "FillListener: No reconciliation client — skipping "
+                 "post-reconnect reconciliation"
+              << '\n';
+    return;
+  }
+
+  std::cout << "FillListener: Starting post-reconnect reconciliation" << '\n';
+
+  constexpr int64_t kPageSize = 500;
+  int64_t reconciled_fills = 0;
+  int64_t reconciled_cancels = 0;
+  std::string cursor = session_start_iso_;
+
+  for (;;) {
+    auto result = reconciliation_client_->queryOrders("all", cursor);
+    if (!result) {
+      std::cerr << "FillListener: Reconciliation query failed (HTTP "
+                << result.error().status_code << "): " << result.error().message
+                << '\n';
+      break;
+    }
+
+    const auto &page = *result;
+    for (const auto &alpaca_order : page) {
+      if (alpaca_order.id.empty() || isCompleted(alpaca_order.id)) {
+        continue;
+      }
+
+      const auto side_opt = parseSide(alpaca_order.side);
+      if (!side_opt.has_value()) {
+        continue;
+      }
+
+      if (alpaca_order.status == "filled" ||
+          alpaca_order.status == "partially_filled") {
+        reconciled_fills += reconcileFill(alpaca_order, *side_opt);
+      } else if (alpaca_order.status == "canceled" ||
+                 alpaca_order.status == "expired" ||
+                 alpaca_order.status == "rejected") {
+        reconciled_cancels += reconcileCancel(alpaca_order, *side_opt);
+      }
+    }
+
+    if (static_cast<int64_t>(page.size()) < kPageSize || page.empty()) {
+      break;
+    }
+    cursor = page.back().created_at;
+    if (cursor.empty()) {
+      break;
+    }
+  }
+
+  std::cout << "FillListener: Reconciliation complete (fills="
+            << reconciled_fills << " cancels=" << reconciled_cancels << ")"
+            << '\n';
+}
+
+int64_t AlpacaFillListener::reconcileFill(const AlpacaOrderStatus &alpaca_order,
+                                          OrderSide side) {
+  const int64_t already_filled = findFilledQty(alpaca_order.id);
+  const int64_t remaining = alpaca_order.filled_qty - already_filled;
+
+  if (remaining <= 0) {
+    return 0;
+  }
+
+  Fill fill{};
+  copySymbol(fill.symbol, alpaca_order.symbol);
+  fill.executionId = 0;
+  fill.orderId = 0;
+  fill.side = side;
+  fill.quantity = remaining;
+  fill.price = alpaca_order.filled_avg_price;
+  position_manager_->onFill(fill);
+
+  upsertFilledQty(alpaca_order.id, alpaca_order.filled_qty);
+  if (alpaca_order.status == "filled") {
+    markCompleted(alpaca_order.id);
+    if (pending_tracker_) {
+      SymbolKey key{};
+      copySymbol(key.value, alpaca_order.symbol);
+      pending_tracker_->onOrderCompleted(key, side, alpaca_order.id);
+    }
+  }
+
+  std::cout << "FillListener: Reconciled fill (" << alpaca_order.symbol
+            << " qty=" << remaining
+            << " avg_price=" << alpaca_order.filled_avg_price << ")" << '\n';
+  return 1;
+}
+
+int64_t
+AlpacaFillListener::reconcileCancel(const AlpacaOrderStatus &alpaca_order,
+                                    OrderSide side) {
+  const int64_t already_filled = findFilledQty(alpaca_order.id);
+  const int64_t missed_fills = alpaca_order.filled_qty - already_filled;
+
+  if (missed_fills > 0) {
+    Fill fill{};
+    copySymbol(fill.symbol, alpaca_order.symbol);
+    fill.executionId = 0;
+    fill.orderId = 0;
+    fill.side = side;
+    fill.quantity = missed_fills;
+    fill.price = alpaca_order.filled_avg_price;
+    position_manager_->onFill(fill);
+    upsertFilledQty(alpaca_order.id, alpaca_order.filled_qty);
+  }
+
+  const int64_t unfilled =
+      (std::max)(int64_t{0}, alpaca_order.qty - alpaca_order.filled_qty);
+  if (unfilled > 0) {
+    Order order{};
+    order.id = 0;
+    copySymbol(order.symbol, alpaca_order.symbol);
+    order.quantity = unfilled;
+    order.price = 0;
+    order.side = side;
+    order.type = OrderType::Market;
+    position_manager_->onOrderCancelled(order);
+  }
+
+  markCompleted(alpaca_order.id);
+  if (pending_tracker_) {
+    SymbolKey key{};
+    copySymbol(key.value, alpaca_order.symbol);
+    pending_tracker_->onOrderCompleted(key, side, alpaca_order.id);
+  }
+
+  std::cout << "FillListener: Reconciled cancel (" << alpaca_order.symbol
+            << " filled=" << missed_fills << " unfilled=" << unfilled << ")"
+            << '\n';
+  return 1;
+}
+
+int64_t
+AlpacaFillListener::findFilledQty(std::string_view order_id) const noexcept {
+  for (const auto &e : filled_entries_) {
+    if (std::string_view(e.order_id, strnlen(e.order_id, kOrderIdCapacity)) ==
+        order_id) {
+      return e.filled_qty;
+    }
+  }
+  return 0;
+}
+
+void AlpacaFillListener::upsertFilledQty(std::string_view order_id,
+                                         int64_t qty) {
+  for (auto &e : filled_entries_) {
+    if (std::string_view(e.order_id, strnlen(e.order_id, kOrderIdCapacity)) ==
+        order_id) {
+      e.filled_qty = qty;
+      return;
+    }
+  }
+  if (filled_entries_.size() >= kMaxTrackedOrders) {
+    filled_entries_.erase(filled_entries_.begin());
+  }
+  FilledEntry entry{};
+  copyOrderId(entry.order_id, std::string(order_id));
+  entry.filled_qty = qty;
+  filled_entries_.push_back(entry);
+}
+
+bool AlpacaFillListener::isCompleted(std::string_view order_id) const noexcept {
+  for (const auto &e : completed_entries_) {
+    if (std::string_view(e.order_id, strnlen(e.order_id, kOrderIdCapacity)) ==
+        order_id) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void AlpacaFillListener::markCompleted(std::string_view order_id) {
+  if (isCompleted(order_id)) {
+    return;
+  }
+  if (completed_entries_.size() >= kMaxTrackedOrders) {
+    completed_entries_.erase(completed_entries_.begin());
+  }
+  CompletedEntry entry{};
+  copyOrderId(entry.order_id, std::string(order_id));
+  completed_entries_.push_back(entry);
 }

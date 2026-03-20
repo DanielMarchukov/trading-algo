@@ -540,3 +540,144 @@ TEST_F(AlpacaRestClientRateLimitTest,
   ASSERT_FALSE(cancel.has_value());
   EXPECT_EQ(cancel.error().status_code, 429);
 }
+
+class AlpacaRestClientQueryOrdersTest : public AlpacaRestClientTestBase {};
+
+TEST_F(AlpacaRestClientQueryOrdersTest, ParsesFilledOrderArray) {
+  std::string body = R"([
+    {"id":"ord-1","symbol":"AAPL","side":"buy","status":"filled",
+     "qty":"100","filled_qty":"100","filled_avg_price":"150.25"},
+    {"id":"ord-2","symbol":"GOOGL","side":"sell","status":"canceled",
+     "qty":"50","filled_qty":"0"}
+  ])";
+  StubHttpServer server(200, body);
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  CapturedRequest req;
+  std::thread t([&]() { req = server.serve_one(); });
+  auto result = client.queryOrders("all", "");
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->size(), 2u);
+  EXPECT_EQ((*result)[0].id, "ord-1");
+  EXPECT_EQ((*result)[0].symbol, "AAPL");
+  EXPECT_EQ((*result)[0].side, "buy");
+  EXPECT_EQ((*result)[0].status, "filled");
+  EXPECT_EQ((*result)[0].qty, 100);
+  EXPECT_EQ((*result)[0].filled_qty, 100);
+  EXPECT_DOUBLE_EQ((*result)[0].filled_avg_price, 150.25);
+  EXPECT_EQ((*result)[1].id, "ord-2");
+  EXPECT_EQ((*result)[1].qty, 50);
+  EXPECT_EQ((*result)[1].filled_qty, 0);
+  EXPECT_DOUBLE_EQ((*result)[1].filled_avg_price, 0.0);
+}
+
+TEST_F(AlpacaRestClientQueryOrdersTest, ReturnsErrorOnHttpFailure) {
+  StubHttpServer server(500, R"({"message":"internal error"})");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.queryOrders("all", "");
+  t.join();
+
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().status_code, 500);
+}
+
+TEST_F(AlpacaRestClientQueryOrdersTest, ReturnsErrorOnNonArrayJson) {
+  StubHttpServer server(200, R"({"not":"an array"})");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.queryOrders("all", "");
+  t.join();
+
+  ASSERT_FALSE(result.has_value());
+}
+
+TEST_F(AlpacaRestClientQueryOrdersTest, SkipsOrderWithNonIntegerQty) {
+  std::string body = R"([
+    {"id":"bad","symbol":"X","side":"buy","status":"filled",
+     "qty":"1.5","filled_qty":"1"},
+    {"id":"good","symbol":"Y","side":"sell","status":"filled",
+     "qty":"10","filled_qty":"10","filled_avg_price":"99.00"}
+  ])";
+  StubHttpServer server(200, body);
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  std::thread t([&]() { server.serve_one(); });
+  auto result = client.queryOrders("all", "");
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->size(), 1u);
+  EXPECT_EQ((*result)[0].id, "good");
+}
+
+TEST_F(AlpacaRestClientQueryOrdersTest, ParsesNullFilledAvgPrice) {
+  std::string body =
+      R"([{"id":"ord-1","symbol":"AAPL","side":"buy","status":"new",
+     "qty":"100","filled_qty":"0","filled_avg_price":"null"}])";
+  StubHttpServer server(200, body);
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  CapturedRequest req;
+  std::thread t([&]() { req = server.serve_one(); });
+  auto result = client.queryOrders("all", "");
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  ASSERT_EQ(result->size(), 1u);
+  EXPECT_DOUBLE_EQ((*result)[0].filled_avg_price, 0.0);
+}
+
+TEST_F(AlpacaRestClientQueryOrdersTest, SendsAfterParamWhenProvided) {
+  StubHttpServer server(200, "[]");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  CapturedRequest req;
+  std::thread t([&]() { req = server.serve_one(); });
+  auto result = client.queryOrders("all", "2026-03-19T10:00:00Z");
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_NE(req.path.find("after=2026-03-19T10"), std::string::npos);
+}
+
+TEST_F(AlpacaRestClientQueryOrdersTest, OmitsAfterParamWhenEmpty) {
+  StubHttpServer server(200, "[]");
+  point_client_to(server.port());
+  AlpacaRestClient client;
+
+  CapturedRequest req;
+  std::thread t([&]() { req = server.serve_one(); });
+  auto result = client.queryOrders("all", "");
+  t.join();
+
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(req.path.find("after="), std::string::npos);
+}
+
+TEST_F(AlpacaRestClientQueryOrdersTest, ThrottledQueryReturns429) {
+  std::string header = "X-Ratelimit-Remaining: 0\r\n";
+  StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
+  point_client_to(server.port());
+  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
+
+  std::thread t([&]() { server.serve_one(); });
+  auto setup = client.placeOrder(order);
+  t.join();
+  ASSERT_TRUE(setup.has_value());
+
+  auto result = client.queryOrders("all", "");
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error().status_code, 429);
+}

@@ -17,7 +17,8 @@ void signalHandler(const int signum) {
 } // namespace
 
 TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
-                             std::unique_ptr<IRestClient> rest_client)
+                             std::unique_ptr<IRestClient> rest_client,
+                             std::unique_ptr<IRestClient> reconciliation_client)
     : is_running_(true), symbols_(symbols) {
   latency_tracker_ = std::make_unique<LatencyTracker>();
   position_manager_ = std::make_unique<PositionManager>();
@@ -42,9 +43,11 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
     throw std::runtime_error(
         "APCA_API_KEY_ID and APCA_API_SECRET_KEY must be set");
   }
+  reconciliation_client_ = std::move(reconciliation_client);
   fill_listener_ = std::make_unique<AlpacaFillListener>(
       position_manager_.get(), is_running_, api_key, api_secret,
-      pending_tracker_.get(), latency_tracker_.get());
+      pending_tracker_.get(), latency_tracker_.get(),
+      reconciliation_client_.get());
 
   ipc_address_ = getZmqMarketDataAddress();
 

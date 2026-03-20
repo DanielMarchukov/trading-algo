@@ -3,6 +3,7 @@
 #include <cpr/curlholder.h>
 #include <cstring>
 #include <curl/curl.h>
+#include <iostream>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
@@ -184,6 +185,99 @@ AlpacaRestClient::cancelOrder(std::string_view alpaca_order_id) {
 
   return std::unexpected(
       OrderError{r.status_code, "Error canceling order: " + r.text});
+}
+
+std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+AlpacaRestClient::queryOrders(std::string_view status_filter,
+                              std::string_view after) {
+  if (!rate_limiter_.waitOrDrop()) {
+    return std::unexpected(OrderError{429, "Rate limited (dropped by policy)"});
+  }
+
+  cpr::Parameters params{{"status", std::string(status_filter)},
+                         {"limit", "500"},
+                         {"direction", after.empty() ? "desc" : "asc"}};
+  if (!after.empty()) {
+    params.Add({"after", std::string(after)});
+  }
+  session_->SetUrl(cpr::Url{order_url_});
+  session_->SetParameters(params);
+  session_->RemoveContent();
+  const cpr::Response r = session_->Get();
+  reapplyQuickAck();
+  updateRateLimit(r);
+
+  if (r.status_code >= 400) {
+    return std::unexpected(
+        OrderError{r.status_code, "Error querying orders: " + r.text});
+  }
+
+  auto response = nlohmann::json::parse(r.text, nullptr, false);
+  if (!response.is_array()) {
+    return std::unexpected(
+        OrderError{r.status_code, "Invalid JSON array in response"});
+  }
+
+  std::vector<AlpacaOrderStatus> orders;
+  orders.reserve(response.size());
+  for (const auto &item : response) {
+    AlpacaOrderStatus order;
+    order.id = item.value("id", "");
+    order.symbol = item.value("symbol", "");
+    order.side = item.value("side", "");
+    order.status = item.value("status", "");
+
+    const auto qty_str = item.value("qty", "0");
+    const auto filled_str = item.value("filled_qty", "0");
+    {
+      const auto *end = qty_str.data() + qty_str.size();
+      auto [ptr, ec] = std::from_chars(qty_str.data(), end, order.qty);
+      if (ec != std::errc{} || ptr != end) {
+        std::cerr << "AlpacaRestClient: Non-integer qty '" << qty_str
+                  << "' for order " << order.id << ", skipping" << '\n';
+        continue;
+      }
+    }
+    {
+      const auto *end = filled_str.data() + filled_str.size();
+      auto [ptr, ec] =
+          std::from_chars(filled_str.data(), end, order.filled_qty);
+      if (ec != std::errc{} || ptr != end) {
+        std::cerr << "AlpacaRestClient: Non-integer filled_qty '" << filled_str
+                  << "' for order " << order.id << ", skipping" << '\n';
+        continue;
+      }
+    }
+
+    if (item.contains("filled_avg_price")) {
+      const auto &price_val = item["filled_avg_price"];
+      if (price_val.is_number()) {
+        order.filled_avg_price = price_val.get<double>();
+      } else if (price_val.is_string()) {
+        const auto &s = price_val.get_ref<const std::string &>();
+        if (!s.empty() && s != "null") {
+          std::size_t pos = 0;
+          try {
+            order.filled_avg_price = std::stod(s, &pos);
+            if (pos != s.size()) {
+              std::cerr << "AlpacaRestClient: Trailing chars in "
+                           "filled_avg_price '"
+                        << s << "' for order " << order.id << '\n';
+              order.filled_avg_price = 0.0;
+            }
+          } catch (const std::exception &e) {
+            std::cerr << "AlpacaRestClient: Failed to parse filled_avg_price '"
+                      << s << "': " << e.what() << '\n';
+          }
+        }
+      }
+    }
+
+    order.created_at = item.value("created_at", "");
+    orders.push_back(std::move(order));
+  }
+
+  return orders;
 }
 
 void AlpacaRestClient::reapplyQuickAck() {

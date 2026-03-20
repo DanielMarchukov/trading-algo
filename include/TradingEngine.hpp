@@ -40,8 +40,10 @@ static_assert(sizeof(ConsumerType) % 64 == 0,
 
 class TradingEngine {
 public:
-  explicit TradingEngine(const std::vector<std::string> &symbols,
-                         std::unique_ptr<IRestClient> rest_client);
+  explicit TradingEngine(
+      const std::vector<std::string> &symbols,
+      std::unique_ptr<IRestClient> rest_client,
+      std::unique_ptr<IRestClient> reconciliation_client = nullptr);
 
   ~TradingEngine();
 
@@ -74,6 +76,7 @@ private:
   std::unique_ptr<OrderGateway> order_gateway_;
   std::thread order_gateway_thread_;
   std::vector<ConsumerThread> consumer_threads_;
+  std::unique_ptr<IRestClient> reconciliation_client_;
   std::unique_ptr<IFillListener> fill_listener_;
   std::unique_ptr<AlpacaPipeline> market_publisher_;
 };
