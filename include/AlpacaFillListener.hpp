@@ -70,6 +70,10 @@ private:
   void sendAuth();
   void sendSubscribe();
   void handleTradeUpdate(const std::string &json);
+  void handleAuthorization(const nlohmann::json &parsed);
+  void handleListening(const nlohmann::json &parsed);
+  void processFillEvent(const FillEvent &fill_event);
+  void processCancelEvent(const CancelEvent &cancel_event);
   void reconcileAfterReconnect();
   [[nodiscard]] int64_t reconcileFill(const AlpacaOrderStatus &alpaca_order,
                                       OrderSide side);
