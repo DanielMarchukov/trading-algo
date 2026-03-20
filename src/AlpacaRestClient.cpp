@@ -259,15 +259,15 @@ AlpacaRestClient::queryOrders(std::string_view status_filter,
           std::size_t pos = 0;
           try {
             order.filled_avg_price = std::stod(s, &pos);
+            if (pos != s.size()) {
+              std::cerr << "AlpacaRestClient: Trailing chars in "
+                           "filled_avg_price '"
+                        << s << "' for order " << order.id << '\n';
+              order.filled_avg_price = 0.0;
+            }
           } catch (const std::exception &e) {
             std::cerr << "AlpacaRestClient: Failed to parse filled_avg_price '"
                       << s << "': " << e.what() << '\n';
-          }
-          if (pos != s.size()) {
-            std::cerr
-                << "AlpacaRestClient: Trailing chars in filled_avg_price '" << s
-                << "' for order " << order.id << '\n';
-            order.filled_avg_price = 0.0;
           }
         }
       }
