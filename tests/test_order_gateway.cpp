@@ -168,18 +168,24 @@ TEST_F(OrderGatewayTest, AssignsSequentialOrderIdsWhileRunning) {
   EXPECT_EQ(received_ids[1], 2);
 }
 
-TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
+struct PlaceRejectionParam {
+  int64_t status_code;
+  const char *message;
+};
+
+class PlaceRejectionTest
+    : public OrderGatewayTest,
+      public ::testing::WithParamInterface<PlaceRejectionParam> {};
+
+TEST_P(PlaceRejectionTest, ReleasesPendingPosition) {
+  const auto &[code, msg] = GetParam();
   std::atomic is_running(false);
   LockFreeMPSCQueue<Order> order_queue;
 
   position_manager_.registerSymbol("AAPL");
 
-  Order order{};
+  Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
   order.id = 1;
-  std::memcpy(order.symbol, "AAPL", 4);
-  order.side = OrderSide::Buy;
-  order.quantity = 100;
-
   position_manager_.onOrderSent(order);
   EXPECT_EQ(position_manager_.getPendingPosition("AAPL"), 100);
 
@@ -187,9 +193,10 @@ TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
 
   class RejectingClient final : public IRestClient {
   public:
+    RejectingClient(int64_t c, const char *m) : code_(c), msg_(m) {}
     std::expected<OrderAck, OrderError>
     placeOrder(const Order & /*unused*/) override {
-      return std::unexpected(OrderError{422, "insufficient qty"});
+      return std::unexpected(OrderError{code_, msg_});
     }
     std::expected<void, OrderError>
     cancelOrder(std::string_view /*alpaca_order_id*/) override {
@@ -200,14 +207,25 @@ TEST_F(OrderGatewayTest, ReleasesPendingOnRejection) {
                 std::string_view /*after*/) override {
       return std::vector<AlpacaOrderStatus>{};
     }
+
+  private:
+    int64_t code_;
+    const char *msg_;
   };
 
   OrderGateway gateway(is_running, &order_queue,
-                       std::make_unique<RejectingClient>(), &position_manager_);
+                       std::make_unique<RejectingClient>(code, msg),
+                       &position_manager_);
   gateway.run();
 
   EXPECT_EQ(position_manager_.getPendingPosition("AAPL"), 0);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    HttpErrors, PlaceRejectionTest,
+    ::testing::Values(PlaceRejectionParam{422, "insufficient qty"},
+                      PlaceRejectionParam{429, "rate limited"},
+                      PlaceRejectionParam{500, "internal error"}));
 
 namespace {
 
@@ -501,7 +519,16 @@ TEST_F(CancelBeforeReplaceTest, PlacesOrderEvenWhenCancelFails422) {
   EXPECT_EQ(place_count, 2);
 }
 
-TEST_F(CancelBeforeReplaceTest, SkipsNewOrderWhenCancelReturns404) {
+struct CancelSkipParam {
+  int64_t status_code;
+  const char *message;
+};
+
+class CancelSkipTest : public CancelBeforeReplaceTest,
+                       public ::testing::WithParamInterface<CancelSkipParam> {};
+
+TEST_P(CancelSkipTest, SkipsNewOrderWhenCancelFails) {
+  const auto &[code, msg] = GetParam();
   std::atomic is_running(false);
   LockFreeMPSCQueue<Order> order_queue;
 
@@ -512,7 +539,7 @@ TEST_F(CancelBeforeReplaceTest, SkipsNewOrderWhenCancelReturns404) {
   order_queue.push(order1);
   order_queue.push(order2);
 
-  auto cancel_error = std::unexpected(OrderError{404, "order not found"});
+  auto cancel_error = std::unexpected(OrderError{code, msg});
   auto *raw_client = new TrackingRestClient(cancel_error);
   std::unique_ptr<IRestClient> client(raw_client);
   OrderGateway gateway(is_running, &order_queue, std::move(client),
@@ -526,6 +553,12 @@ TEST_F(CancelBeforeReplaceTest, SkipsNewOrderWhenCancelReturns404) {
   }
   EXPECT_EQ(place_count, 1);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    CancelErrors, CancelSkipTest,
+    ::testing::Values(CancelSkipParam{404, "order not found"},
+                      CancelSkipParam{429, "rate limited"},
+                      CancelSkipParam{500, "internal error"}));
 
 TEST_F(CancelBeforeReplaceTest, SkipsNewOrderWhenCancelThrows) {
   std::atomic is_running(false);
@@ -654,4 +687,186 @@ TEST_F(OrderGatewayTest, RecordsAllLatencyMetricsDuringDrain) {
   tracker.recordFillReceived("ord-123");
 
   EXPECT_EQ(tracker.count(LatencyMetric::FillRoundTrip), 1);
+}
+
+namespace {
+
+class SlowPlaceClient final : public IRestClient {
+public:
+  explicit SlowPlaceClient(std::chrono::milliseconds delay,
+                           std::atomic<int> &count)
+      : delay_(delay), count_(count) {}
+
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*order*/) override {
+    std::this_thread::sleep_for(delay_);
+    count_.fetch_add(1, std::memory_order_release);
+    return OrderAck{"ord-slow", "accepted"};
+  }
+
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    return {};
+  }
+
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
+  }
+
+private:
+  std::chrono::milliseconds delay_;
+  std::atomic<int> &count_;
+};
+
+class SlowCancelClient final : public IRestClient {
+public:
+  explicit SlowCancelClient(std::chrono::milliseconds delay) : delay_(delay) {}
+
+  std::expected<OrderAck, OrderError>
+  placeOrder(const Order & /*order*/) override {
+    return OrderAck{"ord-after-slow-cancel", "accepted"};
+  }
+
+  std::expected<void, OrderError>
+  cancelOrder(std::string_view /*alpaca_order_id*/) override {
+    std::this_thread::sleep_for(delay_);
+    return {};
+  }
+
+  std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+  queryOrders(std::string_view /*status_filter*/,
+              std::string_view /*after*/) override {
+    return std::vector<AlpacaOrderStatus>{};
+  }
+
+private:
+  std::chrono::milliseconds delay_;
+};
+
+} // namespace
+
+TEST_F(OrderGatewayTest, SlowPlaceOrderCompletesWithoutHang) {
+  std::atomic is_running(true);
+  LockFreeMPSCQueue<Order> order_queue;
+  std::atomic<int> placed{0};
+
+  OrderGateway gateway(
+      is_running, &order_queue,
+      std::make_unique<SlowPlaceClient>(std::chrono::milliseconds(50), placed),
+      &position_manager_);
+  ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
+
+  order_queue.push(test_helpers::createOrder("AAPL", OrderSide::Buy, 10, 0));
+  order_queue.push(test_helpers::createOrder("AAPL", OrderSide::Buy, 20, 0));
+
+  while (placed.load(std::memory_order_acquire) < 2) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+  is_running.store(false);
+
+  EXPECT_EQ(placed.load(), 2);
+}
+
+TEST_F(CancelBeforeReplaceTest, SlowCancelCompletesWithoutHang) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  Order order1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  Order order2 = test_helpers::createOrder("AAPL", OrderSide::Buy, 200, 0);
+  order_queue.push(order1);
+  order_queue.push(order2);
+
+  OrderGateway gateway(
+      is_running, &order_queue,
+      std::make_unique<SlowCancelClient>(std::chrono::milliseconds(50)),
+      &position_manager_, &tracker_);
+  gateway.run();
+}
+
+TEST_F(CancelBeforeReplaceTest, CancelSucceedsButPlaceRateLimited) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  position_manager_.registerSymbol("AAPL");
+
+  Order order1 = test_helpers::createOrder("AAPL", OrderSide::Buy, 100, 0);
+  Order order2 = test_helpers::createOrder("AAPL", OrderSide::Buy, 200, 0);
+  position_manager_.onOrderSent(order1);
+  position_manager_.onOrderSent(order2);
+
+  order_queue.push(order1);
+  order_queue.push(order2);
+
+  class CancelOkPlaceRateLimited final : public IRestClient {
+  public:
+    std::expected<OrderAck, OrderError>
+    placeOrder(const Order & /*order*/) override {
+      if (++place_count_ == 2) {
+        return std::unexpected(OrderError{429, "rate limited"});
+      }
+      return OrderAck{"alpaca-1", "accepted"};
+    }
+    std::expected<void, OrderError>
+    cancelOrder(std::string_view /*alpaca_order_id*/) override {
+      return {};
+    }
+    std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
+      return std::vector<AlpacaOrderStatus>{};
+    }
+
+  private:
+    int place_count_ = 0;
+  };
+
+  OrderGateway gateway(is_running, &order_queue,
+                       std::make_unique<CancelOkPlaceRateLimited>(),
+                       &position_manager_, &tracker_);
+  gateway.run();
+
+  EXPECT_EQ(position_manager_.getPendingPosition("AAPL"), 100);
+}
+
+TEST_F(OrderGatewayTest, DrainReleasesAllPendingOnPersistentFailure) {
+  std::atomic is_running(false);
+  LockFreeMPSCQueue<Order> order_queue;
+
+  position_manager_.registerSymbol("AAPL");
+
+  constexpr int kOrderCount = 5;
+  for (int i = 0; i < kOrderCount; ++i) {
+    Order order = test_helpers::createOrder("AAPL", OrderSide::Buy, 10, 0);
+    order.id = static_cast<uint64_t>(i) + 1;
+    position_manager_.onOrderSent(order);
+    order_queue.push(order);
+  }
+
+  EXPECT_EQ(position_manager_.getPendingPosition("AAPL"), 50);
+
+  class AlwaysFailClient final : public IRestClient {
+  public:
+    std::expected<OrderAck, OrderError>
+    placeOrder(const Order & /*order*/) override {
+      return std::unexpected(OrderError{500, "server down"});
+    }
+    std::expected<void, OrderError>
+    cancelOrder(std::string_view /*alpaca_order_id*/) override {
+      return {};
+    }
+    std::expected<std::vector<AlpacaOrderStatus>, OrderError>
+    queryOrders(std::string_view /*status_filter*/,
+                std::string_view /*after*/) override {
+      return std::vector<AlpacaOrderStatus>{};
+    }
+  };
+
+  OrderGateway gateway(is_running, &order_queue,
+                       std::make_unique<AlwaysFailClient>(),
+                       &position_manager_);
+  gateway.run();
+
+  EXPECT_EQ(position_manager_.getPendingPosition("AAPL"), 0);
 }

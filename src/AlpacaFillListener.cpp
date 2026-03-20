@@ -275,105 +275,122 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
   }
 
   if (parsed.contains("stream") && parsed["stream"] == "authorization") {
-    if (parsed.contains("data") && parsed["data"].contains("status") &&
-        parsed["data"]["status"] == "authorized") {
-      std::cout << "FillListener: Authorized" << '\n';
-      sendSubscribe();
-      if (has_connected_) {
-        reconcileAfterReconnect();
-      } else {
-        session_start_iso_ = nowIso8601();
-      }
-      has_connected_ = true;
-    } else {
-      std::cerr << "FillListener: Authorization failed" << '\n';
-    }
+    handleAuthorization(parsed);
     return;
   }
 
   if (parsed.contains("stream") && parsed["stream"] == "listening") {
-    if (parsed.contains("data") && parsed["data"].contains("streams") &&
-        parsed["data"]["streams"].is_array()) {
-      const auto &streams = parsed["data"]["streams"];
-      bool found = false;
-      for (const auto &s : streams) {
-        if (s.is_string() && s.get<std::string>() == "trade_updates") {
-          found = true;
-          break;
-        }
-      }
-      if (found) {
-        std::cout << "FillListener: Subscribed to trade_updates" << '\n';
-      } else {
-        std::cerr << "FillListener: trade_updates not in streams list" << '\n';
-      }
-    } else {
-      std::cerr << "FillListener: Malformed listening response" << '\n';
-    }
+    handleListening(parsed);
     return;
   }
 
   const TradeUpdate update = parseTradingUpdate(parsed);
 
   if (std::holds_alternative<FillEvent>(update)) {
-    const auto &fill_event = std::get<FillEvent>(update);
-    Fill fill{};
-    std::memcpy(fill.symbol, fill_event.symbol, kSymbolCapacity);
-    fill.executionId = 0;
-    fill.orderId = 0;
-    fill.side = fill_event.side;
-    fill.quantity = fill_event.quantity;
-    fill.price = fill_event.price;
-    position_manager_->onFill(fill);
-    std::string_view order_id(
-        fill_event.alpaca_order_id,
-        strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
-    if (!order_id.empty()) {
-      upsertFilledQty(order_id, findFilledQty(order_id) + fill_event.quantity);
-      if (!fill_event.is_partial) {
-        markCompleted(order_id);
-      }
-    }
-    if (latency_tracker_ && !order_id.empty()) {
-      latency_tracker_->recordFillReceived(order_id);
-    }
-    if (pending_tracker_ && !fill_event.is_partial) {
-      SymbolKey key{};
-      std::memcpy(key.value, fill_event.symbol, kSymbolCapacity);
-      pending_tracker_->onOrderCompleted(key, fill_event.side, order_id);
-    }
-    std::cout << "FillListener: "
-              << (fill_event.is_partial ? "Partial fill" : "Fill")
-              << " processed ("
-              << std::string_view(fill_event.symbol,
-                                  strnlen(fill_event.symbol, kSymbolCapacity))
-              << " qty=" << fill_event.quantity << ")" << '\n';
+    processFillEvent(std::get<FillEvent>(update));
   } else if (std::holds_alternative<CancelEvent>(update)) {
-    const auto &cancel_event = std::get<CancelEvent>(update);
-    Order order{};
-    order.id = 0;
-    std::memcpy(order.symbol, cancel_event.symbol, kSymbolCapacity);
-    order.quantity = cancel_event.quantity;
-    order.price = 0;
-    order.side = cancel_event.side;
-    order.type = OrderType::Market;
-    position_manager_->onOrderCancelled(order);
-    std::string_view order_id(
-        cancel_event.alpaca_order_id,
-        strnlen(cancel_event.alpaca_order_id, kOrderIdCapacity));
-    if (!order_id.empty()) {
+    processCancelEvent(std::get<CancelEvent>(update));
+  }
+}
+
+void AlpacaFillListener::handleAuthorization(const nlohmann::json &parsed) {
+  if (parsed.contains("data") && parsed["data"].contains("status") &&
+      parsed["data"]["status"] == "authorized") {
+    std::cout << "FillListener: Authorized" << '\n';
+    sendSubscribe();
+    if (has_connected_) {
+      reconcileAfterReconnect();
+    } else {
+      session_start_iso_ = nowIso8601();
+    }
+    has_connected_ = true;
+  } else {
+    std::cerr << "FillListener: Authorization failed" << '\n';
+  }
+}
+
+void AlpacaFillListener::handleListening(const nlohmann::json &parsed) {
+  if (!parsed.contains("data") || !parsed["data"].contains("streams") ||
+      !parsed["data"]["streams"].is_array()) {
+    std::cerr << "FillListener: Malformed listening response" << '\n';
+    return;
+  }
+
+  const auto &streams = parsed["data"]["streams"];
+  bool found = false;
+  for (const auto &s : streams) {
+    if (s.is_string() && s.get<std::string>() == "trade_updates") {
+      found = true;
+      break;
+    }
+  }
+  if (found) {
+    std::cout << "FillListener: Subscribed to trade_updates" << '\n';
+  } else {
+    std::cerr << "FillListener: trade_updates not in streams list" << '\n';
+  }
+}
+
+void AlpacaFillListener::processFillEvent(const FillEvent &fill_event) {
+  Fill fill{};
+  std::memcpy(fill.symbol, fill_event.symbol, kSymbolCapacity);
+  fill.executionId = 0;
+  fill.orderId = 0;
+  fill.side = fill_event.side;
+  fill.quantity = fill_event.quantity;
+  fill.price = fill_event.price;
+  position_manager_->onFill(fill);
+
+  std::string_view order_id(
+      fill_event.alpaca_order_id,
+      strnlen(fill_event.alpaca_order_id, kOrderIdCapacity));
+  if (!order_id.empty()) {
+    upsertFilledQty(order_id, findFilledQty(order_id) + fill_event.quantity);
+    if (!fill_event.is_partial) {
       markCompleted(order_id);
     }
-    if (pending_tracker_) {
-      SymbolKey key{};
-      std::memcpy(key.value, cancel_event.symbol, kSymbolCapacity);
-      pending_tracker_->onOrderCompleted(key, cancel_event.side, order_id);
-    }
-    std::cout << "FillListener: Cancel processed ("
-              << std::string_view(cancel_event.symbol,
-                                  strnlen(cancel_event.symbol, kSymbolCapacity))
-              << " qty=" << cancel_event.quantity << ")" << '\n';
   }
+  if (latency_tracker_ && !order_id.empty()) {
+    latency_tracker_->recordFillReceived(order_id);
+  }
+  if (pending_tracker_ && !fill_event.is_partial) {
+    SymbolKey key{};
+    std::memcpy(key.value, fill_event.symbol, kSymbolCapacity);
+    pending_tracker_->onOrderCompleted(key, fill_event.side, order_id);
+  }
+  std::cout << "FillListener: "
+            << (fill_event.is_partial ? "Partial fill" : "Fill")
+            << " processed ("
+            << std::string_view(fill_event.symbol,
+                                strnlen(fill_event.symbol, kSymbolCapacity))
+            << " qty=" << fill_event.quantity << ")" << '\n';
+}
+
+void AlpacaFillListener::processCancelEvent(const CancelEvent &cancel_event) {
+  Order order{};
+  order.id = 0;
+  std::memcpy(order.symbol, cancel_event.symbol, kSymbolCapacity);
+  order.quantity = cancel_event.quantity;
+  order.price = 0;
+  order.side = cancel_event.side;
+  order.type = OrderType::Market;
+  position_manager_->onOrderCancelled(order);
+
+  std::string_view order_id(
+      cancel_event.alpaca_order_id,
+      strnlen(cancel_event.alpaca_order_id, kOrderIdCapacity));
+  if (!order_id.empty()) {
+    markCompleted(order_id);
+  }
+  if (pending_tracker_) {
+    SymbolKey key{};
+    std::memcpy(key.value, cancel_event.symbol, kSymbolCapacity);
+    pending_tracker_->onOrderCompleted(key, cancel_event.side, order_id);
+  }
+  std::cout << "FillListener: Cancel processed ("
+            << std::string_view(cancel_event.symbol,
+                                strnlen(cancel_event.symbol, kSymbolCapacity))
+            << " qty=" << cancel_event.quantity << ")" << '\n';
 }
 
 void AlpacaFillListener::reconcileAfterReconnect() {
