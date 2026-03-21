@@ -3,7 +3,7 @@
 #include <fstream>
 #include <hdr/hdr_histogram.h>
 #include <iomanip>
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include <sstream>
 #include <stdexcept>
 
@@ -77,9 +77,10 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   const char *name = kMetricNames[idx];
   const char *desc = kMetricDescriptions[idx];
 
+  auto *log = spdlog::get("latency").get();
+
   if (h->total_count == 0) {
-    std::cout << "\n=== " << desc << " ===\n";
-    std::cout << "  (no samples recorded)\n";
+    log->info("=== {} === (no samples recorded)", desc);
     return;
   }
 
@@ -90,9 +91,6 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   const auto min_val = hdr_min(h);
   const auto max_val = hdr_max(h);
   const auto mean_val = hdr_mean(h);
-
-  std::cout << "\n=== " << desc << " ===\n";
-  std::cout << "  Samples: " << h->total_count << '\n';
 
   auto fmt = [](int64_t nanos) -> std::string {
     std::ostringstream oss;
@@ -111,13 +109,10 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
     return oss.str();
   };
 
-  std::cout << "  Min:     " << fmt(min_val) << '\n';
-  std::cout << "  Mean:    " << fmt(static_cast<int64_t>(mean_val)) << '\n';
-  std::cout << "  p50:     " << fmt(p50) << '\n';
-  std::cout << "  p90:     " << fmt(p90) << '\n';
-  std::cout << "  p99:     " << fmt(p99) << '\n';
-  std::cout << "  p99.9:   " << fmt(p999) << '\n';
-  std::cout << "  Max:     " << fmt(max_val) << '\n';
+  log->info("=== {} === samples={}", desc, h->total_count);
+  log->info("  Min={} Mean={} p50={} p90={} p99={} p99.9={} Max={}",
+            fmt(min_val), fmt(static_cast<int64_t>(mean_val)), fmt(p50),
+            fmt(p90), fmt(p99), fmt(p999), fmt(max_val));
 
   const std::string filepath = output_dir + "/latency_" + name + ".txt";
   std::ofstream file(filepath);
@@ -132,18 +127,18 @@ void LatencyTracker::dumpOne(LatencyMetric metric,
   file << "p99:     " << fmt(p99) << '\n';
   file << "p99.9:   " << fmt(p999) << '\n';
   file << "Max:     " << fmt(max_val) << '\n';
-  std::cout << "  Written: " << filepath << '\n';
+  log->info("  Written: {}", filepath);
 }
 
 void LatencyTracker::dump(const std::string &output_dir) const {
-  std::cout << "\n"
-            << "========================================\n"
-            << "  LATENCY REPORT\n"
-            << "========================================\n";
+  auto *log = spdlog::get("latency").get();
+  log->info("======================================== LATENCY REPORT "
+            "========================================");
 
   for (size_t i = 0; i < kMetricCount; ++i) {
     dumpOne(static_cast<LatencyMetric>(i), output_dir);
   }
 
-  std::cout << "========================================\n";
+  log->info("=============================================================="
+            "==========================");
 }

@@ -82,6 +82,7 @@ find_package(TBB CONFIG REQUIRED)
 find_package(ixwebsocket CONFIG REQUIRED)
 find_package(msgpack-cxx CONFIG REQUIRED)
 find_package(hdr_histogram CONFIG REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
 
 file(GLOB_RECURSE SOURCES src/*.cpp)
 file(GLOB_RECURSE HEADERS include/*.hpp)
@@ -102,7 +103,14 @@ target_link_libraries(
             TBB::tbb
             ixwebsocket::ixwebsocket
             msgpack-cxx
-            hdr_histogram::hdr_histogram_static)
+            hdr_histogram::hdr_histogram_static
+            spdlog::spdlog)
+
+target_compile_definitions(
+    paper_money
+    PRIVATE
+        $<IF:$<CONFIG:Release>,SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO,SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE>
+)
 
 if(MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
@@ -130,7 +138,10 @@ target_link_libraries(
            TBB::tbb
            ixwebsocket::ixwebsocket
            msgpack-cxx
-           hdr_histogram::hdr_histogram_static)
+           hdr_histogram::hdr_histogram_static
+           spdlog::spdlog)
+
+target_compile_definitions(rich_on_tests PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE)
 
 if(SANITIZER_ACTIVE AND NOT MSVC)
     target_compile_options(rich_on_tests PRIVATE ${SANITIZER_FLAGS})

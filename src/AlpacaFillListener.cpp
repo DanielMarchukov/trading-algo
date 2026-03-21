@@ -7,9 +7,9 @@
 #include <chrono>
 #include <cstring>
 #include <ctime>
-#include <iostream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <thread>
 
@@ -56,7 +56,7 @@ void copyOrderId(char (&dest)[48], const std::string &src) {
       return val.get<int64_t>();
     }
   } catch (const std::exception &e) {
-    std::cerr << "FillListener: parseQty failed: " << e.what() << '\n';
+    spdlog::get("fills")->warn("parseQty failed: {}", e.what());
   }
   return std::nullopt;
 }
@@ -70,7 +70,7 @@ void copyOrderId(char (&dest)[48], const std::string &src) {
       return val.get<double>();
     }
   } catch (const std::exception &e) {
-    std::cerr << "FillListener: parsePrice failed: " << e.what() << '\n';
+    spdlog::get("fills")->warn("parsePrice failed: {}", e.what());
   }
   return std::nullopt;
 }
@@ -188,7 +188,8 @@ AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
     : position_manager_(position_manager), pending_tracker_(pending_tracker),
       latency_tracker_(latency_tracker),
       reconciliation_client_(reconciliation_client), is_running_(is_running),
-      api_key_(api_key), api_secret_(api_secret) {
+      api_key_(api_key), api_secret_(api_secret),
+      logger_(spdlog::get("fills").get()) {
   if (position_manager_ == nullptr) {
     throw std::invalid_argument(
         "AlpacaFillListener: position_manager must not be null");
@@ -207,7 +208,7 @@ void AlpacaFillListener::start() {
 
   thread_ = std::thread(&ix::WebSocket::run, &ws_);
   pin_thread_to_core(thread_, 0);
-  std::cout << "Pinned FillListener thread to CPU Core 0" << '\n';
+  logger_->info("Pinned FillListener thread to CPU Core 0");
 }
 
 void AlpacaFillListener::stop() {
@@ -225,11 +226,9 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
   switch (msg->type) {
   case ix::WebSocketMessageType::Open:
     if (has_connected_) {
-      std::cout << "FillListener: WebSocket reconnected — will reconcile after "
-                   "auth"
-                << '\n';
+      logger_->info("WebSocket reconnected — will reconcile after auth");
     } else {
-      std::cout << "FillListener: WebSocket connected" << '\n';
+      logger_->info("WebSocket connected");
     }
     sendAuth();
     break;
@@ -239,13 +238,11 @@ void AlpacaFillListener::onMessage(const ix::WebSocketMessagePtr &msg) {
     break;
 
   case ix::WebSocketMessageType::Error:
-    std::cerr << "FillListener: WebSocket error: " << msg->errorInfo.reason
-              << '\n';
+    logger_->error("WebSocket error: {}", msg->errorInfo.reason);
     break;
 
   case ix::WebSocketMessageType::Close:
-    std::cout << "FillListener: WebSocket closed (code=" << msg->closeInfo.code
-              << ")" << '\n';
+    logger_->info("WebSocket closed (code={})", msg->closeInfo.code);
     break;
 
   default:
@@ -270,7 +267,7 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
   try {
     parsed = nlohmann::json::parse(json);
   } catch (const nlohmann::json::parse_error &) {
-    std::cerr << "FillListener: Failed to parse message" << '\n';
+    logger_->error("Failed to parse message");
     return;
   }
 
@@ -296,7 +293,7 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
 void AlpacaFillListener::handleAuthorization(const nlohmann::json &parsed) {
   if (parsed.contains("data") && parsed["data"].contains("status") &&
       parsed["data"]["status"] == "authorized") {
-    std::cout << "FillListener: Authorized" << '\n';
+    logger_->info("Authorized");
     sendSubscribe();
     if (has_connected_) {
       reconcileAfterReconnect();
@@ -305,14 +302,14 @@ void AlpacaFillListener::handleAuthorization(const nlohmann::json &parsed) {
     }
     has_connected_ = true;
   } else {
-    std::cerr << "FillListener: Authorization failed" << '\n';
+    logger_->error("Authorization failed");
   }
 }
 
 void AlpacaFillListener::handleListening(const nlohmann::json &parsed) {
   if (!parsed.contains("data") || !parsed["data"].contains("streams") ||
       !parsed["data"]["streams"].is_array()) {
-    std::cerr << "FillListener: Malformed listening response" << '\n';
+    logger_->warn("Malformed listening response");
     return;
   }
 
@@ -325,9 +322,9 @@ void AlpacaFillListener::handleListening(const nlohmann::json &parsed) {
     }
   }
   if (found) {
-    std::cout << "FillListener: Subscribed to trade_updates" << '\n';
+    logger_->info("Subscribed to trade_updates");
   } else {
-    std::cerr << "FillListener: trade_updates not in streams list" << '\n';
+    logger_->warn("trade_updates not in streams list");
   }
 }
 
@@ -358,12 +355,11 @@ void AlpacaFillListener::processFillEvent(const FillEvent &fill_event) {
     std::memcpy(key.value, fill_event.symbol, kSymbolCapacity);
     pending_tracker_->onOrderCompleted(key, fill_event.side, order_id);
   }
-  std::cout << "FillListener: "
-            << (fill_event.is_partial ? "Partial fill" : "Fill")
-            << " processed ("
-            << std::string_view(fill_event.symbol,
-                                strnlen(fill_event.symbol, kSymbolCapacity))
-            << " qty=" << fill_event.quantity << ")" << '\n';
+  logger_->info("{} processed ({} qty={})",
+                fill_event.is_partial ? "Partial fill" : "Fill",
+                std::string_view(fill_event.symbol,
+                                 strnlen(fill_event.symbol, kSymbolCapacity)),
+                fill_event.quantity);
 }
 
 void AlpacaFillListener::processCancelEvent(const CancelEvent &cancel_event) {
@@ -387,21 +383,20 @@ void AlpacaFillListener::processCancelEvent(const CancelEvent &cancel_event) {
     std::memcpy(key.value, cancel_event.symbol, kSymbolCapacity);
     pending_tracker_->onOrderCompleted(key, cancel_event.side, order_id);
   }
-  std::cout << "FillListener: Cancel processed ("
-            << std::string_view(cancel_event.symbol,
-                                strnlen(cancel_event.symbol, kSymbolCapacity))
-            << " qty=" << cancel_event.quantity << ")" << '\n';
+  logger_->info("Cancel processed ({} qty={})",
+                std::string_view(cancel_event.symbol,
+                                 strnlen(cancel_event.symbol, kSymbolCapacity)),
+                cancel_event.quantity);
 }
 
 void AlpacaFillListener::reconcileAfterReconnect() {
   if (reconciliation_client_ == nullptr) {
-    std::cerr << "FillListener: No reconciliation client — skipping "
-                 "post-reconnect reconciliation"
-              << '\n';
+    logger_->warn(
+        "No reconciliation client — skipping post-reconnect reconciliation");
     return;
   }
 
-  std::cout << "FillListener: Starting post-reconnect reconciliation" << '\n';
+  logger_->info("Starting post-reconnect reconciliation");
 
   constexpr int64_t kPageSize = 500;
   int64_t reconciled_fills = 0;
@@ -411,9 +406,8 @@ void AlpacaFillListener::reconcileAfterReconnect() {
   for (;;) {
     auto result = reconciliation_client_->queryOrders("all", cursor);
     if (!result) {
-      std::cerr << "FillListener: Reconciliation query failed (HTTP "
-                << result.error().status_code << "): " << result.error().message
-                << '\n';
+      logger_->error("Reconciliation query failed (HTTP {}): {}",
+                     result.error().status_code, result.error().message);
       break;
     }
 
@@ -447,9 +441,8 @@ void AlpacaFillListener::reconcileAfterReconnect() {
     }
   }
 
-  std::cout << "FillListener: Reconciliation complete (fills="
-            << reconciled_fills << " cancels=" << reconciled_cancels << ")"
-            << '\n';
+  logger_->info("Reconciliation complete (fills={} cancels={})",
+                reconciled_fills, reconciled_cancels);
 }
 
 int64_t AlpacaFillListener::reconcileFill(const AlpacaOrderStatus &alpaca_order,
@@ -480,9 +473,8 @@ int64_t AlpacaFillListener::reconcileFill(const AlpacaOrderStatus &alpaca_order,
     }
   }
 
-  std::cout << "FillListener: Reconciled fill (" << alpaca_order.symbol
-            << " qty=" << remaining
-            << " avg_price=" << alpaca_order.filled_avg_price << ")" << '\n';
+  logger_->info("Reconciled fill ({} qty={} avg_price={})", alpaca_order.symbol,
+                remaining, alpaca_order.filled_avg_price);
   return 1;
 }
 
@@ -524,9 +516,8 @@ AlpacaFillListener::reconcileCancel(const AlpacaOrderStatus &alpaca_order,
     pending_tracker_->onOrderCompleted(key, side, alpaca_order.id);
   }
 
-  std::cout << "FillListener: Reconciled cancel (" << alpaca_order.symbol
-            << " filled=" << missed_fills << " unfilled=" << unfilled << ")"
-            << '\n';
+  logger_->info("Reconciled cancel ({} filled={} unfilled={})",
+                alpaca_order.symbol, missed_fills, unfilled);
   return 1;
 }
 
