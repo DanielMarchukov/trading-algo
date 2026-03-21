@@ -9,6 +9,10 @@
 #include <thread>
 #include <vector>
 
+namespace spdlog {
+class logger;
+} // namespace spdlog
+
 class AlpacaWebSocketSource {
 public:
   using RawDataFn = void (*)(void *, std::span<const char>);
@@ -47,6 +51,7 @@ private:
   std::thread thread_;
   RawDataFn on_data_fn_ = nullptr;
   void *on_data_ctx_ = nullptr;
+  spdlog::logger *logger_;
 };
 
 static_assert(MarketDataSourceLike<AlpacaWebSocketSource>,

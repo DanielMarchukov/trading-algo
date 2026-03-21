@@ -16,7 +16,8 @@ AlpacaWebSocketSource::AlpacaWebSocketSource(std::string api_key,
                                              std::atomic<bool> &is_running)
     : api_key_(std::move(api_key)), api_secret_(std::move(api_secret)),
       symbols_(std::move(symbols)), is_running_(&is_running),
-      ws_(std::make_unique<ix::WebSocket>()) {}
+      ws_(std::make_unique<ix::WebSocket>()),
+      logger_(spdlog::get("market").get()) {}
 
 AlpacaWebSocketSource::~AlpacaWebSocketSource() { stop(); }
 
@@ -36,9 +37,9 @@ void AlpacaWebSocketSource::start() {
 
   thread_ = std::thread(&ix::WebSocket::run, ws_.get());
   if (pin_thread_to_core(thread_, 1)) {
-    spdlog::get("market")->info("Pinned to CPU core 1");
+    logger_->info("Pinned to CPU core 1");
   } else {
-    spdlog::get("market")->warn("Failed to pin to CPU core 1");
+    logger_->warn("Failed to pin to CPU core 1");
   }
 }
 
@@ -58,7 +59,7 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   switch (msg->type) {
   case ix::WebSocketMessageType::Open:
-    spdlog::get("market")->info("Connected");
+    logger_->info("Connected");
     sendAuth();
     break;
 
@@ -70,11 +71,11 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
     break;
 
   case ix::WebSocketMessageType::Error:
-    spdlog::get("market")->error("WebSocket error: {}", msg->errorInfo.reason);
+    logger_->error("WebSocket error: {}", msg->errorInfo.reason);
     break;
 
   case ix::WebSocketMessageType::Close:
-    spdlog::get("market")->info("Closed (code={})", msg->closeInfo.code);
+    logger_->info("Closed (code={})", msg->closeInfo.code);
     break;
 
   default:
@@ -106,5 +107,5 @@ void AlpacaWebSocketSource::sendSubscribe() {
   pk.pack("trades");
   pk.pack(symbols_);
   ws_->sendBinary(std::string(buffer.data(), buffer.size()));
-  spdlog::get("market")->info("Subscribed to {} symbols", symbols_.size());
+  logger_->info("Subscribed to {} symbols", symbols_.size());
 }
