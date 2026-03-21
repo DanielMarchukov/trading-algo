@@ -43,9 +43,7 @@ void initForTests() {
     spdlog::register_logger(logger);
   }
 
-  if (!spdlog::default_logger()->name().empty()) {
-    spdlog::set_default_logger(spdlog::get("system"));
-  }
+  spdlog::set_default_logger(spdlog::get("system"));
 }
 
 void shutdown() { spdlog::shutdown(); }

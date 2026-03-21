@@ -207,8 +207,11 @@ void AlpacaFillListener::start() {
       [this](const ix::WebSocketMessagePtr &msg) { onMessage(msg); });
 
   thread_ = std::thread(&ix::WebSocket::run, &ws_);
-  pin_thread_to_core(thread_, 0);
-  logger_->info("Pinned FillListener thread to CPU Core 0");
+  if (pin_thread_to_core(thread_, 0)) {
+    logger_->info("Pinned FillListener thread to CPU Core 0");
+  } else {
+    logger_->warn("Failed to pin FillListener thread to CPU Core 0");
+  }
 }
 
 void AlpacaFillListener::stop() {

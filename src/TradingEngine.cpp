@@ -80,8 +80,11 @@ void TradingEngine::setup_signal_handler() {
 
 void TradingEngine::launch_gateway() {
   order_gateway_thread_ = std::thread(&OrderGateway::run, order_gateway_.get());
-  pin_thread_to_core(order_gateway_thread_, 0);
-  logger_->info("Pinned OrderGateway thread to CPU Core 0");
+  if (pin_thread_to_core(order_gateway_thread_, 0)) {
+    logger_->info("Pinned OrderGateway thread to CPU Core 0");
+  } else {
+    logger_->warn("Failed to pin OrderGateway thread to CPU Core 0");
+  }
 }
 
 void TradingEngine::launch_consumers() {
@@ -104,8 +107,12 @@ void TradingEngine::launch_consumers() {
         {std::thread(&ConsumerType::run, consumer.get()), std::move(consumer)});
 
     uint32_t core_id = max_cores > 0 ? (i + 2) % max_cores : i + 2;
-    pin_thread_to_core(consumer_threads_.back().thread, core_id);
-    logger_->info("Pinned thread for {} to CPU Core {}", symbol, core_id);
+    if (pin_thread_to_core(consumer_threads_.back().thread, core_id)) {
+      logger_->info("Pinned thread for {} to CPU Core {}", symbol, core_id);
+    } else {
+      logger_->warn("Failed to pin thread for {} to CPU Core {}", symbol,
+                    core_id);
+    }
   }
 }
 

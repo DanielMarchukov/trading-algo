@@ -35,8 +35,11 @@ void AlpacaWebSocketSource::start() {
       [this](const ix::WebSocketMessagePtr &msg) { onMessage(msg); });
 
   thread_ = std::thread(&ix::WebSocket::run, ws_.get());
-  pin_thread_to_core(thread_, 1);
-  spdlog::get("market")->info("Pinned to CPU core 1");
+  if (pin_thread_to_core(thread_, 1)) {
+    spdlog::get("market")->info("Pinned to CPU core 1");
+  } else {
+    spdlog::get("market")->warn("Failed to pin to CPU core 1");
+  }
 }
 
 void AlpacaWebSocketSource::stop() {
