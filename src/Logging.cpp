@@ -18,7 +18,7 @@ void init() {
   spdlog::init_thread_pool(8192, 1);
 
   auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-  console_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] %v");
+  console_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v");
 
   for (const auto *name : kLoggerNames) {
     auto logger = std::make_shared<spdlog::async_logger>(
