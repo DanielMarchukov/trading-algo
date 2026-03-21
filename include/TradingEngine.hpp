@@ -18,6 +18,10 @@
 #include <type_traits>
 #include <vector>
 
+namespace spdlog {
+class logger;
+} // namespace spdlog
+
 class IFillListener;
 
 struct OrderQueuePusher {
@@ -79,4 +83,5 @@ private:
   std::unique_ptr<IRestClient> reconciliation_client_;
   std::unique_ptr<IFillListener> fill_listener_;
   std::unique_ptr<AlpacaPipeline> market_publisher_;
+  spdlog::logger *logger_;
 };

@@ -3,8 +3,8 @@
 #include <cpr/curlholder.h>
 #include <cstring>
 #include <curl/curl.h>
-#include <iostream>
 #include <nlohmann/json.hpp>
+#include <spdlog/spdlog.h>
 #include <stdexcept>
 #include <string>
 
@@ -233,8 +233,8 @@ AlpacaRestClient::queryOrders(std::string_view status_filter,
       const auto *end = qty_str.data() + qty_str.size();
       auto [ptr, ec] = std::from_chars(qty_str.data(), end, order.qty);
       if (ec != std::errc{} || ptr != end) {
-        std::cerr << "AlpacaRestClient: Non-integer qty '" << qty_str
-                  << "' for order " << order.id << ", skipping" << '\n';
+        spdlog::get("rest")->warn("Non-integer qty '{}' for order {}, skipping",
+                                  qty_str, order.id);
         continue;
       }
     }
@@ -243,8 +243,9 @@ AlpacaRestClient::queryOrders(std::string_view status_filter,
       auto [ptr, ec] =
           std::from_chars(filled_str.data(), end, order.filled_qty);
       if (ec != std::errc{} || ptr != end) {
-        std::cerr << "AlpacaRestClient: Non-integer filled_qty '" << filled_str
-                  << "' for order " << order.id << ", skipping" << '\n';
+        spdlog::get("rest")->warn(
+            "Non-integer filled_qty '{}' for order {}, skipping", filled_str,
+            order.id);
         continue;
       }
     }
@@ -260,14 +261,14 @@ AlpacaRestClient::queryOrders(std::string_view status_filter,
           try {
             order.filled_avg_price = std::stod(s, &pos);
             if (pos != s.size()) {
-              std::cerr << "AlpacaRestClient: Trailing chars in "
-                           "filled_avg_price '"
-                        << s << "' for order " << order.id << '\n';
+              spdlog::get("rest")->warn(
+                  "Trailing chars in filled_avg_price '{}' for order {}", s,
+                  order.id);
               order.filled_avg_price = 0.0;
             }
           } catch (const std::exception &e) {
-            std::cerr << "AlpacaRestClient: Failed to parse filled_avg_price '"
-                      << s << "': " << e.what() << '\n';
+            spdlog::get("rest")->warn(
+                "Failed to parse filled_avg_price '{}': {}", s, e.what());
           }
         }
       }

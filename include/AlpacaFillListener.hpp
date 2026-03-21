@@ -12,6 +12,10 @@
 #include <variant>
 #include <vector>
 
+namespace spdlog {
+class logger;
+} // namespace spdlog
+
 struct FillEvent {
   char symbol[8];
   OrderSide side;
@@ -118,4 +122,6 @@ private:
   void upsertFilledQty(std::string_view order_id, int64_t qty);
   [[nodiscard]] bool isCompleted(std::string_view order_id) const noexcept;
   void markCompleted(std::string_view order_id);
+
+  spdlog::logger *logger_;
 };

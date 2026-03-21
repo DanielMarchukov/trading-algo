@@ -4,7 +4,7 @@
 #include "Utils.hpp"
 #include <csignal>
 #include <cstdlib>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace {
 std::atomic<bool> *g_is_running_ptr = nullptr;
@@ -19,7 +19,8 @@ void signalHandler(const int signum) {
 TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
                              std::unique_ptr<IRestClient> rest_client,
                              std::unique_ptr<IRestClient> reconciliation_client)
-    : is_running_(true), symbols_(symbols) {
+    : is_running_(true), symbols_(symbols),
+      logger_(spdlog::get("engine").get()) {
   latency_tracker_ = std::make_unique<LatencyTracker>();
   position_manager_ = std::make_unique<PositionManager>();
   for (const auto &symbol : symbols_) {
@@ -62,13 +63,13 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
 }
 
 TradingEngine::~TradingEngine() {
-  std::cout << "TradingEngine destructor: Starting shutdown..." << '\n';
+  logger_->info("Starting shutdown...");
   if (is_running_.load()) {
     stop();
   }
   shutdown();
   g_is_running_ptr = nullptr;
-  std::cout << "TradingEngine destructor: Shutdown complete." << '\n';
+  logger_->info("Shutdown complete.");
 }
 
 void TradingEngine::setup_signal_handler() {
@@ -79,16 +80,19 @@ void TradingEngine::setup_signal_handler() {
 
 void TradingEngine::launch_gateway() {
   order_gateway_thread_ = std::thread(&OrderGateway::run, order_gateway_.get());
-  pin_thread_to_core(order_gateway_thread_, 0);
-  std::cout << "Pinned OrderGateway thread to CPU Core 0" << '\n';
+  if (pin_thread_to_core(order_gateway_thread_, 0)) {
+    logger_->info("Pinned OrderGateway thread to CPU Core 0");
+  } else {
+    logger_->warn("Failed to pin OrderGateway thread to CPU Core 0");
+  }
 }
 
 void TradingEngine::launch_consumers() {
   const uint32_t max_cores = std::thread::hardware_concurrency();
   if (max_cores > 0 && symbols_.size() + 2 > max_cores) {
-    std::cerr << "Warning: " << symbols_.size()
-              << " symbols + 2 reserved cores exceeds " << max_cores
-              << " available cores; thread pinning will wrap" << '\n';
+    logger_->warn("{} symbols + 2 reserved cores exceeds {} available cores; "
+                  "thread pinning will wrap",
+                  symbols_.size(), max_cores);
   }
 
   for (uint32_t i = 0; i < symbols_.size(); ++i) {
@@ -103,9 +107,12 @@ void TradingEngine::launch_consumers() {
         {std::thread(&ConsumerType::run, consumer.get()), std::move(consumer)});
 
     uint32_t core_id = max_cores > 0 ? (i + 2) % max_cores : i + 2;
-    pin_thread_to_core(consumer_threads_.back().thread, core_id);
-    std::cout << "Pinned thread for " << symbol << " to CPU Core " << core_id
-              << '\n';
+    if (pin_thread_to_core(consumer_threads_.back().thread, core_id)) {
+      logger_->info("Pinned thread for {} to CPU Core {}", symbol, core_id);
+    } else {
+      logger_->warn("Failed to pin thread for {} to CPU Core {}", symbol,
+                    core_id);
+    }
   }
 }
 
@@ -140,24 +147,24 @@ void TradingEngine::shutdown() {
     try {
       latency_tracker_->dump(".");
     } catch (const std::exception &e) {
-      std::cerr << "Latency tracker dump failed: " << e.what() << '\n';
+      logger_->error("Latency tracker dump failed: {}", e.what());
     } catch (...) {
-      std::cerr << "Latency tracker dump failed with unknown error" << '\n';
+      logger_->error("Latency tracker dump failed with unknown error");
     }
   }
 }
 
 void TradingEngine::run() {
-  std::cout << "Starting trading engine..." << '\n';
+  logger_->info("Starting trading engine...");
   fill_listener_->start();
-  std::cout << "FillListener started" << '\n';
+  logger_->info("FillListener started");
   market_publisher_->start();
-  std::cout << "MarketPublisher started" << '\n';
+  logger_->info("MarketPublisher started");
   launch_gateway();
   launch_consumers();
   main_loop();
 
-  std::cout << "Main loop exited. Shutting down threads..." << '\n';
+  logger_->info("Main loop exited. Shutting down threads...");
   shutdown();
 }
 

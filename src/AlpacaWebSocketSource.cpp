@@ -1,7 +1,7 @@
 #include "AlpacaWebSocketSource.hpp"
 #include "ThreadPinning.hpp"
-#include <iostream>
 #include <msgpack.hpp>
+#include <spdlog/spdlog.h>
 
 namespace {
 constexpr const char *kDataStreamUrl =
@@ -16,7 +16,8 @@ AlpacaWebSocketSource::AlpacaWebSocketSource(std::string api_key,
                                              std::atomic<bool> &is_running)
     : api_key_(std::move(api_key)), api_secret_(std::move(api_secret)),
       symbols_(std::move(symbols)), is_running_(&is_running),
-      ws_(std::make_unique<ix::WebSocket>()) {}
+      ws_(std::make_unique<ix::WebSocket>()),
+      logger_(spdlog::get("market").get()) {}
 
 AlpacaWebSocketSource::~AlpacaWebSocketSource() { stop(); }
 
@@ -35,8 +36,11 @@ void AlpacaWebSocketSource::start() {
       [this](const ix::WebSocketMessagePtr &msg) { onMessage(msg); });
 
   thread_ = std::thread(&ix::WebSocket::run, ws_.get());
-  pin_thread_to_core(thread_, 1);
-  std::cout << "AlpacaWebSocketSource: pinned to CPU core 1" << '\n';
+  if (pin_thread_to_core(thread_, 1)) {
+    logger_->info("Pinned to CPU core 1");
+  } else {
+    logger_->warn("Failed to pin to CPU core 1");
+  }
 }
 
 void AlpacaWebSocketSource::stop() {
@@ -55,7 +59,7 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
 
   switch (msg->type) {
   case ix::WebSocketMessageType::Open:
-    std::cout << "AlpacaWebSocketSource: connected" << '\n';
+    logger_->info("Connected");
     sendAuth();
     break;
 
@@ -67,13 +71,11 @@ void AlpacaWebSocketSource::onMessage(const ix::WebSocketMessagePtr &msg) {
     break;
 
   case ix::WebSocketMessageType::Error:
-    std::cerr << "AlpacaWebSocketSource: error: " << msg->errorInfo.reason
-              << '\n';
+    logger_->error("WebSocket error: {}", msg->errorInfo.reason);
     break;
 
   case ix::WebSocketMessageType::Close:
-    std::cout << "AlpacaWebSocketSource: closed (code=" << msg->closeInfo.code
-              << ")" << '\n';
+    logger_->info("Closed (code={})", msg->closeInfo.code);
     break;
 
   default:
@@ -105,6 +107,5 @@ void AlpacaWebSocketSource::sendSubscribe() {
   pk.pack("trades");
   pk.pack(symbols_);
   ws_->sendBinary(std::string(buffer.data(), buffer.size()));
-  std::cout << "AlpacaWebSocketSource: subscribed to " << symbols_.size()
-            << " symbols" << '\n';
+  logger_->info("Subscribed to {} symbols", symbols_.size());
 }

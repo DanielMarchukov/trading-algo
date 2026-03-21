@@ -1,11 +1,13 @@
 #include "AlpacaRestClient.hpp"
+#include "Logging.hpp"
 #include "TradingEngine.hpp"
-#include <iostream>
 #include <memory>
+#include <spdlog/spdlog.h>
 #include <vector>
 
 int main() {
   try {
+    logging::init();
     const std::vector<std::string> symbols = {"AAPL", "GOOGL", "AMZN"};
 
     auto alpaca_client = std::make_unique<AlpacaRestClient>();
@@ -15,11 +17,14 @@ int main() {
                          std::move(reconciliation_client));
     engine.run();
   } catch (const std::exception &e) {
-    std::cerr << "An exception occurred: " << e.what() << '\n';
+    spdlog::error("An exception occurred: {}", e.what());
+    logging::shutdown();
     return 1;
   } catch (...) {
-    std::cerr << "An unknown exception occurred." << '\n';
+    spdlog::error("An unknown exception occurred.");
+    logging::shutdown();
     return 1;
   }
+  logging::shutdown();
   return 0;
 }

@@ -13,7 +13,6 @@
 #include <future>
 #include <gtest/gtest.h>
 #include <memory>
-#include <sstream>
 #include <thread>
 
 class MockRestClient final : public IRestClient {
@@ -302,12 +301,10 @@ TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
   std::promise<void> promise;
   auto future = promise.get_future();
 
+  auto sink = test_helpers::installTestSink("gateway");
   auto client = factory(&promise);
   OrderGateway gateway(is_running, &order_queue, std::move(client),
                        &position_manager_);
-
-  std::stringstream captured;
-  auto *original = std::cerr.rdbuf(captured.rdbuf());
 
   {
     ThreadGuard guard{std::thread(&OrderGateway::run, &gateway)};
@@ -321,9 +318,7 @@ TEST_P(GatewayMainLoopExceptionTest, LogsCorrectError) {
     is_running.store(false);
   }
 
-  std::cerr.rdbuf(original);
-
-  EXPECT_TRUE(captured.str().find(expected_substr) != std::string::npos);
+  EXPECT_TRUE(test_helpers::sinkContains(sink, expected_substr));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -332,12 +327,12 @@ INSTANTIATE_TEST_SUITE_P(
         MainLoopExceptionParam{[](std::promise<void> *p) {
                                  return std::make_unique<ThrowingRestClient>(p);
                                },
-                               "OrderGateway: Exception placing order:"},
+                               "Exception placing order:"},
         MainLoopExceptionParam{
             [](std::promise<void> *p) {
               return std::make_unique<WildThrowingRestClient>(p);
             },
-            "OrderGateway: Unknown error placing order"}));
+            "Unknown error placing order"}));
 
 struct ShutdownExceptionParam {
   std::function<std::unique_ptr<IRestClient>()> factory;
@@ -359,18 +354,14 @@ TEST_P(GatewayShutdownExceptionTest, LogsCorrectError) {
   order.id = 1;
   order_queue.push(order);
 
+  auto sink = test_helpers::installTestSink("gateway");
   auto client = factory();
   OrderGateway gateway(is_running, &order_queue, std::move(client),
                        &position_manager_);
 
-  std::stringstream captured;
-  auto *original = std::cerr.rdbuf(captured.rdbuf());
-
   gateway.run();
 
-  std::cerr.rdbuf(original);
-
-  EXPECT_TRUE(captured.str().find(expected_substr) != std::string::npos);
+  EXPECT_TRUE(test_helpers::sinkContains(sink, expected_substr));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -378,10 +369,10 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         ShutdownExceptionParam{
             []() { return std::make_unique<ThrowingRestClient>(); },
-            "OrderGateway: Exception placing order:"},
+            "Exception placing order:"},
         ShutdownExceptionParam{
             []() { return std::make_unique<WildThrowingRestClient>(); },
-            "OrderGateway: Unknown error placing order"}));
+            "Unknown error placing order"}));
 
 namespace {
 

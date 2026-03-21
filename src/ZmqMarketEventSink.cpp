@@ -1,7 +1,7 @@
 #include "ZmqMarketEventSink.hpp"
 #include <algorithm>
 #include <filesystem>
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 namespace {
 constexpr std::size_t kSymbolCapacity = 8;
@@ -22,7 +22,7 @@ void ZmqMarketEventSink::start() {
   zmq_pub_.set(zmq::sockopt::sndhwm, 1000000);
   zmq_pub_.set(zmq::sockopt::linger, 0);
   zmq_pub_.bind(zmq_address_);
-  std::cout << "ZmqMarketEventSink: bound to " << zmq_address_ << '\n';
+  spdlog::get("zmq")->info("Bound to {}", zmq_address_);
 }
 
 void ZmqMarketEventSink::stop() {}

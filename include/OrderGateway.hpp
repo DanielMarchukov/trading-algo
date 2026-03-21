@@ -6,6 +6,10 @@
 #include <atomic>
 #include <memory>
 
+namespace spdlog {
+class logger;
+} // namespace spdlog
+
 class LatencyTracker;
 class PendingOrderTracker;
 class PositionManager;
@@ -31,4 +35,5 @@ private:
   PendingOrderTracker *pending_tracker_;
   LatencyTracker *latency_tracker_;
   uint64_t order_id_counter_ = 0;
+  spdlog::logger *logger_;
 };

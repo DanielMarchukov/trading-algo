@@ -10,7 +10,6 @@
 #include <gtest/gtest.h>
 #include <memory>
 #include <nlohmann/json.hpp>
-#include <sstream>
 #include <string>
 #include <thread>
 
@@ -264,8 +263,7 @@ TEST_F(FillListenerTest, RejectsUnknownSide) {
 }
 
 TEST_F(FillListenerTest, RejectsInvalidQtyString) {
-  std::ostringstream captured;
-  auto *old_buf = std::cerr.rdbuf(captured.rdbuf());
+  auto sink = test_helpers::installTestSink("fills");
 
   const auto update = parse(R"({
     "stream": "trade_updates",
@@ -280,15 +278,12 @@ TEST_F(FillListenerTest, RejectsInvalidQtyString) {
     }
   })");
 
-  std::cerr.rdbuf(old_buf);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
-  EXPECT_NE(captured.str().find("FillListener: parseQty failed:"),
-            std::string::npos);
+  EXPECT_TRUE(test_helpers::sinkContains(sink, "parseQty failed:"));
 }
 
 TEST_F(FillListenerTest, RejectsInvalidPriceString) {
-  std::ostringstream captured;
-  auto *old_buf = std::cerr.rdbuf(captured.rdbuf());
+  auto sink = test_helpers::installTestSink("fills");
 
   const auto update = parse(R"({
     "stream": "trade_updates",
@@ -303,10 +298,8 @@ TEST_F(FillListenerTest, RejectsInvalidPriceString) {
     }
   })");
 
-  std::cerr.rdbuf(old_buf);
   EXPECT_TRUE(std::holds_alternative<std::monostate>(update));
-  EXPECT_NE(captured.str().find("FillListener: parsePrice failed:"),
-            std::string::npos);
+  EXPECT_TRUE(test_helpers::sinkContains(sink, "parsePrice failed:"));
 }
 
 TEST_F(FillListenerTest, ParsesNumericQtyAndPrice) {

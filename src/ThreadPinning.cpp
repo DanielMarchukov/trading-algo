@@ -1,5 +1,5 @@
 #include "ThreadPinning.hpp"
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -10,31 +10,36 @@
 #include <mach/thread_policy.h>
 #endif
 
-void pin_thread_to_core(std::thread &t, uint32_t core_id) {
+bool pin_thread_to_core(std::thread &t, uint32_t core_id) {
 #if defined(__linux__) || defined(__gnu_linux__)
   if (core_id >= CPU_SETSIZE) {
-    std::cerr << "Error: core_id " << core_id << " exceeds CPU_SETSIZE ("
-              << CPU_SETSIZE << ")\n";
-    return;
+    spdlog::get("system")->error("core_id {} exceeds CPU_SETSIZE ({})", core_id,
+                                 CPU_SETSIZE);
+    return false;
   }
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(core_id, &cpuset);
   if (pthread_setaffinity_np(t.native_handle(), sizeof(cpu_set_t), &cpuset) !=
       0) {
-    std::cerr << "Error calling pthread_setaffinity_np\n";
+    spdlog::get("system")->error("pthread_setaffinity_np failed for core {}",
+                                 core_id);
+    return false;
   }
+  return true;
 #elif defined(_WIN32)
   if (core_id >= 64) {
-    std::cerr << "Error: core_id " << core_id
-              << " exceeds 64-bit affinity mask limit" << '\n';
-    return;
+    spdlog::get("system")->error(
+        "core_id {} exceeds 64-bit affinity mask limit", core_id);
+    return false;
   }
   if (const DWORD_PTR mask = 1ULL << core_id;
       SetThreadAffinityMask(t.native_handle(), mask) == 0) {
-    std::cerr << "Error calling SetThreadAffinityMask: " << GetLastError()
-              << '\n';
+    spdlog::get("system")->error("SetThreadAffinityMask failed for core {}: {}",
+                                 core_id, GetLastError());
+    return false;
   }
+  return true;
 #elif defined(__APPLE__)
   // THREAD_AFFINITY_POLICY is only a scheduling hint (same-tag threads
   // share L2 cache). It does not pin to a specific core, and on Apple
@@ -44,12 +49,15 @@ void pin_thread_to_core(std::thread &t, uint32_t core_id) {
   if (thread_policy_set(mach_thread, THREAD_AFFINITY_POLICY,
                         (thread_policy_t)&policy,
                         THREAD_AFFINITY_POLICY_COUNT) != KERN_SUCCESS) {
-    std::cerr << "Warning: thread_policy_set affinity hint failed for core "
-              << core_id << '\n';
+    spdlog::get("system")->warn(
+        "thread_policy_set affinity hint failed for core {}", core_id);
+    return false;
   }
+  return true;
 #else
   (void)t;
   (void)core_id;
-  std::cerr << "Warning: CPU pinning not supported on this platform." << '\n';
+  spdlog::get("system")->warn("CPU pinning not supported on this platform");
+  return false;
 #endif
 }

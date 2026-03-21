@@ -7,8 +7,8 @@
 #include "Utils.hpp"
 #include <atomic>
 #include <cstring>
-#include <iostream>
 #include <memory>
+#include <spdlog/spdlog.h>
 #include <string>
 #include <zmq.hpp>
 
@@ -37,8 +37,9 @@ public:
                       std::string_view(symbol_, symbol.size()));
       subscriber_.connect(address);
     } catch (const zmq::error_t &e) {
-      std::cerr << "MarketEventConsumer for " << symbol_
-                << " ZMQ error during construction: " << e.what() << '\n';
+      spdlog::get("system")->error(
+          "MarketEventConsumer for {} ZMQ error during construction: {}",
+          symbol_, e.what());
       throw;
     }
   }
