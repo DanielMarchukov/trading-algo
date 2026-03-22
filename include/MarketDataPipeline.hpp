@@ -45,8 +45,8 @@ template <MarketDataSourceLike SourceType, MarketDataDecoderLike DecoderType,
 class MarketDataPipeline {
 public:
   MarketDataPipeline(SourceType source, DecoderType decoder, SinkType sink)
-      : source_(std::move(source)), decoder_(std::move(decoder)),
-        sink_(std::move(sink)) {
+      : decoder_(std::move(decoder)), sink_(std::move(sink)),
+        source_(std::move(source)) {
     if constexpr (requires {
                     source_.sendSubscribe();
                     decoder_.setOnAuthSuccess(detail::AuthProbe{});
@@ -85,7 +85,7 @@ private:
         });
   }
 
-  SourceType source_;
   DecoderType decoder_;
   SinkType sink_;
+  SourceType source_;
 };

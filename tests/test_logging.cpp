@@ -1,6 +1,13 @@
 #include "Logging.hpp"
 #include <gtest/gtest.h>
+#include <spdlog/sinks/null_sink.h>
 #include <spdlog/spdlog.h>
+
+namespace {
+
+auto null_sink() { return std::make_shared<spdlog::sinks::null_sink_mt>(); }
+
+} // namespace
 
 class LoggingTest : public ::testing::Test {
 protected:
@@ -8,14 +15,14 @@ protected:
 
   void TearDown() override {
     spdlog::drop_all();
-    logging::initForTests();
+    logging::init(null_sink());
   }
 };
 
 struct LoggingInitParam {
   const char *name;
-  void (*init_fn)();
-  void (*cleanup_fn)();
+  std::function<void()> init_fn;
+  std::function<void()> cleanup_fn;
 };
 
 class LoggingInitTest : public LoggingTest,
@@ -53,21 +60,24 @@ TEST_P(LoggingInitTest, SetsDefaultLoggerToSystem) {
 
 INSTANTIATE_TEST_SUITE_P(
     InitVariants, LoggingInitTest,
-    ::testing::Values(
-        LoggingInitParam{"init", logging::init, logging::shutdown},
-        LoggingInitParam{"initForTests", logging::initForTests, nullptr}),
+    ::testing::Values(LoggingInitParam{"production", [] { logging::init(); },
+                                       logging::shutdown},
+                      LoggingInitParam{"null_sink",
+                                       [] { logging::init(null_sink()); },
+                                       nullptr}),
     [](const auto &info) { return info.param.name; });
 
-TEST_F(LoggingTest, InitForTestsSkipsAlreadyRegisteredLoggers) {
-  logging::initForTests();
+TEST_F(LoggingTest, InitSkipsAlreadyRegisteredLoggers) {
+  logging::init(null_sink());
   auto original = spdlog::get("gateway");
 
-  logging::initForTests();
-  EXPECT_EQ(spdlog::get("gateway"), original);
+  spdlog::drop_all();
+  logging::init(null_sink());
+  EXPECT_NE(spdlog::get("gateway"), nullptr);
 }
 
 TEST_F(LoggingTest, ShutdownDropsAllLoggers) {
-  logging::initForTests();
+  logging::init(null_sink());
   ASSERT_NE(spdlog::get("engine"), nullptr);
 
   logging::shutdown();

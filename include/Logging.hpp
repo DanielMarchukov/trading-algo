@@ -1,14 +1,11 @@
 #pragma once
 
+#include <memory>
+#include <spdlog/sinks/sink.h>
+
 namespace logging {
 
-/// Call once from main(), before any threads are spawned.
-void init();
-
-/// Register all named loggers with null sinks (for test binaries).
-void initForTests();
-
-/// Flush all loggers and drop the spdlog registry.
+void init(std::shared_ptr<spdlog::sinks::sink> sink = nullptr);
 void shutdown();
 
 } // namespace logging
