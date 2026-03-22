@@ -67,11 +67,11 @@ INSTANTIATE_TEST_SUITE_P(
                                        nullptr}),
     [](const auto &info) { return info.param.name; });
 
-TEST_F(LoggingTest, InitSkipsAlreadyRegisteredLoggers) {
+TEST_F(LoggingTest, DoubleInitIsIdempotent) {
   logging::init(null_sink());
   auto original = spdlog::get("gateway");
+  ASSERT_NE(original, nullptr);
 
-  spdlog::drop_all();
   logging::init(null_sink());
   EXPECT_NE(spdlog::get("gateway"), nullptr);
 }

@@ -13,9 +13,10 @@ constexpr std::array kLoggerNames = {"engine", "gateway", "fills",  "rest",
 
 namespace logging {
 
-void init(std::shared_ptr<spdlog::sinks::sink> sink) {
+void init(const std::shared_ptr<spdlog::sinks::sink> &sink) {
   if (sink) {
     for (const auto *name : kLoggerNames) {
+      spdlog::drop(name);
       auto logger = std::make_shared<spdlog::logger>(name, sink);
       logger->set_level(spdlog::level::trace);
       spdlog::register_logger(logger);
@@ -27,6 +28,7 @@ void init(std::shared_ptr<spdlog::sinks::sink> sink) {
     console_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%F] [%n] [%^%l%$] %v");
 
     for (const auto *name : kLoggerNames) {
+      spdlog::drop(name);
       auto logger = std::make_shared<spdlog::async_logger>(
           name, console_sink, spdlog::thread_pool(),
           spdlog::async_overflow_policy::overrun_oldest);

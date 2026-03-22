@@ -1,23 +1,35 @@
 #include "ThreadPinning.hpp"
+#include <atomic>
 #include <gtest/gtest.h>
 #include <thread>
 
 TEST(ThreadPinningTest, PinsToValidCore) {
-  std::thread t([] {});
+  std::atomic<bool> done{false};
+  std::thread t([&done] {
+    while (!done.load(std::memory_order_acquire)) {
+    }
+  });
+
   const bool result = pin_thread_to_core(t, 0);
+  done.store(true, std::memory_order_release);
+  t.join();
+
 #if defined(__linux__) || defined(__gnu_linux__) || defined(_WIN32)
   EXPECT_TRUE(result);
 #elif defined(__APPLE__)
-  // macOS: thread_policy_set is a hint, may succeed or fail
   (void)result;
 #else
   EXPECT_FALSE(result);
 #endif
-  t.join();
 }
 
 TEST(ThreadPinningTest, RejectsExcessiveCoreId) {
-  std::thread t([] {});
+  std::atomic<bool> done{false};
+  std::thread t([&done] {
+    while (!done.load(std::memory_order_acquire)) {
+    }
+  });
+
 #if defined(__linux__) || defined(__gnu_linux__)
   const bool result = pin_thread_to_core(t, CPU_SETSIZE);
   EXPECT_FALSE(result);
@@ -27,5 +39,7 @@ TEST(ThreadPinningTest, RejectsExcessiveCoreId) {
 #else
   GTEST_SKIP() << "No boundary validation on this platform";
 #endif
+
+  done.store(true, std::memory_order_release);
   t.join();
 }
