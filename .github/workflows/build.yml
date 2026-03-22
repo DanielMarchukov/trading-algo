@@ -6,102 +6,70 @@ on:
   pull_request:
     branches: ["mainline"]
 
-jobs:
-  build-cpp:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Debug
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
-            build_type: Debug
-            vcpkg_triplet: x64-linux
-          - os: ubuntu-latest
-            c_compiler: clang-19
-            cpp_compiler: clang++-19
-            build_type: Debug
-            vcpkg_triplet: x64-linux
-          - os: windows-latest
-            build_type: Debug
-            vcpkg_triplet: x64-windows-static
-          - os: macos-latest
-            c_compiler: clang
-            cpp_compiler: clang++
-            build_type: Debug
-            vcpkg_triplet: arm64-osx
-          # Release
-          - os: ubuntu-latest
-            c_compiler: gcc
-            cpp_compiler: g++
-            build_type: Release
-            vcpkg_triplet: x64-linux
-          - os: ubuntu-latest
-            c_compiler: clang-19
-            cpp_compiler: clang++-19
-            build_type: Release
-            vcpkg_triplet: x64-linux
-          - os: windows-latest
-            build_type: Release
-            vcpkg_triplet: x64-windows-static
-          - os: macos-latest
-            c_compiler: clang
-            cpp_compiler: clang++
-            build_type: Release
-            vcpkg_triplet: arm64-osx
+# Cancel in-progress runs for the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
-    runs-on: ${{ matrix.os }}
+jobs:
+  # ===========================================================
+  # PR pipeline: fast feedback (~5 min)
+  # Runs on every push and PR
+  # ===========================================================
+
+  pre-commit-checks:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install macOS build tools
-        if: runner.os == 'macOS'
-        run: brew install ninja pkg-config
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install pre-commit
+        run: pip install pre-commit
+
+      - name: Cache pre-commit
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: |
+            pre-commit-
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+        env:
+          SKIP: no-commit-to-branch
+
+  quick-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
 
       - name: Set up CMake 3.28.3
         uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: "3.28.3"
 
-      - name: Install build prerequisites (Linux)
-        if: runner.os == 'Linux'
+      - name: Install build prerequisites and Clang 19
         run: |
           sudo apt-get update
-          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-format-19 clang-tidy libstdc++-14-dev g++-14
-          clang-format-19 --version
-
-      - name: Install Clang 19 (Linux)
-        if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang')
-        run: |
           if ! command -v clang++-19 &>/dev/null; then
             wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
             sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
             sudo apt-get update
           fi
-          sudo apt-get install -y clang-19 llvm-19 clang-tidy-19
-          clang++-19 --version
-
-      - name: Install build prerequisites (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install autoconf automake libtool pkg-config autoconf-archive clang-format lcov
-          echo "$(brew --prefix)/bin" >> $GITHUB_PATH
-
-      - name: Configure macOS compilers
-        if: runner.os == 'macOS'
-        run: |
-          # Use Apple Clang (compatible with system and vcpkg libraries)
-          echo "CC=/usr/bin/clang" >> $GITHUB_ENV
-          echo "CXX=/usr/bin/clang++" >> $GITHUB_ENV
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-19 llvm-19 clang-format-19 clang-tidy-19 libstdc++-14-dev g++-14
 
       - name: Cache vcpkg dependencies
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/vcpkg_installed
-          key: ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.build_type }}-${{ hashFiles('**/vcpkg.json') }}
+          key: ${{ runner.os }}-clang-x64-linux-${{ hashFiles('**/vcpkg.json') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.build_type }}-
+            ${{ runner.os }}-clang-x64-linux-
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -110,153 +78,49 @@ jobs:
         with:
           vcpkgJsonGlob: "**/vcpkg.json"
 
-      - name: Install OpenCppCoverage (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          choco install opencppcoverage
-          Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
-          Update-SessionEnvironment
-
       - name: Check C++ formatting (clang-format)
-        if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang') # Only run once
         run: |
           find src/ include/ tests/ -name "*.cpp" -o -name "*.hpp" -o -name "*.h" | \
             xargs clang-format-19 -style=file --dry-run --Werror
 
       - name: Configure CMake
-        if: runner.os != 'Windows'
         run: >
           cmake -B build -S .
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
+          -DCMAKE_BUILD_TYPE=Debug
+          -DVCPKG_TARGET_TRIPLET=x64-linux
           -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
           -DENABLE_COVERAGE=ON
           -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-        env:
-          CC: ${{ env.CC || matrix.c_compiler }}
-          CXX: ${{ env.CXX || matrix.cpp_compiler }}
-        shell: bash
-
-      - name: Configure CMake (Windows)
-        if: runner.os == 'Windows'
-        run: >
-          cmake -B build -S .
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
-          -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\scripts\buildsystems\vcpkg.cmake"
-          -DENABLE_COVERAGE=ON
-          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-        shell: pwsh
+          -DCMAKE_C_COMPILER=clang-19
+          -DCMAKE_CXX_COMPILER=clang++-19
 
       - name: Build
-        run: cmake --build build --config ${{ matrix.build_type }}
+        run: cmake --build build
 
       - name: Run clang-tidy static analysis
-        if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang') && matrix.build_type == 'Debug'
         run: |
           find src/ tests/ -name "*.cpp" | xargs clang-tidy-19 -p build/ --format-style=file
 
-      - name: Test (Clang)
-        if: (runner.os == 'Linux' || runner.os == 'macOS') && startsWith(matrix.c_compiler, 'clang')
+      - name: Test
         working-directory: ./build
         run: |
-          LLVM_PROFILE_FILE="default.profraw" ctest --build-config ${{ matrix.build_type }} --output-on-failure
+          LLVM_PROFILE_FILE="default.profraw" ctest --output-on-failure
 
-      - name: Test (Non-Clang)
-        if: matrix.c_compiler != 'clang'
-        working-directory: ./build
-        run: |
-          ctest --build-config ${{ matrix.build_type }} --output-on-failure
-
-      - name: Collect coverage (GCC on Linux)
-        if: runner.os == 'Linux' && matrix.c_compiler == 'gcc'
-        run: |
-          cd build
-          lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch,gcov --quiet
-          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info
-          lcov --list coverage.info
-
-      - name: Collect coverage (Clang on Linux)
-        if: runner.os == 'Linux' && startsWith(matrix.cpp_compiler, 'clang')
+      - name: Collect coverage
         run: |
           cd build
           llvm-profdata-19 merge -sparse default.profraw -o default.profdata
           llvm-cov-19 export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
           lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
 
-      - name: Collect coverage (Clang on macOS)
-        if: runner.os == 'macOS' && startsWith(matrix.cpp_compiler, 'clang')
-        run: |
-          cd build
-          xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
-          xcrun llvm-cov export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
-          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' '/Applications/*' --output-file coverage.info --ignore-errors unused
-
-      # Coverage collection for macOS with GCC (if using GCC)
-      - name: Collect coverage (GCC on macOS)
-        if: runner.os == 'macOS' && matrix.c_compiler == 'gcc'
-        run: |
-          cd build
-          lcov --capture --directory . --output-file coverage.info
-          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' '/opt/*' --output-file coverage.info
-          lcov --list coverage.info
-
-      - name: Run tests with coverage (Windows)
-        if: runner.os == 'Windows'
-        working-directory: ./build
-        run: |
-          $projectRoot = Resolve-Path ".."
-          $srcPath = Join-Path $projectRoot "src"
-          $includePath = Join-Path $projectRoot "include"
-
-          # Find the test executable
-          $testExe = ""
-          if (Test-Path ".\${{ matrix.build_type }}\rich_on_tests.exe") {
-            $testExe = ".\${{ matrix.build_type }}\rich_on_tests.exe"
-          } elseif (Test-Path ".\Debug\rich_on_tests.exe") {
-            $testExe = ".\Debug\rich_on_tests.exe"
-          } elseif (Test-Path ".\Release\rich_on_tests.exe") {
-            $testExe = ".\Release\rich_on_tests.exe"
-          } else {
-            Write-Error "Could not find rich_on_tests.exe in any build configuration"
-            exit 1
-          }
-
-          Write-Host "Using test executable: $testExe"
-          Write-Host "Coverage source paths: $srcPath, $includePath"
-
-          $openCppCoveragePath = Get-Command OpenCppCoverage -ErrorAction SilentlyContinue
-          if ($openCppCoveragePath) {
-            Write-Host "Using OpenCppCoverage from PATH: $($openCppCoveragePath.Source)"
-            OpenCppCoverage --sources "$srcPath" --sources "$includePath" --export_type=cobertura:coverage.xml -- $testExe
-          } elseif (Test-Path "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe") {
-            Write-Host "Using OpenCppCoverage from full path"
-            & "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe" --sources "$srcPath" --sources "$includePath" --export_type=cobertura:coverage.xml -- $testExe
-          } else {
-            Write-Error "OpenCppCoverage not found in PATH or at expected location"
-            exit 1
-          }
-
-      - name: Upload C++ coverage to Codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./build/coverage.info,./build/coverage.xml
+          files: ./build/coverage.info
           flags: cpp
-          name: cpp-${{ matrix.os }}-${{ matrix.cpp_compiler || 'default' }}
+          name: pr-linux-clang
           fail_ci_if_error: true
-          verbose: true
-
-      - name: Upload C++ Executable Artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: trading-engine-${{ matrix.os }}-${{ matrix.cpp_compiler || 'msvc' }}-${{ matrix.build_type }}
-          path: |
-            build/paper_money
-            build/Release/paper_money.exe
-            build/Debug/paper_money.exe
-          if-no-files-found: ignore
 
   sanitizer-asan:
     runs-on: ubuntu-latest
@@ -311,122 +175,330 @@ jobs:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
 
-  security-scan:
+  fuzz-smoke:
     runs-on: ubuntu-latest
     permissions:
-      security-events: write
       contents: read
     steps:
       - uses: actions/checkout@v6
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+      - name: Set up CMake 3.28.3
+        uses: jwlawson/actions-setup-cmake@v2
         with:
-          languages: cpp
-          queries: security-and-quality
+          cmake-version: "3.28.3"
 
-      - name: Setup vcpkg for CodeQL
-        uses: lukka/run-vcpkg@v11
-
-      - name: Build for CodeQL analysis
+      - name: Install build prerequisites
         run: |
-          cmake -B build -S . \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DVCPKG_TARGET_TRIPLET=x64-linux \
-            -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
-            -DENABLE_COVERAGE=OFF
-          cmake --build build
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config
+          if ! command -v clang++-19 &>/dev/null; then
+            wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+            sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
+            sudo apt-get update
+          fi
+          sudo apt-get install -y clang-19 llvm-19
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
+      - name: Cache vcpkg dependencies
+        uses: actions/cache@v5
         with:
-          output: sarif-results
-          upload: failure-only
-
-      - name: Filter SARIF to exclude vcpkg and test files
-        uses: advanced-security/filter-sarif@v1
-        with:
-          patterns: |
-            -**/vcpkg/**
-            -**/vcpkg_installed/**
-            -**/tests/**
-          input: sarif-results/cpp.sarif
-          output: sarif-results/cpp.sarif
-
-      - name: Upload filtered SARIF
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: sarif-results/
-
-  dependency-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
+          path: ${{ github.workspace }}/vcpkg_installed
+          key: ${{ runner.os }}-fuzz-${{ hashFiles('**/vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-fuzz-
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
-
-      - name: Check C++ dependency versions
-        run: |
-          echo "=== vcpkg Version ===" > cpp-deps-report.txt
-          cd ${{ env.VCPKG_ROOT }}
-          ./vcpkg version >> ../cpp-deps-report.txt 2>&1 || true
-          cd - > /dev/null
-          echo "" >> cpp-deps-report.txt
-          echo "=== Project Manifest (vcpkg.json) ===" >> cpp-deps-report.txt
-          if [ -f "vcpkg.json" ]; then
-            cat vcpkg.json >> cpp-deps-report.txt
-          else
-            echo "vcpkg.json not found" >> cpp-deps-report.txt
-          fi
-
-          echo "" >> cpp-deps-report.txt
-          echo "=== Installed Packages ===" >> cpp-deps-report.txt
-          cd ${{ env.VCPKG_ROOT }}
-          ./vcpkg list >> ../cpp-deps-report.txt 2>&1 || true
-
-          echo "" >> ../cpp-deps-report.txt
-          echo "=== vcpkg Integrate Status ===" >> ../cpp-deps-report.txt
-          ./vcpkg integrate show >> ../cpp-deps-report.txt 2>&1 || true
-
-          cd - > /dev/null
-          cat cpp-deps-report.txt
-        continue-on-error: true
-
-      - name: Upload dependency reports
-        uses: actions/upload-artifact@v7
+        env:
+          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
         with:
-          name: dependency-reports
-          path: |
-            cpp-deps-outdated.txt
+          vcpkgJsonGlob: "**/vcpkg.json"
 
-  pre-commit-checks:
+      - name: Configure CMake (Fuzzing)
+        run: >
+          cmake -B build -S .
+          -DCMAKE_BUILD_TYPE=Debug
+          -DVCPKG_TARGET_TRIPLET=x64-linux
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+          -DENABLE_FUZZING=ON
+          -DCMAKE_C_COMPILER=clang-19
+          -DCMAKE_CXX_COMPILER=clang++-19
+
+      - name: Build fuzz targets
+        run: >
+          cmake --build build
+          --target fuzz_msgpack_decoder fuzz_trade_update_parser fuzz_risk_manager
+
+      - name: Fuzz AlpacaMsgpackDecoder (10s)
+        run: ./build/fuzz_msgpack_decoder fuzz/corpus/msgpack_decoder -max_total_time=10 -print_final_stats=1
+        env:
+          ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
+          UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+
+      - name: Fuzz parseTradingUpdate (10s)
+        run: ./build/fuzz_trade_update_parser fuzz/corpus/trade_update_parser -max_total_time=10 -print_final_stats=1
+        env:
+          ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
+          UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+
+      - name: Fuzz RiskManager (10s)
+        run: ./build/fuzz_risk_manager fuzz/corpus/risk_manager -max_total_time=10 -print_final_stats=1
+        env:
+          ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
+          UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+
+  # Gate job: single required check for branch protection
+  ci-gate:
+    if: always()
+    needs: [pre-commit-checks, quick-build, sanitizer-asan, fuzz-smoke]
     runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        run: |
+          for job in \
+            "${{ needs.pre-commit-checks.result }}" \
+            "${{ needs.quick-build.result }}" \
+            "${{ needs.sanitizer-asan.result }}" \
+            "${{ needs.fuzz-smoke.result }}"; do
+            if [[ "$job" != "success" ]]; then
+              echo "Required job failed: $job"
+              exit 1
+            fi
+          done
+          echo "All required checks passed"
+
+  # ===========================================================
+  # Merge pipeline: thorough validation
+  # Runs only on push to mainline (after PR merge)
+  # ===========================================================
+
+  full-matrix:
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Debug
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            build_type: Debug
+            vcpkg_triplet: x64-linux
+          - os: windows-latest
+            build_type: Debug
+            vcpkg_triplet: x64-windows-static
+          - os: macos-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+            build_type: Debug
+            vcpkg_triplet: arm64-osx
+          # Release
+          - os: ubuntu-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+            build_type: Release
+            vcpkg_triplet: x64-linux
+          - os: ubuntu-latest
+            c_compiler: clang-19
+            cpp_compiler: clang++-19
+            build_type: Release
+            vcpkg_triplet: x64-linux
+          - os: windows-latest
+            build_type: Release
+            vcpkg_triplet: x64-windows-static
+          - os: macos-latest
+            c_compiler: clang
+            cpp_compiler: clang++
+            build_type: Release
+            vcpkg_triplet: arm64-osx
+
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up Python 3.14
-        uses: actions/setup-python@v6
+      - name: Install macOS build tools
+        if: runner.os == 'macOS'
+        run: brew install ninja pkg-config
+
+      - name: Set up CMake 3.28.3
+        uses: jwlawson/actions-setup-cmake@v2
         with:
-          python-version: "3.14"
+          cmake-version: "3.28.3"
 
-      - name: Install pre-commit
-        run: pip install pre-commit
+      - name: Install build prerequisites (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm libstdc++-14-dev g++-14
 
-      - name: Cache pre-commit
+      - name: Install Clang 19 (Linux)
+        if: runner.os == 'Linux' && startsWith(matrix.c_compiler, 'clang')
+        run: |
+          if ! command -v clang++-19 &>/dev/null; then
+            wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+            sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main"
+            sudo apt-get update
+          fi
+          sudo apt-get install -y clang-19 llvm-19
+
+      - name: Install build prerequisites (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install autoconf automake libtool pkg-config autoconf-archive lcov
+          echo "$(brew --prefix)/bin" >> $GITHUB_PATH
+
+      - name: Configure macOS compilers
+        if: runner.os == 'macOS'
+        run: |
+          echo "CC=/usr/bin/clang" >> $GITHUB_ENV
+          echo "CXX=/usr/bin/clang++" >> $GITHUB_ENV
+
+      - name: Cache vcpkg dependencies
         uses: actions/cache@v5
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+          path: ${{ github.workspace }}/vcpkg_installed
+          key: ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.vcpkg_triplet }}-${{ hashFiles('**/vcpkg.json') }}
           restore-keys: |
-            pre-commit-
+            ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.vcpkg_triplet }}-
 
-      - name: Run pre-commit hooks
-        run: pre-commit run --all-files
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
         env:
-          SKIP: no-commit-to-branch
+          VCPKG_CMAKE_CONFIGURE_OPTIONS: "-DCMAKE_POLICY_VERSION_MINIMUM=3.5"
+        with:
+          vcpkgJsonGlob: "**/vcpkg.json"
+
+      - name: Install OpenCppCoverage (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install opencppcoverage
+          Import-Module $env:ChocolateyInstall\helpers\chocolateyProfile.psm1
+          Update-SessionEnvironment
+
+      - name: Configure CMake
+        if: runner.os != 'Windows'
+        run: >
+          cmake -B build -S .
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+          -DENABLE_COVERAGE=ON
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+        env:
+          CC: ${{ env.CC || matrix.c_compiler }}
+          CXX: ${{ env.CXX || matrix.cpp_compiler }}
+        shell: bash
+
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        run: >
+          cmake -B build -S .
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
+          -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\scripts\buildsystems\vcpkg.cmake"
+          -DENABLE_COVERAGE=ON
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        shell: pwsh
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.build_type }}
+
+      - name: Test (Clang)
+        if: (runner.os == 'Linux' || runner.os == 'macOS') && startsWith(matrix.c_compiler, 'clang')
+        working-directory: ./build
+        run: |
+          LLVM_PROFILE_FILE="default.profraw" ctest --build-config ${{ matrix.build_type }} --output-on-failure
+
+      - name: Test (Non-Clang)
+        if: matrix.c_compiler != 'clang'
+        working-directory: ./build
+        run: |
+          ctest --build-config ${{ matrix.build_type }} --output-on-failure
+
+      - name: Collect coverage (GCC on Linux)
+        if: runner.os == 'Linux' && matrix.c_compiler == 'gcc'
+        run: |
+          cd build
+          lcov --capture --directory . --output-file coverage.info --ignore-errors mismatch,gcov --quiet
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Collect coverage (Clang on Linux)
+        if: runner.os == 'Linux' && startsWith(matrix.cpp_compiler, 'clang')
+        run: |
+          cd build
+          llvm-profdata-19 merge -sparse default.profraw -o default.profdata
+          llvm-cov-19 export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
+
+      - name: Collect coverage (Clang on macOS)
+        if: runner.os == 'macOS' && startsWith(matrix.cpp_compiler, 'clang')
+        run: |
+          cd build
+          xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
+          xcrun llvm-cov export ./rich_on_tests -instr-profile=default.profdata -format=lcov > coverage.info
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' '/Applications/*' --output-file coverage.info --ignore-errors unused
+
+      - name: Collect coverage (GCC on macOS)
+        if: runner.os == 'macOS' && matrix.c_compiler == 'gcc'
+        run: |
+          cd build
+          lcov --capture --directory . --output-file coverage.info
+          lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' '/opt/*' --output-file coverage.info
+          lcov --list coverage.info
+
+      - name: Run tests with coverage (Windows)
+        if: runner.os == 'Windows'
+        working-directory: ./build
+        run: |
+          $projectRoot = Resolve-Path ".."
+          $srcPath = Join-Path $projectRoot "src"
+          $includePath = Join-Path $projectRoot "include"
+
+          $testExe = ""
+          if (Test-Path ".\${{ matrix.build_type }}\rich_on_tests.exe") {
+            $testExe = ".\${{ matrix.build_type }}\rich_on_tests.exe"
+          } elseif (Test-Path ".\Debug\rich_on_tests.exe") {
+            $testExe = ".\Debug\rich_on_tests.exe"
+          } elseif (Test-Path ".\Release\rich_on_tests.exe") {
+            $testExe = ".\Release\rich_on_tests.exe"
+          } else {
+            Write-Error "Could not find rich_on_tests.exe in any build configuration"
+            exit 1
+          }
+
+          $openCppCoveragePath = Get-Command OpenCppCoverage -ErrorAction SilentlyContinue
+          if ($openCppCoveragePath) {
+            OpenCppCoverage --sources "$srcPath" --sources "$includePath" --export_type=cobertura:coverage.xml -- $testExe
+          } elseif (Test-Path "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe") {
+            & "C:\Program Files\OpenCppCoverage\OpenCppCoverage.exe" --sources "$srcPath" --sources "$includePath" --export_type=cobertura:coverage.xml -- $testExe
+          } else {
+            Write-Error "OpenCppCoverage not found"
+            exit 1
+          }
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./build/coverage.info,./build/coverage.xml
+          flags: cpp
+          name: cpp-${{ matrix.os }}-${{ matrix.cpp_compiler || 'default' }}
+          fail_ci_if_error: true
+          verbose: true
+
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: trading-engine-${{ matrix.os }}-${{ matrix.cpp_compiler || 'msvc' }}-${{ matrix.build_type }}
+          path: |
+            build/paper_money
+            build/Release/paper_money.exe
+            build/Debug/paper_money.exe
+          if-no-files-found: ignore
 
   fuzz-testing:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -496,3 +568,51 @@ jobs:
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
+
+  security-scan:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: cpp
+          queries: security-and-quality
+
+      - name: Setup vcpkg for CodeQL
+        uses: lukka/run-vcpkg@v11
+
+      - name: Build for CodeQL analysis
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DVCPKG_TARGET_TRIPLET=x64-linux \
+            -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake \
+            -DENABLE_COVERAGE=OFF
+          cmake --build build
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          output: sarif-results
+          upload: failure-only
+
+      - name: Filter SARIF to exclude vcpkg and test files
+        uses: advanced-security/filter-sarif@v1
+        with:
+          patterns: |
+            -**/vcpkg/**
+            -**/vcpkg_installed/**
+            -**/tests/**
+          input: sarif-results/cpp.sarif
+          output: sarif-results/cpp.sarif
+
+      - name: Upload filtered SARIF
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: sarif-results/
