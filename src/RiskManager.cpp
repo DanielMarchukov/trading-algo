@@ -33,6 +33,13 @@ bool RiskManager::onNewOrder(const Order &order) {
     return false;
   }
 
+  // Reject quantities that would overflow signed arithmetic. No real order
+  // has a quantity near INT64_MIN/MAX — this guards against malformed input.
+  if (safeAbs(order.quantity) > static_cast<uint64_t>(max_position_per_symbol_))
+      [[unlikely]] {
+    return false;
+  }
+
   const int64_t total_exposure = position_manager_->getTotalExposure(symbol);
   int64_t new_exposure = total_exposure;
   if (order.side == OrderSide::Buy) {
