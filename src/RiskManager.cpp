@@ -2,12 +2,17 @@
 #include "OrderCooldown.hpp"
 #include "PositionManager.hpp"
 #include <cstdlib>
+#include <cstring>
+#include <string_view>
 
 RiskManager::RiskManager(PositionManager *position_manager,
                          OrderCooldown *order_cooldown)
     : position_manager_(position_manager), order_cooldown_(order_cooldown) {}
 
 bool RiskManager::onNewOrder(const Order &order) {
+  const std::string_view symbol(order.symbol,
+                                strnlen(order.symbol, sizeof(order.symbol)));
+
   if (order_cooldown_ && !order_cooldown_->checkAndUpdate(order.symbol))
       [[unlikely]] {
     return false;
@@ -17,8 +22,7 @@ bool RiskManager::onNewOrder(const Order &order) {
     return false;
   }
 
-  const int64_t total_exposure =
-      position_manager_->getTotalExposure(order.symbol);
+  const int64_t total_exposure = position_manager_->getTotalExposure(symbol);
   int64_t new_exposure = total_exposure;
   if (order.side == OrderSide::Buy) {
     new_exposure += order.quantity;

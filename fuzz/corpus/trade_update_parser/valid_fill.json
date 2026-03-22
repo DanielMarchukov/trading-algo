@@ -1,0 +1,1 @@
+{"stream": "trade_updates", "data": {"event": "fill", "qty": "100", "price": "150.25", "order": {"symbol": "AAPL", "side": "buy", "id": "abc-123"}}}

@@ -175,3 +175,41 @@ if(SANITIZER_ACTIVE)
 else()
     gtest_discover_tests(rich_on_tests)
 endif()
+
+option(ENABLE_FUZZING "Build fuzz targets (requires Clang with libFuzzer)" OFF)
+
+if(ENABLE_FUZZING)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(
+            FATAL_ERROR
+                "Fuzzing requires Clang (libFuzzer). Current compiler: ${CMAKE_CXX_COMPILER_ID}")
+    endif()
+
+    set(FUZZ_SANITIZER_FLAGS -fsanitize=fuzzer,address,undefined -fno-omit-frame-pointer -g -O1)
+
+    function(add_fuzz_target TARGET_NAME SOURCE_FILE)
+        add_executable(${TARGET_NAME} ${SOURCE_FILE} ${SOURCES})
+        target_compile_features(${TARGET_NAME} PUBLIC cxx_std_23)
+        target_compile_options(${TARGET_NAME} PRIVATE ${FUZZ_SANITIZER_FLAGS})
+        target_link_options(${TARGET_NAME} PRIVATE ${FUZZ_SANITIZER_FLAGS})
+        target_include_directories(${TARGET_NAME} PRIVATE include)
+        target_link_libraries(
+            ${TARGET_NAME}
+            PRIVATE Boost::lockfree
+                    libzmq
+                    cppzmq
+                    nlohmann_json::nlohmann_json
+                    cpr::cpr
+                    TBB::tbb
+                    ixwebsocket::ixwebsocket
+                    msgpack-cxx
+                    hdr_histogram::hdr_histogram_static
+                    spdlog::spdlog)
+        target_compile_definitions(${TARGET_NAME} PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_OFF)
+        set_target_properties(${TARGET_NAME} PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
+    endfunction()
+
+    add_fuzz_target(fuzz_msgpack_decoder fuzz/fuzz_msgpack_decoder.cpp)
+    add_fuzz_target(fuzz_trade_update_parser fuzz/fuzz_trade_update_parser.cpp)
+    add_fuzz_target(fuzz_risk_manager fuzz/fuzz_risk_manager.cpp)
+endif()
