@@ -1,9 +1,20 @@
 #include "RiskManager.hpp"
 #include "OrderCooldown.hpp"
 #include "PositionManager.hpp"
-#include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <string_view>
+
+namespace {
+
+/// Absolute value without UB on INT64_MIN. std::llabs(INT64_MIN) is undefined
+/// because negating the most negative value overflows signed long long. Casting
+/// to uint64_t first makes the negation well-defined (modular arithmetic).
+[[nodiscard]] constexpr uint64_t safeAbs(int64_t v) noexcept {
+  return v < 0 ? -static_cast<uint64_t>(v) : static_cast<uint64_t>(v);
+}
+
+} // namespace
 
 RiskManager::RiskManager(PositionManager *position_manager,
                          OrderCooldown *order_cooldown)
@@ -30,14 +41,15 @@ bool RiskManager::onNewOrder(const Order &order) {
     new_exposure -= order.quantity;
   }
 
-  if (std::llabs(new_exposure) > max_position_per_symbol_) [[unlikely]] {
+  if (safeAbs(new_exposure) > static_cast<uint64_t>(max_position_per_symbol_))
+      [[unlikely]] {
     return false;
   }
 
   if (order.price > 0 && order.quantity != 0) {
     const long double notional =
         static_cast<long double>(order.price) *
-        static_cast<long double>(std::llabs(order.quantity));
+        static_cast<long double>(safeAbs(order.quantity));
     const long double limit = static_cast<long double>(max_order_value_) *
                               static_cast<long double>(SCALING_FACTOR);
     if (notional > limit) [[unlikely]] {
