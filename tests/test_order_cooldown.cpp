@@ -1,9 +1,9 @@
 #include "OrderCooldown.hpp"
+#include "ThreadGuard.hpp"
 #include "Utils.hpp"
 #include <cstring>
 #include <future>
 #include <gtest/gtest.h>
-#include <thread>
 #include <vector>
 
 class OrderCooldownTest : public ::testing::Test {
@@ -84,11 +84,11 @@ TEST_F(OrderCooldownTest, ConcurrentDifferentSymbols) {
   std::atomic<int> total_approved{0};
   std::atomic<int> done_count{0};
   std::promise<void> all_done;
-  std::vector<std::thread> threads;
+  std::vector<ThreadGuard> threads;
   threads.reserve(kNumThreads);
 
   for (const auto *symbol : symbols) {
-    threads.emplace_back([&, symbol]() {
+    threads.emplace_back(std::thread([&, symbol]() {
       char sym[8] = {};
       std::strncpy(sym, symbol, sizeof(sym));
 
@@ -106,17 +106,14 @@ TEST_F(OrderCooldownTest, ConcurrentDifferentSymbols) {
           kNumThreads) {
         all_done.set_value();
       }
-    });
+    }));
   }
 
   start.store(true, std::memory_order_release);
 
   auto status = all_done.get_future().wait_for(std::chrono::seconds(5));
   ASSERT_EQ(status, std::future_status::ready) << "timeout — possible deadlock";
-
-  for (auto &t : threads) {
-    t.join();
-  }
+  threads.clear();
 
   EXPECT_EQ(total_approved.load(), kNumThreads * kOrdersPerThread);
 }

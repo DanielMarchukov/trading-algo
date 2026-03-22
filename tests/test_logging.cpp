@@ -12,8 +12,19 @@ protected:
   }
 };
 
-TEST_F(LoggingTest, InitRegistersAllNamedLoggers) {
-  logging::init();
+struct LoggingInitParam {
+  const char *name;
+  void (*init_fn)();
+  void (*cleanup_fn)();
+};
+
+class LoggingInitTest : public LoggingTest,
+                        public ::testing::WithParamInterface<LoggingInitParam> {
+};
+
+TEST_P(LoggingInitTest, RegistersAllNamedLoggers) {
+  const auto &param = GetParam();
+  param.init_fn();
 
   EXPECT_NE(spdlog::get("engine"), nullptr);
   EXPECT_NE(spdlog::get("gateway"), nullptr);
@@ -24,35 +35,28 @@ TEST_F(LoggingTest, InitRegistersAllNamedLoggers) {
   EXPECT_NE(spdlog::get("system"), nullptr);
   EXPECT_NE(spdlog::get("latency"), nullptr);
 
-  logging::shutdown();
+  if (param.cleanup_fn) {
+    param.cleanup_fn();
+  }
 }
 
-TEST_F(LoggingTest, InitSetsDefaultLoggerToSystem) {
-  logging::init();
+TEST_P(LoggingInitTest, SetsDefaultLoggerToSystem) {
+  const auto &param = GetParam();
+  param.init_fn();
 
   EXPECT_EQ(spdlog::default_logger()->name(), "system");
 
-  logging::shutdown();
+  if (param.cleanup_fn) {
+    param.cleanup_fn();
+  }
 }
 
-TEST_F(LoggingTest, InitForTestsRegistersAllNamedLoggers) {
-  logging::initForTests();
-
-  EXPECT_NE(spdlog::get("engine"), nullptr);
-  EXPECT_NE(spdlog::get("gateway"), nullptr);
-  EXPECT_NE(spdlog::get("fills"), nullptr);
-  EXPECT_NE(spdlog::get("rest"), nullptr);
-  EXPECT_NE(spdlog::get("market"), nullptr);
-  EXPECT_NE(spdlog::get("zmq"), nullptr);
-  EXPECT_NE(spdlog::get("system"), nullptr);
-  EXPECT_NE(spdlog::get("latency"), nullptr);
-}
-
-TEST_F(LoggingTest, InitForTestsSetsDefaultLoggerToSystem) {
-  logging::initForTests();
-
-  EXPECT_EQ(spdlog::default_logger()->name(), "system");
-}
+INSTANTIATE_TEST_SUITE_P(
+    InitVariants, LoggingInitTest,
+    ::testing::Values(
+        LoggingInitParam{"init", logging::init, logging::shutdown},
+        LoggingInitParam{"initForTests", logging::initForTests, nullptr}),
+    [](const auto &info) { return info.param.name; });
 
 TEST_F(LoggingTest, InitForTestsSkipsAlreadyRegisteredLoggers) {
   logging::initForTests();

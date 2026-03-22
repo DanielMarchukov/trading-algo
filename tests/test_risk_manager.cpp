@@ -2,11 +2,11 @@
 #include "PositionManager.hpp"
 #include "RiskManager.hpp"
 #include "TestHelpers.hpp"
+#include "ThreadGuard.hpp"
 #include "Utils.hpp"
 #include <gtest/gtest.h>
 #include <limits>
 #include <memory>
-#include <thread>
 
 using test_helpers::createFill;
 using test_helpers::createOrder;
@@ -119,11 +119,11 @@ TEST_F(RiskManagerTest, ConcurrentOnNewOrderFromMultipleThreads) {
 
   std::atomic<bool> start{false};
   std::atomic<int> approved{0};
-  std::vector<std::thread> threads;
+  std::vector<ThreadGuard> threads;
   threads.reserve(num_threads);
 
   for (int t = 0; t < num_threads; ++t) {
-    threads.emplace_back([&]() {
+    threads.emplace_back(std::thread([&]() {
       while (!start.load(std::memory_order_acquire)) {
       }
       for (int i = 0; i < orders_per_thread; ++i) {
@@ -133,14 +133,11 @@ TEST_F(RiskManagerTest, ConcurrentOnNewOrderFromMultipleThreads) {
           approved.fetch_add(1, std::memory_order_relaxed);
         }
       }
-    });
+    }));
   }
 
   start.store(true, std::memory_order_release);
-
-  for (auto &t : threads) {
-    t.join();
-  }
+  threads.clear();
 
   const int64_t total_exposure = pos_manager_->getTotalExposure("AAPL");
   EXPECT_EQ(total_exposure, approved.load(std::memory_order_relaxed));

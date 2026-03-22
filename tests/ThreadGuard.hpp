@@ -10,6 +10,8 @@ struct ThreadGuard {
       t.join();
     }
   }
+  ThreadGuard(ThreadGuard &&other) noexcept : t(std::move(other.t)) {}
+  ThreadGuard &operator=(ThreadGuard &&) = delete;
   ThreadGuard(const ThreadGuard &) = delete;
   ThreadGuard &operator=(const ThreadGuard &) = delete;
 };
