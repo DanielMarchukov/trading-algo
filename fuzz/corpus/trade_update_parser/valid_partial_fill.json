@@ -1,0 +1,1 @@
+{"stream": "trade_updates", "data": {"event": "partial_fill", "qty": "50", "price": "150.00", "order": {"symbol": "GOOGL", "side": "buy", "id": "ghi-789"}}}

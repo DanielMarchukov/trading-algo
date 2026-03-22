@@ -64,8 +64,9 @@ Uses **Taskwarrior** with `project:rop` for all tasks.
 
 ### Git Discipline
 
-- Branch per task: `<taskwarrior-id>/<short-slug>`
-- Commit messages: `[<id>] <imperative description>`
+- Branch per task: `<github-issue-number>/<short-slug>`
+- Commit messages: `[#<github-issue-number>] <imperative description>`
+- Find the issue number: `gh issue list --search "<keywords>"`
 - One logical change per commit
 - Explain **why** not **what**
 - **Never force push.** Always add fixup commits on top. Multiple commits per PR is fine.
@@ -95,4 +96,5 @@ the web** for current best practices. Key topics to research as needed:
 ## CI Pipeline
 
 GitHub Actions matrix: Ubuntu/macOS/Windows x GCC/Clang/MSVC x Debug/Release. Coverage via Codecov (80% target). CodeQL
-security scanning. Pre-commit hooks enforced.
+security scanning. Pre-commit hooks enforced. ASAN+UBSAN on every push, TSAN nightly. libFuzzer fuzz testing on every
+push (Clang-only, 60+60+30s bounded runs).

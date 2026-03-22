@@ -1,0 +1,1 @@
+{"stream": "trade_updates", "data": {"event": "canceled", "order": {"symbol": "AAPL", "side": "sell", "qty": "100", "filled_qty": "0", "id": "def-456"}}}

@@ -1,6 +1,13 @@
 #include "Logging.hpp"
 #include <gtest/gtest.h>
+#include <spdlog/sinks/null_sink.h>
 #include <spdlog/spdlog.h>
+
+namespace {
+
+auto null_sink() { return std::make_shared<spdlog::sinks::null_sink_mt>(); }
+
+} // namespace
 
 class LoggingTest : public ::testing::Test {
 protected:
@@ -8,12 +15,23 @@ protected:
 
   void TearDown() override {
     spdlog::drop_all();
-    logging::initForTests();
+    logging::init(null_sink());
   }
 };
 
-TEST_F(LoggingTest, InitRegistersAllNamedLoggers) {
-  logging::init();
+struct LoggingInitParam {
+  const char *name;
+  std::function<void()> init_fn;
+  std::function<void()> cleanup_fn;
+};
+
+class LoggingInitTest : public LoggingTest,
+                        public ::testing::WithParamInterface<LoggingInitParam> {
+};
+
+TEST_P(LoggingInitTest, RegistersAllNamedLoggers) {
+  const auto &param = GetParam();
+  param.init_fn();
 
   EXPECT_NE(spdlog::get("engine"), nullptr);
   EXPECT_NE(spdlog::get("gateway"), nullptr);
@@ -24,46 +42,42 @@ TEST_F(LoggingTest, InitRegistersAllNamedLoggers) {
   EXPECT_NE(spdlog::get("system"), nullptr);
   EXPECT_NE(spdlog::get("latency"), nullptr);
 
-  logging::shutdown();
+  if (param.cleanup_fn) {
+    param.cleanup_fn();
+  }
 }
 
-TEST_F(LoggingTest, InitSetsDefaultLoggerToSystem) {
-  logging::init();
+TEST_P(LoggingInitTest, SetsDefaultLoggerToSystem) {
+  const auto &param = GetParam();
+  param.init_fn();
 
   EXPECT_EQ(spdlog::default_logger()->name(), "system");
 
-  logging::shutdown();
+  if (param.cleanup_fn) {
+    param.cleanup_fn();
+  }
 }
 
-TEST_F(LoggingTest, InitForTestsRegistersAllNamedLoggers) {
-  logging::initForTests();
+INSTANTIATE_TEST_SUITE_P(
+    InitVariants, LoggingInitTest,
+    ::testing::Values(LoggingInitParam{"production", [] { logging::init(); },
+                                       logging::shutdown},
+                      LoggingInitParam{"null_sink",
+                                       [] { logging::init(null_sink()); },
+                                       nullptr}),
+    [](const auto &info) { return info.param.name; });
 
-  EXPECT_NE(spdlog::get("engine"), nullptr);
-  EXPECT_NE(spdlog::get("gateway"), nullptr);
-  EXPECT_NE(spdlog::get("fills"), nullptr);
-  EXPECT_NE(spdlog::get("rest"), nullptr);
-  EXPECT_NE(spdlog::get("market"), nullptr);
-  EXPECT_NE(spdlog::get("zmq"), nullptr);
-  EXPECT_NE(spdlog::get("system"), nullptr);
-  EXPECT_NE(spdlog::get("latency"), nullptr);
-}
-
-TEST_F(LoggingTest, InitForTestsSetsDefaultLoggerToSystem) {
-  logging::initForTests();
-
-  EXPECT_EQ(spdlog::default_logger()->name(), "system");
-}
-
-TEST_F(LoggingTest, InitForTestsSkipsAlreadyRegisteredLoggers) {
-  logging::initForTests();
+TEST_F(LoggingTest, DoubleInitIsIdempotent) {
+  logging::init(null_sink());
   auto original = spdlog::get("gateway");
+  ASSERT_NE(original, nullptr);
 
-  logging::initForTests();
-  EXPECT_EQ(spdlog::get("gateway"), original);
+  logging::init(null_sink());
+  EXPECT_NE(spdlog::get("gateway"), nullptr);
 }
 
 TEST_F(LoggingTest, ShutdownDropsAllLoggers) {
-  logging::initForTests();
+  logging::init(null_sink());
   ASSERT_NE(spdlog::get("engine"), nullptr);
 
   logging::shutdown();

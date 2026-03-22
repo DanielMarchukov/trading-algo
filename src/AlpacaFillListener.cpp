@@ -269,7 +269,7 @@ void AlpacaFillListener::handleTradeUpdate(const std::string &json) {
   nlohmann::json parsed;
   try {
     parsed = nlohmann::json::parse(json);
-  } catch (const nlohmann::json::parse_error &) {
+  } catch (const nlohmann::json::exception &) {
     logger_->error("Failed to parse message");
     return;
   }
