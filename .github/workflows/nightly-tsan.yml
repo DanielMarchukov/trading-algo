@@ -101,7 +101,7 @@ jobs:
           vcpkgJsonGlob: "**/vcpkg.json"
 
       - name: Restore fuzz corpus cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: fuzz/corpus/
           key: fuzz-corpus-dummy
@@ -141,7 +141,7 @@ jobs:
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
 
       - name: Save fuzz corpus cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         if: always()
         with:
           path: fuzz/corpus/
