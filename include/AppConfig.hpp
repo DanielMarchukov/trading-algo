@@ -49,3 +49,5 @@ struct AppConfig {
 
 [[nodiscard]] AppConfig
 loadConfig(const std::optional<std::string> &path = std::nullopt);
+
+void validateConfig(const AppConfig &config);
