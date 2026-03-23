@@ -65,23 +65,30 @@ int setTcpQuickAck(void * /*clientp*/, curl_socket_t curlfd,
 
 } // namespace
 
-AlpacaRestClient::AlpacaRestClient(int64_t rate_limit_threshold,
+AlpacaRestClient::AlpacaRestClient(const std::string &base_url_param,
+                                   int64_t rate_limit_threshold,
                                    ThrottlePolicy throttle_policy)
     : rate_limiter_(rate_limit_threshold, throttle_policy) {
   const char *api_key_cstr = std::getenv("APCA_API_KEY_ID");
   const char *api_secret_cstr = std::getenv("APCA_API_SECRET_KEY");
-  const char *base_url_cstr = std::getenv("APCA_API_BASE_URL");
 
   if (!api_key_cstr || !api_secret_cstr) {
     throw std::runtime_error("FATAL: APCA_API_KEY_ID and/or "
                              "APCA_API_SECRET_KEY not set in environment.");
   }
 
-  const std::string base_url =
-      base_url_cstr ? base_url_cstr : "https://paper-api.alpaca.markets";
+  std::string resolved_url = base_url_param;
+  if (resolved_url.empty()) {
+    const char *env_url = std::getenv("APCA_API_BASE_URL");
+    resolved_url =
+        (env_url && *env_url) ? env_url : "https://paper-api.alpaca.markets";
+  }
+  while (!resolved_url.empty() && resolved_url.back() == '/') {
+    resolved_url.pop_back();
+  }
 
-  order_url_ = base_url + "/v2/orders";
-  cancel_url_prefix_ = base_url + "/v2/orders/";
+  order_url_ = resolved_url + "/v2/orders";
+  cancel_url_prefix_ = resolved_url + "/v2/orders/";
 
   payload_buf_.reserve(256);
 

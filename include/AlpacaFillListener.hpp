@@ -57,12 +57,13 @@ class AlpacaFillListener : public IFillListener {
   friend class FillListenerReconcileTest;
 
 public:
-  AlpacaFillListener(PositionManager *position_manager,
-                     std::atomic<bool> &is_running, const std::string &api_key,
-                     const std::string &api_secret,
-                     PendingOrderTracker *pending_tracker = nullptr,
-                     LatencyTracker *latency_tracker = nullptr,
-                     IRestClient *reconciliation_client = nullptr);
+  AlpacaFillListener(
+      PositionManager *position_manager, std::atomic<bool> &is_running,
+      const std::string &api_key, const std::string &api_secret,
+      PendingOrderTracker *pending_tracker = nullptr,
+      LatencyTracker *latency_tracker = nullptr,
+      IRestClient *reconciliation_client = nullptr,
+      std::string fill_stream_url = "wss://paper-api.alpaca.markets/stream");
 
   ~AlpacaFillListener() override;
 
@@ -123,5 +124,6 @@ private:
   [[nodiscard]] bool isCompleted(std::string_view order_id) const noexcept;
   void markCompleted(std::string_view order_id);
 
+  std::string fill_stream_url_;
   spdlog::logger *logger_;
 };

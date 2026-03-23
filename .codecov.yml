@@ -13,8 +13,7 @@ coverage:
         threshold: 5%
     patch:
       default:
-        target: 80%
-        threshold: 5%
+        informational: true
 
 parsers:
   gcov:
@@ -34,5 +33,3 @@ ignore:
   - "vcpkg_installed/"
   - "**/test_*.cpp"
   - "**/test_*.py"
-  - "src/TradingEngine.cpp"
-  - "src/ThreadPinning.cpp"

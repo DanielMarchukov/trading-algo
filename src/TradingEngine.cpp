@@ -16,22 +16,24 @@ void signalHandler(const int signum) {
 }
 } // namespace
 
-TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
+TradingEngine::TradingEngine(const AppConfig &config,
                              std::unique_ptr<IRestClient> rest_client,
                              std::unique_ptr<IRestClient> reconciliation_client)
-    : is_running_(true), symbols_(symbols),
+    : is_running_(true), config_(config), symbols_(config.trading.symbols),
       logger_(spdlog::get("engine").get()) {
   latency_tracker_ = std::make_unique<LatencyTracker>();
   position_manager_ = std::make_unique<PositionManager>();
   for (const auto &symbol : symbols_) {
     position_manager_->registerSymbol(symbol);
   }
-  order_cooldown_ = std::make_unique<OrderCooldown>();
+  order_cooldown_ =
+      std::make_unique<OrderCooldown>(config_.trading.order_cooldown_ns);
   for (const auto &symbol : symbols_) {
     order_cooldown_->registerSymbol(symbol);
   }
-  risk_manager_ = std::make_unique<RiskManager>(position_manager_.get(),
-                                                order_cooldown_.get());
+  risk_manager_ = std::make_unique<RiskManager>(
+      position_manager_.get(), order_cooldown_.get(),
+      config_.risk.max_position_per_symbol, config_.risk.max_order_value);
   pending_tracker_ = std::make_unique<PendingOrderTracker>();
   order_queue_ = std::make_unique<LockFreeMPSCQueue<Order>>();
   order_gateway_ = std::make_unique<OrderGateway>(
@@ -48,12 +50,13 @@ TradingEngine::TradingEngine(const std::vector<std::string> &symbols,
   fill_listener_ = std::make_unique<AlpacaFillListener>(
       position_manager_.get(), is_running_, api_key, api_secret,
       pending_tracker_.get(), latency_tracker_.get(),
-      reconciliation_client_.get());
+      reconciliation_client_.get(), config_.alpaca.fill_stream_url);
 
-  ipc_address_ = getZmqMarketDataAddress();
+  ipc_address_ = config_.zmq.market_data_address;
 
   auto source =
-      AlpacaWebSocketSource(api_key, api_secret, symbols_, is_running_);
+      AlpacaWebSocketSource(api_key, api_secret, symbols_, is_running_,
+                            config_.alpaca.market_data_url);
   auto decoder = AlpacaMsgpackDecoder();
   auto sink = ZmqMarketEventSink(context_, ipc_address_);
   market_publisher_ = std::make_unique<AlpacaPipeline>(
@@ -80,10 +83,13 @@ void TradingEngine::setup_signal_handler() {
 
 void TradingEngine::launch_gateway() {
   order_gateway_thread_ = std::thread(&OrderGateway::run, order_gateway_.get());
-  if (pin_thread_to_core(order_gateway_thread_, 0)) {
-    logger_->info("Pinned OrderGateway thread to CPU Core 0");
+  if (pin_thread_to_core(order_gateway_thread_,
+                         config_.threading.gateway_core)) {
+    logger_->info("Pinned OrderGateway thread to CPU Core {}",
+                  config_.threading.gateway_core);
   } else {
-    logger_->warn("Failed to pin OrderGateway thread to CPU Core 0");
+    logger_->warn("Failed to pin OrderGateway thread to CPU Core {}",
+                  config_.threading.gateway_core);
   }
 }
 
@@ -106,7 +112,9 @@ void TradingEngine::launch_consumers() {
     consumer_threads_.push_back(
         {std::thread(&ConsumerType::run, consumer.get()), std::move(consumer)});
 
-    uint32_t core_id = max_cores > 0 ? (i + 2) % max_cores : i + 2;
+    uint32_t core_id =
+        max_cores > 0 ? (i + config_.threading.consumer_core_start) % max_cores
+                      : i + config_.threading.consumer_core_start;
     if (pin_thread_to_core(consumer_threads_.back().thread, core_id)) {
       logger_->info("Pinned thread for {} to CPU Core {}", symbol, core_id);
     } else {

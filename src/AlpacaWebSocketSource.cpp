@@ -4,8 +4,6 @@
 #include <spdlog/spdlog.h>
 
 namespace {
-constexpr const char *kDataStreamUrl =
-    "wss://stream.data.alpaca.markets/v2/iex";
 constexpr int kMinReconnectMs = 100;
 constexpr int kMaxReconnectMs = 30000;
 } // namespace
@@ -13,10 +11,11 @@ constexpr int kMaxReconnectMs = 30000;
 AlpacaWebSocketSource::AlpacaWebSocketSource(std::string api_key,
                                              std::string api_secret,
                                              std::vector<std::string> symbols,
-                                             std::atomic<bool> &is_running)
+                                             std::atomic<bool> &is_running,
+                                             std::string data_url)
     : api_key_(std::move(api_key)), api_secret_(std::move(api_secret)),
       symbols_(std::move(symbols)), is_running_(&is_running),
-      ws_(std::make_unique<ix::WebSocket>()),
+      ws_(std::make_unique<ix::WebSocket>()), data_url_(std::move(data_url)),
       logger_(spdlog::get("market").get()) {}
 
 AlpacaWebSocketSource::~AlpacaWebSocketSource() { stop(); }
@@ -26,7 +25,7 @@ void AlpacaWebSocketSource::start() {
     return;
   }
 
-  ws_->setUrl(std::string(kDataStreamUrl) + "?encoding=msgpack");
+  ws_->setUrl(data_url_);
   ws_->setExtraHeaders(
       ix::WebSocketHttpHeaders{{"Content-Type", "application/msgpack"}});
   ws_->setMinWaitBetweenReconnectionRetries(kMinReconnectMs);

@@ -15,7 +15,6 @@
 
 namespace {
 
-constexpr const char *kStreamUrl = "wss://paper-api.alpaca.markets/stream";
 constexpr int kMinReconnectMs = 100;
 constexpr int kMaxReconnectMs = 30000;
 constexpr std::size_t kSymbolCapacity = 8;
@@ -178,17 +177,16 @@ TradeUpdate parseTradingUpdate(const nlohmann::json &parsed) {
   return std::monostate{};
 }
 
-AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
-                                       std::atomic<bool> &is_running,
-                                       const std::string &api_key,
-                                       const std::string &api_secret,
-                                       PendingOrderTracker *pending_tracker,
-                                       LatencyTracker *latency_tracker,
-                                       IRestClient *reconciliation_client)
+AlpacaFillListener::AlpacaFillListener(
+    PositionManager *position_manager, std::atomic<bool> &is_running,
+    const std::string &api_key, const std::string &api_secret,
+    PendingOrderTracker *pending_tracker, LatencyTracker *latency_tracker,
+    IRestClient *reconciliation_client, std::string fill_stream_url)
     : position_manager_(position_manager), pending_tracker_(pending_tracker),
       latency_tracker_(latency_tracker),
       reconciliation_client_(reconciliation_client), is_running_(is_running),
       api_key_(api_key), api_secret_(api_secret),
+      fill_stream_url_(std::move(fill_stream_url)),
       logger_(spdlog::get("fills").get()) {
   if (position_manager_ == nullptr) {
     throw std::invalid_argument(
@@ -199,7 +197,7 @@ AlpacaFillListener::AlpacaFillListener(PositionManager *position_manager,
 AlpacaFillListener::~AlpacaFillListener() { AlpacaFillListener::stop(); }
 
 void AlpacaFillListener::start() {
-  ws_.setUrl(kStreamUrl);
+  ws_.setUrl(fill_stream_url_);
   ws_.setMinWaitBetweenReconnectionRetries(kMinReconnectMs);
   ws_.setMaxWaitBetweenReconnectionRetries(kMaxReconnectMs);
 

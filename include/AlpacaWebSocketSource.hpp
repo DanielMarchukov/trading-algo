@@ -17,9 +17,11 @@ class AlpacaWebSocketSource {
 public:
   using RawDataFn = void (*)(void *, std::span<const char>);
 
-  AlpacaWebSocketSource(std::string api_key, std::string api_secret,
-                        std::vector<std::string> symbols,
-                        std::atomic<bool> &is_running);
+  AlpacaWebSocketSource(
+      std::string api_key, std::string api_secret,
+      std::vector<std::string> symbols, std::atomic<bool> &is_running,
+      std::string data_url =
+          "wss://stream.data.alpaca.markets/v2/iex?encoding=msgpack");
   ~AlpacaWebSocketSource();
 
   AlpacaWebSocketSource(AlpacaWebSocketSource &&) = default;
@@ -51,6 +53,7 @@ private:
   std::thread thread_;
   RawDataFn on_data_fn_ = nullptr;
   void *on_data_ctx_ = nullptr;
+  std::string data_url_;
   spdlog::logger *logger_;
 };
 

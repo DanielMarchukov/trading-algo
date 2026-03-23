@@ -1,0 +1,28 @@
+{
+  "trading": {
+    "symbols": ["AAPL", "GOOGL", "AMZN"],
+    "order_cooldown_ns": 100000000
+  },
+  "risk": {
+    "max_position_per_symbol": 1000,
+    "max_order_value": 10000.0
+  },
+  "strategy": {
+    "spread_offset_ticks": 100,
+    "order_quantity": 100
+  },
+  "alpaca": {
+    "base_url": "https://paper-api.alpaca.markets",
+    "market_data_url": "wss://stream.data.alpaca.markets/v2/iex?encoding=msgpack",
+    "fill_stream_url": "wss://paper-api.alpaca.markets/stream",
+    "rate_limit_threshold": 10
+  },
+  "zmq": {
+    "market_data_address": ""
+  },
+  "threading": {
+    "gateway_core": 0,
+    "market_pipeline_core": 1,
+    "consumer_core_start": 2
+  }
+}
