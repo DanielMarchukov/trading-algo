@@ -25,7 +25,7 @@ void AlpacaWebSocketSource::start() {
     return;
   }
 
-  ws_->setUrl(data_url_ + "?encoding=msgpack");
+  ws_->setUrl(data_url_);
   ws_->setExtraHeaders(
       ix::WebSocketHttpHeaders{{"Content-Type", "application/msgpack"}});
   ws_->setMinWaitBetweenReconnectionRetries(kMinReconnectMs);

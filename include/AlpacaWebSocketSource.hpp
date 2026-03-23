@@ -20,7 +20,8 @@ public:
   AlpacaWebSocketSource(
       std::string api_key, std::string api_secret,
       std::vector<std::string> symbols, std::atomic<bool> &is_running,
-      std::string data_url = "wss://stream.data.alpaca.markets/v2/iex");
+      std::string data_url =
+          "wss://stream.data.alpaca.markets/v2/iex?encoding=msgpack");
   ~AlpacaWebSocketSource();
 
   AlpacaWebSocketSource(AlpacaWebSocketSource &&) = default;

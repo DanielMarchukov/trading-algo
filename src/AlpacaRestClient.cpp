@@ -80,7 +80,11 @@ AlpacaRestClient::AlpacaRestClient(const std::string &base_url_param,
   std::string resolved_url = base_url_param;
   if (resolved_url.empty()) {
     const char *env_url = std::getenv("APCA_API_BASE_URL");
-    resolved_url = env_url ? env_url : "https://paper-api.alpaca.markets";
+    resolved_url =
+        (env_url && *env_url) ? env_url : "https://paper-api.alpaca.markets";
+  }
+  while (!resolved_url.empty() && resolved_url.back() == '/') {
+    resolved_url.pop_back();
   }
 
   order_url_ = resolved_url + "/v2/orders";

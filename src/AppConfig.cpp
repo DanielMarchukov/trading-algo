@@ -83,6 +83,12 @@ void validate(const AppConfig &config) {
     throw std::runtime_error(
         "Config: strategy.spread_offset_ticks must be non-zero");
   }
+
+  auto syms = config.trading.symbols;
+  std::ranges::sort(syms);
+  if (std::ranges::adjacent_find(syms) != syms.end()) {
+    throw std::runtime_error("Config: trading.symbols contains duplicates");
+  }
 }
 
 } // namespace
@@ -112,17 +118,20 @@ AppConfig loadConfig(const std::optional<std::string> &path) {
   nlohmann::json j;
   try {
     j = nlohmann::json::parse(file);
+    if (!j.is_object()) {
+      throw std::runtime_error("Config root must be a JSON object");
+    }
+    parseTrading(j, config.trading);
+    parseRisk(j, config.risk);
+    parseStrategy(j, config.strategy);
+    parseAlpaca(j, config.alpaca);
+    parseZmq(j, config.zmq);
+    parseThreading(j, config.threading);
+  } catch (const std::runtime_error &) {
+    throw;
   } catch (const nlohmann::json::exception &e) {
-    throw std::runtime_error("Invalid JSON in config file: " +
-                             std::string(e.what()));
+    throw std::runtime_error("Config parse error: " + std::string(e.what()));
   }
-
-  parseTrading(j, config.trading);
-  parseRisk(j, config.risk);
-  parseStrategy(j, config.strategy);
-  parseAlpaca(j, config.alpaca);
-  parseZmq(j, config.zmq);
-  parseThreading(j, config.threading);
 
   if (config.zmq.market_data_address.empty()) {
     config.zmq.market_data_address = getZmqMarketDataAddress();

@@ -13,7 +13,10 @@ int main(int argc, char *argv[]) {
 
     std::optional<std::string> config_path;
     for (int i = 1; i < argc; ++i) {
-      if (std::string_view(argv[i]) == "--config" && i + 1 < argc) {
+      if (std::string_view(argv[i]) == "--config") {
+        if (i + 1 >= argc) {
+          throw std::runtime_error("--config requires a file path argument");
+        }
         config_path = argv[++i];
       }
     }

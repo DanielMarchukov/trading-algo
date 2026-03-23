@@ -13,7 +13,7 @@
   },
   "alpaca": {
     "base_url": "https://paper-api.alpaca.markets",
-    "market_data_url": "wss://stream.data.alpaca.markets/v2/iex",
+    "market_data_url": "wss://stream.data.alpaca.markets/v2/iex?encoding=msgpack",
     "fill_stream_url": "wss://paper-api.alpaca.markets/stream",
     "rate_limit_threshold": 10
   },

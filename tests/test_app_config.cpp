@@ -120,3 +120,15 @@ TEST_F(AppConfigTest, UnknownFieldsIgnored) {
 
   EXPECT_EQ(config.risk.max_position_per_symbol, 500);
 }
+
+TEST_F(AppConfigTest, DuplicateSymbolsThrows) {
+  writeConfigFile(R"({"trading": {"symbols": ["AAPL", "AAPL"]}})");
+
+  EXPECT_THROW((void)loadConfig(temp_path_.string()), std::runtime_error);
+}
+
+TEST_F(AppConfigTest, NonObjectRootThrows) {
+  writeConfigFile("[1, 2, 3]");
+
+  EXPECT_THROW((void)loadConfig(temp_path_.string()), std::runtime_error);
+}

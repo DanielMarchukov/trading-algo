@@ -22,7 +22,8 @@ struct StrategyConfig {
 
 struct AlpacaConfig {
   std::string base_url = "https://paper-api.alpaca.markets";
-  std::string market_data_url = "wss://stream.data.alpaca.markets/v2/iex";
+  std::string market_data_url =
+      "wss://stream.data.alpaca.markets/v2/iex?encoding=msgpack";
   std::string fill_stream_url = "wss://paper-api.alpaca.markets/stream";
   int64_t rate_limit_threshold = 10;
 };
