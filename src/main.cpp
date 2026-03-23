@@ -1,19 +1,31 @@
 #include "AlpacaRestClient.hpp"
+#include "AppConfig.hpp"
 #include "Logging.hpp"
 #include "TradingEngine.hpp"
 #include <memory>
+#include <optional>
 #include <spdlog/spdlog.h>
-#include <vector>
+#include <string_view>
 
-int main() {
+int main(int argc, char *argv[]) {
   try {
     logging::init();
-    const std::vector<std::string> symbols = {"AAPL", "GOOGL", "AMZN"};
 
-    auto alpaca_client = std::make_unique<AlpacaRestClient>();
-    auto reconciliation_client = std::make_unique<AlpacaRestClient>();
+    std::optional<std::string> config_path;
+    for (int i = 1; i < argc; ++i) {
+      if (std::string_view(argv[i]) == "--config" && i + 1 < argc) {
+        config_path = argv[++i];
+      }
+    }
 
-    TradingEngine engine(symbols, std::move(alpaca_client),
+    const auto config = loadConfig(config_path);
+
+    auto alpaca_client = std::make_unique<AlpacaRestClient>(
+        config.alpaca.base_url, config.alpaca.rate_limit_threshold);
+    auto reconciliation_client = std::make_unique<AlpacaRestClient>(
+        config.alpaca.base_url, config.alpaca.rate_limit_threshold);
+
+    TradingEngine engine(config, std::move(alpaca_client),
                          std::move(reconciliation_client));
     engine.run();
   } catch (const std::exception &e) {

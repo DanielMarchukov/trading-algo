@@ -11,6 +11,7 @@
 class AlpacaRestClient final : public IRestClient {
 public:
   explicit AlpacaRestClient(
+      const std::string &base_url = "",
       int64_t rate_limit_threshold = RateLimiter::kDefaultThreshold,
       ThrottlePolicy throttle_policy = ThrottlePolicy::Drop);
   [[nodiscard]] std::expected<OrderAck, OrderError>

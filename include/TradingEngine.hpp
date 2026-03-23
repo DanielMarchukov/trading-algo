@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AlpacaPipeline.hpp"
+#include "AppConfig.hpp"
 #include "IRestClient.hpp"
 #include "LatencyTracker.hpp"
 #include "LockFreeMPSCQueue.hpp"
@@ -45,8 +46,7 @@ static_assert(sizeof(ConsumerType) % 64 == 0,
 class TradingEngine {
 public:
   explicit TradingEngine(
-      const std::vector<std::string> &symbols,
-      std::unique_ptr<IRestClient> rest_client,
+      const AppConfig &config, std::unique_ptr<IRestClient> rest_client,
       std::unique_ptr<IRestClient> reconciliation_client = nullptr);
 
   ~TradingEngine();
@@ -68,6 +68,7 @@ private:
 
   std::atomic<bool> is_running_;
   std::atomic<bool> shutdown_done_{false};
+  AppConfig config_;
   std::string ipc_address_;
   std::vector<std::string> symbols_;
   std::unique_ptr<LatencyTracker> latency_tracker_;

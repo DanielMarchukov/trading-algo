@@ -17,8 +17,12 @@ namespace {
 } // namespace
 
 RiskManager::RiskManager(PositionManager *position_manager,
-                         OrderCooldown *order_cooldown)
-    : position_manager_(position_manager), order_cooldown_(order_cooldown) {}
+                         OrderCooldown *order_cooldown,
+                         int64_t max_position_per_symbol,
+                         double max_order_value)
+    : position_manager_(position_manager), order_cooldown_(order_cooldown),
+      max_position_per_symbol_(max_position_per_symbol),
+      max_order_value_(max_order_value) {}
 
 bool RiskManager::onNewOrder(const Order &order) {
   const std::string_view symbol(order.symbol,

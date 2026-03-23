@@ -496,7 +496,7 @@ TEST_F(AlpacaRestClientRateLimitTest, NumericPrefixHeaderIsRejected) {
 
 TEST_F(AlpacaRestClientRateLimitTest, ConstructorForwardsThrottleConfig) {
   point_client_to(12345);
-  AlpacaRestClient client(20, ThrottlePolicy::Drop);
+  AlpacaRestClient client("", 20, ThrottlePolicy::Drop);
   EXPECT_EQ(client.rateLimiter().threshold(), 20);
   EXPECT_EQ(client.rateLimiter().policy(), ThrottlePolicy::Drop);
 }
@@ -506,7 +506,7 @@ TEST_F(AlpacaRestClientRateLimitTest,
   std::string header = "X-Ratelimit-Remaining: 0\r\n";
   StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
   point_client_to(server.port());
-  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  AlpacaRestClient client("", 10, ThrottlePolicy::Drop);
   Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
 
   std::thread t([&]() { server.serve_one(); });
@@ -526,7 +526,7 @@ TEST_F(AlpacaRestClientRateLimitTest,
   std::string header = "X-Ratelimit-Remaining: 0\r\n";
   StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
   point_client_to(server.port());
-  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  AlpacaRestClient client("", 10, ThrottlePolicy::Drop);
   Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
 
   std::thread t([&]() { server.serve_one(); });
@@ -669,7 +669,7 @@ TEST_F(AlpacaRestClientQueryOrdersTest, ThrottledQueryReturns429) {
   std::string header = "X-Ratelimit-Remaining: 0\r\n";
   StubHttpServer server(200, R"({"id":"ord-1","status":"accepted"})", header);
   point_client_to(server.port());
-  AlpacaRestClient client(10, ThrottlePolicy::Drop);
+  AlpacaRestClient client("", 10, ThrottlePolicy::Drop);
   Order order = make_order("AAPL", OrderSide::Buy, OrderType::Market, 10, 0);
 
   std::thread t([&]() { server.serve_one(); });

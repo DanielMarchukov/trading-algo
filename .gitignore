@@ -15,6 +15,7 @@ vcpkg/
 
 # Application
 paper_money
+config.json
 
 # Prerequisites
 *.d
