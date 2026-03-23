@@ -67,7 +67,9 @@ void parseThreading(const nlohmann::json &j, ThreadingConfig &c) {
       th.value("consumer_core_start", c.consumer_core_start);
 }
 
-void validate(const AppConfig &config) {
+} // namespace
+
+void validateConfig(const AppConfig &config) {
   if (config.risk.max_position_per_symbol <= 0) {
     throw std::runtime_error(
         "Config: risk.max_position_per_symbol must be positive");
@@ -90,8 +92,6 @@ void validate(const AppConfig &config) {
     throw std::runtime_error("Config: trading.symbols contains duplicates");
   }
 }
-
-} // namespace
 
 AppConfig loadConfig(const std::optional<std::string> &path) {
   AppConfig config;
@@ -137,7 +137,7 @@ AppConfig loadConfig(const std::optional<std::string> &path) {
     config.zmq.market_data_address = getZmqMarketDataAddress();
   }
 
-  validate(config);
+  validateConfig(config);
 
   return config;
 }
