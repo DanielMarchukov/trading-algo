@@ -76,23 +76,24 @@ TEST_F(AppConfigTest, MissingFieldsGetDefaults) {
 TEST_F(AppConfigTest, InvalidJsonThrows) {
   writeConfigFile("{invalid json");
 
-  EXPECT_THROW(loadConfig(temp_path_.string()), std::runtime_error);
+  EXPECT_THROW((void)loadConfig(temp_path_.string()), std::runtime_error);
 }
 
 TEST_F(AppConfigTest, ExplicitPathNotFoundThrows) {
-  EXPECT_THROW(loadConfig("/nonexistent/path/config.json"), std::runtime_error);
+  EXPECT_THROW((void)loadConfig("/nonexistent/path/config.json"),
+               std::runtime_error);
 }
 
 TEST_F(AppConfigTest, NegativeMaxPositionThrows) {
   writeConfigFile(R"({"risk": {"max_position_per_symbol": -1}})");
 
-  EXPECT_THROW(loadConfig(temp_path_.string()), std::runtime_error);
+  EXPECT_THROW((void)loadConfig(temp_path_.string()), std::runtime_error);
 }
 
 TEST_F(AppConfigTest, ZeroOrderQuantityThrows) {
   writeConfigFile(R"({"strategy": {"order_quantity": 0}})");
 
-  EXPECT_THROW(loadConfig(temp_path_.string()), std::runtime_error);
+  EXPECT_THROW((void)loadConfig(temp_path_.string()), std::runtime_error);
 }
 
 TEST_F(AppConfigTest, ZmqAddressDefaultIsPlatformSpecific) {
