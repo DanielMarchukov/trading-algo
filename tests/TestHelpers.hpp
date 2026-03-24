@@ -47,13 +47,15 @@ sinkContains(const std::shared_ptr<spdlog::sinks::ringbuffer_sink_mt> &sink,
 }
 
 [[nodiscard]] inline Fill createFill(const char *symbol, const OrderSide side,
-                                     const int64_t qty) {
+                                     const int64_t qty,
+                                     const double price = 0.0) {
   Fill fill{};
   std::memset(fill.symbol, 0, sizeof(fill.symbol));
   const auto len = (std::min)(std::strlen(symbol), sizeof(fill.symbol));
   std::memcpy(fill.symbol, symbol, len);
   fill.side = side;
   fill.quantity = qty;
+  fill.price = price;
   return fill;
 }
 
