@@ -1,4 +1,5 @@
 #include "PositionManager.hpp"
+#include <cmath>
 
 PositionManager::Entry *
 PositionManager::findOrInsert(uint64_t symbol_key) noexcept {
@@ -71,13 +72,68 @@ void PositionManager::onFill(const Fill &fill) {
     return;
   }
 
-  int64_t delta = fill.quantity;
-  if (fill.side == OrderSide::Sell) {
-    delta = -delta;
-  }
+  const auto price_scaled = std::llround(fill.price * SCALING_FACTOR);
+  const int64_t qty = fill.quantity;
+  const int64_t current_filled = entry->filled.load(std::memory_order_relaxed);
 
-  entry->filled.fetch_add(delta, std::memory_order_relaxed);
-  entry->pending.fetch_sub(delta, std::memory_order_relaxed);
+  if (fill.side == OrderSide::Buy) {
+    applyBuyFill(*entry, price_scaled, qty, current_filled);
+  } else {
+    applySellFill(*entry, price_scaled, qty, current_filled);
+  }
+}
+
+void PositionManager::applyBuyFill(Entry &entry, int64_t price_scaled,
+                                   int64_t qty,
+                                   int64_t current_filled) noexcept {
+  if (current_filled < 0) {
+    const int64_t short_qty = -current_filled;
+    const int64_t cover_qty = (std::min)(qty, short_qty);
+    if (cover_qty > 0) {
+      const int64_t cost_basis =
+          entry.cost_basis_total.load(std::memory_order_relaxed);
+      const int64_t cost_removed = cost_basis * cover_qty / current_filled;
+      const int64_t pnl = cost_removed - price_scaled * cover_qty;
+      entry.realized_pnl.fetch_add(pnl, std::memory_order_relaxed);
+      entry.cost_basis_total.fetch_add(cost_removed, std::memory_order_relaxed);
+    }
+    const int64_t open_qty = qty - cover_qty;
+    if (open_qty > 0) {
+      entry.cost_basis_total.fetch_add(price_scaled * open_qty,
+                                       std::memory_order_relaxed);
+    }
+  } else {
+    entry.cost_basis_total.fetch_add(price_scaled * qty,
+                                     std::memory_order_relaxed);
+  }
+  entry.filled.fetch_add(qty, std::memory_order_relaxed);
+  entry.pending.fetch_sub(qty, std::memory_order_relaxed);
+}
+
+void PositionManager::applySellFill(Entry &entry, int64_t price_scaled,
+                                    int64_t qty,
+                                    int64_t current_filled) noexcept {
+  if (current_filled > 0) {
+    const int64_t sell_qty = (std::min)(qty, current_filled);
+    if (sell_qty > 0) {
+      const int64_t cost_basis =
+          entry.cost_basis_total.load(std::memory_order_relaxed);
+      const int64_t cost_removed = cost_basis * sell_qty / current_filled;
+      const int64_t pnl = price_scaled * sell_qty - cost_removed;
+      entry.realized_pnl.fetch_add(pnl, std::memory_order_relaxed);
+      entry.cost_basis_total.fetch_sub(cost_removed, std::memory_order_relaxed);
+    }
+    const int64_t short_qty = qty - sell_qty;
+    if (short_qty > 0) {
+      entry.cost_basis_total.fetch_sub(price_scaled * short_qty,
+                                       std::memory_order_relaxed);
+    }
+  } else {
+    entry.cost_basis_total.fetch_sub(price_scaled * qty,
+                                     std::memory_order_relaxed);
+  }
+  entry.filled.fetch_sub(qty, std::memory_order_relaxed);
+  entry.pending.fetch_add(qty, std::memory_order_relaxed);
 }
 
 void PositionManager::onOrderSent(const Order &order) noexcept {
@@ -132,4 +188,21 @@ PositionManager::getTotalExposure(std::string_view symbol) const noexcept {
   }
   return entry->filled.load(std::memory_order_relaxed) +
          entry->pending.load(std::memory_order_relaxed);
+}
+
+int64_t PositionManager::getCostBasis(std::string_view symbol) const noexcept {
+  const Entry *entry = find(symbolToKey(symbol));
+  if (!entry) {
+    return 0;
+  }
+  return entry->cost_basis_total.load(std::memory_order_relaxed);
+}
+
+int64_t
+PositionManager::getRealizedPnl(std::string_view symbol) const noexcept {
+  const Entry *entry = find(symbolToKey(symbol));
+  if (!entry) {
+    return 0;
+  }
+  return entry->realized_pnl.load(std::memory_order_relaxed);
 }

@@ -24,6 +24,8 @@ public:
   [[nodiscard]] int64_t getPendingPosition(std::string_view symbol) const;
   [[nodiscard]] int64_t
   getTotalExposure(std::string_view symbol) const noexcept;
+  [[nodiscard]] int64_t getCostBasis(std::string_view symbol) const noexcept;
+  [[nodiscard]] int64_t getRealizedPnl(std::string_view symbol) const noexcept;
 
 private:
   static constexpr uint64_t kEmptySlot = UINT64_MAX;
@@ -33,9 +35,16 @@ private:
     std::atomic<uint64_t> key{kEmptySlot};
     std::atomic<int64_t> filled{0};
     std::atomic<int64_t> pending{0};
+    char pad0_[40]{};
+
+    std::atomic<int64_t> cost_basis_total{0};
+    std::atomic<int64_t> realized_pnl{0};
+    char pad1_[48]{};
   };
 
-  static_assert(sizeof(Entry) == 64, "Entry must be one cache line");
+  static_assert(sizeof(std::atomic<uint64_t>) == 8, "Unexpected atomic size");
+  static_assert(sizeof(std::atomic<int64_t>) == 8, "Unexpected atomic size");
+  static_assert(sizeof(Entry) == 128, "Entry must be two cache lines");
   static_assert(alignof(Entry) == 64, "Entry must be cache-line aligned");
 
   static_assert(sizeof(Order::symbol) == 8,
@@ -78,4 +87,9 @@ private:
   [[nodiscard]] Entry *findOrInsert(uint64_t symbol_key) noexcept;
   [[nodiscard]] Entry *findMutable(uint64_t symbol_key) noexcept;
   [[nodiscard]] const Entry *find(uint64_t symbol_key) const noexcept;
+
+  void applyBuyFill(Entry &entry, int64_t price_scaled, int64_t qty,
+                    int64_t current_filled) noexcept;
+  void applySellFill(Entry &entry, int64_t price_scaled, int64_t qty,
+                     int64_t current_filled) noexcept;
 };

@@ -1,6 +1,7 @@
 #include "PositionManager.hpp"
 #include "TestHelpers.hpp"
 #include "ThreadGuard.hpp"
+#include <cmath>
 #include <future>
 #include <gtest/gtest.h>
 #include <vector>
@@ -285,4 +286,153 @@ TEST_F(PositionManagerTest, SequentialOrderFillCancelFlow) {
   EXPECT_EQ(pm.getFilledPosition("AAPL"), 100);
   EXPECT_EQ(pm.getPendingPosition("AAPL"), 0);
   EXPECT_EQ(pm.getTotalExposure("AAPL"), 100);
+}
+
+TEST_F(PositionManagerTest, NewPositionHasZeroPnl) {
+  EXPECT_EQ(pm.getCostBasis("AAPL"), 0);
+  EXPECT_EQ(pm.getRealizedPnl("AAPL"), 0);
+}
+
+TEST_F(PositionManagerTest, MultipleBuysWeightedAverage) {
+  pm.onFill(createFill("AAPL", OrderSide::Buy, 50, 100.0));
+  pm.onFill(createFill("AAPL", OrderSide::Buy, 50, 200.0));
+  pm.onFill(createFill("AAPL", OrderSide::Sell, 100, 175.0));
+
+  EXPECT_EQ(pm.getRealizedPnl("AAPL"), 25LL * SCALING_FACTOR * 100);
+  EXPECT_EQ(pm.getCostBasis("AAPL"), 0);
+}
+
+TEST_F(PositionManagerTest, PnlAccumulatesAcrossMultipleTrades) {
+  pm.onFill(createFill("AAPL", OrderSide::Buy, 100, 100.0));
+  pm.onFill(createFill("AAPL", OrderSide::Sell, 100, 110.0));
+  pm.onFill(createFill("AAPL", OrderSide::Buy, 100, 120.0));
+  pm.onFill(createFill("AAPL", OrderSide::Sell, 100, 125.0));
+
+  const int64_t expected_pnl =
+      (10LL * SCALING_FACTOR * 100) + (5LL * SCALING_FACTOR * 100);
+  EXPECT_EQ(pm.getRealizedPnl("AAPL"), expected_pnl);
+  EXPECT_EQ(pm.getCostBasis("AAPL"), 0);
+}
+
+struct PnLTestParam {
+  const char *name;
+  OrderSide side;
+  int64_t quantity;
+  double price;
+  int64_t expected_filled;
+  int64_t expected_cost_basis;
+  int64_t expected_realized_pnl;
+};
+
+class PositionManagerPnLTest
+    : public PositionManagerTest,
+      public ::testing::WithParamInterface<PnLTestParam> {};
+
+TEST_P(PositionManagerPnLTest, SingleFillPnl) {
+  const auto &p = GetParam();
+  pm.onFill(createFill("AAPL", p.side, p.quantity, p.price));
+
+  EXPECT_EQ(pm.getFilledPosition("AAPL"), p.expected_filled);
+  EXPECT_EQ(pm.getCostBasis("AAPL"), p.expected_cost_basis);
+  EXPECT_EQ(pm.getRealizedPnl("AAPL"), p.expected_realized_pnl);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PnLCases, PositionManagerPnLTest,
+    ::testing::Values(PnLTestParam{"BuyOpensLong", OrderSide::Buy, 100, 150.0,
+                                   100, 150LL * SCALING_FACTOR * 100, 0},
+                      PnLTestParam{"SellOpensShort", OrderSide::Sell, 100,
+                                   150.0, -100, -150LL * SCALING_FACTOR * 100,
+                                   0},
+                      PnLTestParam{"SmallBuy", OrderSide::Buy, 1, 99.99, 1,
+                                   std::llround(99.99 * SCALING_FACTOR) * 1,
+                                   0}),
+    [](const ::testing::TestParamInfo<PnLTestParam> &info) {
+      return info.param.name;
+    });
+
+struct TwoFillPnLParam {
+  const char *name;
+  OrderSide side1;
+  int64_t qty1;
+  double price1;
+  OrderSide side2;
+  int64_t qty2;
+  double price2;
+  int64_t expected_filled;
+  int64_t expected_cost_basis;
+  int64_t expected_realized_pnl;
+};
+
+class PositionManagerTwoFillPnLTest
+    : public PositionManagerTest,
+      public ::testing::WithParamInterface<TwoFillPnLParam> {};
+
+TEST_P(PositionManagerTwoFillPnLTest, TwoFillsProducePnl) {
+  const auto &p = GetParam();
+  pm.onFill(createFill("AAPL", p.side1, p.qty1, p.price1));
+  pm.onFill(createFill("AAPL", p.side2, p.qty2, p.price2));
+
+  EXPECT_EQ(pm.getFilledPosition("AAPL"), p.expected_filled);
+  EXPECT_EQ(pm.getCostBasis("AAPL"), p.expected_cost_basis);
+  EXPECT_EQ(pm.getRealizedPnl("AAPL"), p.expected_realized_pnl);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PnLTwoFill, PositionManagerTwoFillPnLTest,
+    ::testing::Values(TwoFillPnLParam{"FullSellRealizesPnl", OrderSide::Buy,
+                                      100, 150.0, OrderSide::Sell, 100, 155.0,
+                                      0, 0, 5LL * SCALING_FACTOR * 100},
+                      TwoFillPnLParam{"PartialSellProRates", OrderSide::Buy,
+                                      100, 150.0, OrderSide::Sell, 50, 160.0,
+                                      50, 150LL * SCALING_FACTOR * 50,
+                                      10LL * SCALING_FACTOR * 50},
+                      TwoFillPnLParam{"BuyToCoverShort", OrderSide::Sell, 100,
+                                      150.0, OrderSide::Buy, 100, 140.0, 0, 0,
+                                      10LL * SCALING_FACTOR * 100},
+                      TwoFillPnLParam{"RoundTripExactZero", OrderSide::Buy, 100,
+                                      150.25, OrderSide::Sell, 100, 150.25, 0,
+                                      0, 0},
+                      TwoFillPnLParam{"SellReversesLongToShort", OrderSide::Buy,
+                                      50, 100.0, OrderSide::Sell, 80, 110.0,
+                                      -30, -110LL * SCALING_FACTOR * 30,
+                                      10LL * SCALING_FACTOR * 50},
+                      TwoFillPnLParam{"BuyReversesShortToLong", OrderSide::Sell,
+                                      50, 100.0, OrderSide::Buy, 80, 90.0, 30,
+                                      90LL * SCALING_FACTOR * 30,
+                                      10LL * SCALING_FACTOR * 50}),
+    [](const ::testing::TestParamInfo<TwoFillPnLParam> &info) {
+      return info.param.name;
+    });
+
+TEST_F(PositionManagerTest, ConcurrentFillsPreservePnlConsistency) {
+  constexpr int kThreads = 4;
+  constexpr int kFillsPerThread = 250;
+  constexpr double kPrice = 100.0;
+  std::atomic<int> done_count{0};
+  std::promise<void> all_done;
+
+  std::vector<ThreadGuard> threads;
+  threads.reserve(kThreads);
+
+  for (int i = 0; i < kThreads; ++i) {
+    threads.emplace_back(std::thread([this, &done_count, &all_done]() {
+      for (int j = 0; j < kFillsPerThread; ++j) {
+        pm.onFill(createFill("AAPL", OrderSide::Buy, 1, kPrice));
+      }
+      if (done_count.fetch_add(1, std::memory_order_acq_rel) + 1 == kThreads) {
+        all_done.set_value();
+      }
+    }));
+  }
+
+  auto status = all_done.get_future().wait_for(std::chrono::seconds(5));
+  ASSERT_EQ(status, std::future_status::ready) << "timeout";
+  threads.clear();
+
+  const int64_t total_qty = static_cast<int64_t>(kThreads) * kFillsPerThread;
+  EXPECT_EQ(pm.getFilledPosition("AAPL"), total_qty);
+  EXPECT_EQ(pm.getCostBasis("AAPL"),
+            static_cast<int64_t>(kPrice * SCALING_FACTOR) * total_qty);
+  EXPECT_EQ(pm.getRealizedPnl("AAPL"), 0);
 }
