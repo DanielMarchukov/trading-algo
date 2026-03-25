@@ -89,7 +89,7 @@ private:
   [[nodiscard]] const Entry *find(uint64_t symbol_key) const noexcept;
 
   void applyBuyFill(Entry &entry, int64_t price_scaled, int64_t qty,
-                    int64_t current_filled);
+                    int64_t current_filled) noexcept;
   void applySellFill(Entry &entry, int64_t price_scaled, int64_t qty,
-                     int64_t current_filled);
+                     int64_t current_filled) noexcept;
 };

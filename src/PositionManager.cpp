@@ -84,7 +84,8 @@ void PositionManager::onFill(const Fill &fill) {
 }
 
 void PositionManager::applyBuyFill(Entry &entry, int64_t price_scaled,
-                                   int64_t qty, int64_t current_filled) {
+                                   int64_t qty,
+                                   int64_t current_filled) noexcept {
   if (current_filled < 0) {
     const int64_t short_qty = -current_filled;
     const int64_t cover_qty = (std::min)(qty, short_qty);
@@ -110,7 +111,8 @@ void PositionManager::applyBuyFill(Entry &entry, int64_t price_scaled,
 }
 
 void PositionManager::applySellFill(Entry &entry, int64_t price_scaled,
-                                    int64_t qty, int64_t current_filled) {
+                                    int64_t qty,
+                                    int64_t current_filled) noexcept {
   if (current_filled > 0) {
     const int64_t sell_qty = (std::min)(qty, current_filled);
     if (sell_qty > 0) {
