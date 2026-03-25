@@ -24,8 +24,8 @@ public:
   [[nodiscard]] int64_t getPendingPosition(std::string_view symbol) const;
   [[nodiscard]] int64_t
   getTotalExposure(std::string_view symbol) const noexcept;
-  [[nodiscard]] int64_t getCostBasis(std::string_view symbol) const;
-  [[nodiscard]] int64_t getRealizedPnl(std::string_view symbol) const;
+  [[nodiscard]] int64_t getCostBasis(std::string_view symbol) const noexcept;
+  [[nodiscard]] int64_t getRealizedPnl(std::string_view symbol) const noexcept;
 
 private:
   static constexpr uint64_t kEmptySlot = UINT64_MAX;

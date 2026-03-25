@@ -188,7 +188,7 @@ PositionManager::getTotalExposure(std::string_view symbol) const noexcept {
          entry->pending.load(std::memory_order_relaxed);
 }
 
-int64_t PositionManager::getCostBasis(std::string_view symbol) const {
+int64_t PositionManager::getCostBasis(std::string_view symbol) const noexcept {
   const Entry *entry = find(symbolToKey(symbol));
   if (!entry) {
     return 0;
@@ -196,7 +196,8 @@ int64_t PositionManager::getCostBasis(std::string_view symbol) const {
   return entry->cost_basis_total.load(std::memory_order_relaxed);
 }
 
-int64_t PositionManager::getRealizedPnl(std::string_view symbol) const {
+int64_t
+PositionManager::getRealizedPnl(std::string_view symbol) const noexcept {
   const Entry *entry = find(symbolToKey(symbol));
   if (!entry) {
     return 0;
