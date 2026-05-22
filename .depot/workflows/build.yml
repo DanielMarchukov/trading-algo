@@ -245,39 +245,39 @@ jobs:
       matrix:
         include:
           # Debug
-          - os: depot-ubuntu-latest
+          - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
             build_type: Debug
             vcpkg_triplet: x64-linux
-          - os: depot-windows-latest
+          - os: windows-latest
             build_type: Debug
             vcpkg_triplet: x64-windows-static
-          - os: depot-macos-latest
+          - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
             build_type: Debug
             vcpkg_triplet: arm64-osx
           # Release
-          - os: depot-ubuntu-latest
+          - os: ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
             build_type: Release
             vcpkg_triplet: x64-linux
-          - os: depot-ubuntu-latest
+          - os: ubuntu-latest
             c_compiler: clang-19
             cpp_compiler: clang++-19
             build_type: Release
             vcpkg_triplet: x64-linux
-          - os: depot-windows-latest
+          - os: windows-latest
             build_type: Release
             vcpkg_triplet: x64-windows-static
-          - os: depot-macos-latest
+          - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
             build_type: Release
             vcpkg_triplet: arm64-osx
-    runs-on: ${{ matrix.os }}
+    runs-on: depot-${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - name: Install macOS build tools
