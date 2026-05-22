@@ -61,7 +61,8 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/vcpkg_installed
-          key: ${{ runner.os }}-clang-x64-linux-${{ hashFiles('**/vcpkg.json') }}
+          key:
+            ${{ runner.os }}-clang-x64-linux-${{ hashFiles('**/vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-clang-x64-linux-
       - name: Setup vcpkg
@@ -76,7 +77,11 @@ jobs:
             xargs clang-format-19 -style=file --dry-run --Werror
       - name: Configure CMake
         run: >
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_COVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+          -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{
+          env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+          -DENABLE_COVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
 
       - name: Build
         run: cmake --build build
@@ -130,7 +135,11 @@ jobs:
           vcpkgJsonGlob: "**/vcpkg.json"
       - name: Configure CMake (ASAN + UBSAN)
         run: >
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DSANITIZE_ADDRESS=ON -DSANITIZE_UNDEFINED=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+          -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{
+          env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
+          -DSANITIZE_ADDRESS=ON -DSANITIZE_UNDEFINED=ON -DCMAKE_C_COMPILER=gcc
+          -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -175,24 +184,34 @@ jobs:
           vcpkgJsonGlob: "**/vcpkg.json"
       - name: Configure CMake (Fuzzing)
         run: >
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_FUZZING=ON -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+          -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{
+          env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_FUZZING=ON
+          -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
 
       - name: Build fuzz targets
         run: >
-          cmake --build build --target fuzz_msgpack_decoder fuzz_trade_update_parser fuzz_risk_manager
+          cmake --build build --target fuzz_msgpack_decoder
+          fuzz_trade_update_parser fuzz_risk_manager
 
       - name: Fuzz AlpacaMsgpackDecoder (10s)
-        run: ./build/fuzz_msgpack_decoder fuzz/corpus/msgpack_decoder -max_total_time=10 -print_final_stats=1
+        run:
+          ./build/fuzz_msgpack_decoder fuzz/corpus/msgpack_decoder
+          -max_total_time=10 -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
       - name: Fuzz parseTradingUpdate (10s)
-        run: ./build/fuzz_trade_update_parser fuzz/corpus/trade_update_parser -max_total_time=10 -print_final_stats=1
+        run:
+          ./build/fuzz_trade_update_parser fuzz/corpus/trade_update_parser
+          -max_total_time=10 -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
       - name: Fuzz RiskManager (10s)
-        run: ./build/fuzz_risk_manager fuzz/corpus/risk_manager -max_total_time=10 -print_final_stats=1
+        run:
+          ./build/fuzz_risk_manager fuzz/corpus/risk_manager -max_total_time=10
+          -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
@@ -226,34 +245,34 @@ jobs:
       matrix:
         include:
           # Debug
-          - os: ubuntu-latest
+          - os: depot-ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
             build_type: Debug
             vcpkg_triplet: x64-linux
-          - os: windows-latest
+          - os: depot-windows-latest
             build_type: Debug
             vcpkg_triplet: x64-windows-static
-          - os: macos-latest
+          - os: depot-macos-latest
             c_compiler: clang
             cpp_compiler: clang++
             build_type: Debug
             vcpkg_triplet: arm64-osx
           # Release
-          - os: ubuntu-latest
+          - os: depot-ubuntu-latest
             c_compiler: gcc
             cpp_compiler: g++
             build_type: Release
             vcpkg_triplet: x64-linux
-          - os: ubuntu-latest
+          - os: depot-ubuntu-latest
             c_compiler: clang-19
             cpp_compiler: clang++-19
             build_type: Release
             vcpkg_triplet: x64-linux
-          - os: windows-latest
+          - os: depot-windows-latest
             build_type: Release
             vcpkg_triplet: x64-windows-static
-          - os: macos-latest
+          - os: depot-macos-latest
             c_compiler: clang
             cpp_compiler: clang++
             build_type: Release
@@ -296,7 +315,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ github.workspace }}/vcpkg_installed
-          key: ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.vcpkg_triplet }}-${{ hashFiles('**/vcpkg.json') }}
+          key:
+            ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{
+            matrix.vcpkg_triplet }}-${{ hashFiles('**/vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.vcpkg_triplet }}-
       - name: Setup vcpkg
@@ -314,7 +335,11 @@ jobs:
       - name: Configure CMake
         if: runner.os != 'Windows'
         run: >
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }} -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_COVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT
+          }}/scripts/buildsystems/vcpkg.cmake -DENABLE_COVERAGE=ON
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 
         env:
           CC: ${{ env.CC || matrix.c_compiler }}
@@ -323,13 +348,19 @@ jobs:
       - name: Configure CMake (Windows)
         if: runner.os == 'Windows'
         run: >
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }} -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT }}\scripts\buildsystems\vcpkg.cmake" -DENABLE_COVERAGE=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.vcpkg_triplet }}
+          -DCMAKE_TOOLCHAIN_FILE="${{ env.VCPKG_ROOT
+          }}\scripts\buildsystems\vcpkg.cmake" -DENABLE_COVERAGE=ON
+          -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
         shell: pwsh
       - name: Build
         run: cmake --build build --config ${{ matrix.build_type }}
       - name: Test (Clang)
-        if: (runner.os == 'Linux' || runner.os == 'macOS') && startsWith(matrix.c_compiler, 'clang')
+        if:
+          (runner.os == 'Linux' || runner.os == 'macOS') &&
+          startsWith(matrix.c_compiler, 'clang')
         working-directory: ./build
         run: |
           LLVM_PROFILE_FILE="default.profraw" ctest --build-config ${{ matrix.build_type }} --output-on-failure
@@ -407,7 +438,9 @@ jobs:
       - name: Upload executable artifact
         uses: actions/upload-artifact@v7
         with:
-          name: trading-engine-${{ matrix.os }}-${{ matrix.cpp_compiler || 'msvc' }}-${{ matrix.build_type }}
+          name:
+            trading-engine-${{ matrix.os }}-${{ matrix.cpp_compiler || 'msvc'
+            }}-${{ matrix.build_type }}
           path: |
             build/paper_money
             build/Release/paper_money.exe
@@ -449,24 +482,34 @@ jobs:
           vcpkgJsonGlob: "**/vcpkg.json"
       - name: Configure CMake (Fuzzing)
         run: >
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_FUZZING=ON -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
+          -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{
+          env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_FUZZING=ON
+          -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
 
       - name: Build fuzz targets
         run: >
-          cmake --build build --target fuzz_msgpack_decoder fuzz_trade_update_parser fuzz_risk_manager
+          cmake --build build --target fuzz_msgpack_decoder
+          fuzz_trade_update_parser fuzz_risk_manager
 
       - name: Fuzz AlpacaMsgpackDecoder (60s)
-        run: ./build/fuzz_msgpack_decoder fuzz/corpus/msgpack_decoder -max_total_time=60 -print_final_stats=1
+        run:
+          ./build/fuzz_msgpack_decoder fuzz/corpus/msgpack_decoder
+          -max_total_time=60 -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
       - name: Fuzz parseTradingUpdate (60s)
-        run: ./build/fuzz_trade_update_parser fuzz/corpus/trade_update_parser -max_total_time=60 -print_final_stats=1
+        run:
+          ./build/fuzz_trade_update_parser fuzz/corpus/trade_update_parser
+          -max_total_time=60 -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
       - name: Fuzz RiskManager (30s)
-        run: ./build/fuzz_risk_manager fuzz/corpus/risk_manager -max_total_time=30 -print_final_stats=1
+        run:
+          ./build/fuzz_risk_manager fuzz/corpus/risk_manager -max_total_time=30
+          -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
