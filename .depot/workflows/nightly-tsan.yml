@@ -44,10 +44,7 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: >
-            cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
-            -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{
-            env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake
-            -DSANITIZE_THREAD=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
+            cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DSANITIZE_THREAD=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
 
       - name: Build
         run: cmake --build build -j$(nproc)
@@ -97,34 +94,24 @@ jobs:
           restore-keys: fuzz-corpus-
       - name: Configure CMake (Fuzzing)
         run: >
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
-          -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{
-          env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_FUZZING=ON
-          -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug -DVCPKG_TARGET_TRIPLET=x64-linux -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DENABLE_FUZZING=ON -DCMAKE_C_COMPILER=clang-19 -DCMAKE_CXX_COMPILER=clang++-19
 
       - name: Build fuzz targets
         run: >
-          cmake --build build --target fuzz_msgpack_decoder
-          fuzz_trade_update_parser fuzz_risk_manager
+          cmake --build build --target fuzz_msgpack_decoder fuzz_trade_update_parser fuzz_risk_manager
 
       - name: Fuzz AlpacaMsgpackDecoder (600s)
-        run:
-          ./build/fuzz_msgpack_decoder fuzz/corpus/msgpack_decoder
-          -max_total_time=600 -print_final_stats=1
+        run: ./build/fuzz_msgpack_decoder fuzz/corpus/msgpack_decoder -max_total_time=600 -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
       - name: Fuzz parseTradingUpdate (600s)
-        run:
-          ./build/fuzz_trade_update_parser fuzz/corpus/trade_update_parser
-          -max_total_time=600 -print_final_stats=1
+        run: ./build/fuzz_trade_update_parser fuzz/corpus/trade_update_parser -max_total_time=600 -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
       - name: Fuzz RiskManager (300s)
-        run:
-          ./build/fuzz_risk_manager fuzz/corpus/risk_manager -max_total_time=300
-          -print_final_stats=1
+        run: ./build/fuzz_risk_manager fuzz/corpus/risk_manager -max_total_time=300 -print_final_stats=1
         env:
           ASAN_OPTIONS: "halt_on_error=1:detect_leaks=1"
           UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1"
