@@ -31,7 +31,7 @@ jobs:
         run: pip install pre-commit
 
       - name: Cache pre-commit
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -64,7 +64,7 @@ jobs:
           sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-19 llvm-19 clang-format-19 clang-tidy-19 libstdc++-14-dev g++-14
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-clang-x64-linux-${{ hashFiles('**/vcpkg.json') }}
@@ -140,7 +140,7 @@ jobs:
           sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-asan-${{ hashFiles('**/vcpkg.json') }}
@@ -199,7 +199,7 @@ jobs:
           sudo apt-get install -y clang-19 llvm-19
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-fuzz-${{ hashFiles('**/vcpkg.json') }}
@@ -353,7 +353,7 @@ jobs:
           echo "CXX=/usr/bin/clang++" >> $GITHUB_ENV
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.vcpkg_triplet }}-${{ hashFiles('**/vcpkg.json') }}
@@ -522,7 +522,7 @@ jobs:
           sudo apt-get install -y clang-19 llvm-19
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-fuzz-${{ hashFiles('**/vcpkg.json') }}
