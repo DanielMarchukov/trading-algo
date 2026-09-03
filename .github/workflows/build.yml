@@ -20,10 +20,10 @@ jobs:
   pre-commit-checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Python 3.14
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
@@ -31,7 +31,7 @@ jobs:
         run: pip install pre-commit
 
       - name: Cache pre-commit
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -46,7 +46,7 @@ jobs:
   quick-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up CMake 3.28.3
         uses: jwlawson/actions-setup-cmake@v2
@@ -64,7 +64,7 @@ jobs:
           sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config lcov llvm clang-19 llvm-19 clang-format-19 clang-tidy-19 libstdc++-14-dev g++-14
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-clang-x64-linux-${{ hashFiles('**/vcpkg.json') }}
@@ -114,7 +114,7 @@ jobs:
           lcov --remove coverage.info '/usr/*' '*/vcpkg_installed/*' '*/tests/*' --output-file coverage.info --ignore-errors unused
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./build/coverage.info
@@ -127,7 +127,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up CMake 3.28.3
         uses: jwlawson/actions-setup-cmake@v2
@@ -140,7 +140,7 @@ jobs:
           sudo apt-get install -y autoconf automake autoconf-archive libtool pkg-config
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-asan-${{ hashFiles('**/vcpkg.json') }}
@@ -180,7 +180,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up CMake 3.28.3
         uses: jwlawson/actions-setup-cmake@v2
@@ -199,7 +199,7 @@ jobs:
           sudo apt-get install -y clang-19 llvm-19
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-fuzz-${{ hashFiles('**/vcpkg.json') }}
@@ -313,7 +313,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install macOS build tools
         if: runner.os == 'macOS'
@@ -353,7 +353,7 @@ jobs:
           echo "CXX=/usr/bin/clang++" >> $GITHUB_ENV
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-${{ matrix.cpp_compiler || 'default' }}-${{ matrix.vcpkg_triplet }}-${{ hashFiles('**/vcpkg.json') }}
@@ -478,7 +478,7 @@ jobs:
           }
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./build/coverage.info,./build/coverage.xml
@@ -503,7 +503,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up CMake 3.28.3
         uses: jwlawson/actions-setup-cmake@v2
@@ -522,7 +522,7 @@ jobs:
           sudo apt-get install -y clang-19 llvm-19
 
       - name: Cache vcpkg dependencies
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ github.workspace }}/vcpkg_installed
           key: ${{ runner.os }}-fuzz-${{ hashFiles('**/vcpkg.json') }}
@@ -576,7 +576,7 @@ jobs:
       security-events: write
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
